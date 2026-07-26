@@ -8,7 +8,7 @@ This checklist tracks the architectural documentation required before implementa
 - [x] Principles.md
 - [x] Guardrails.md
 - [x] Product-Boundaries.md
-- [ ] Roadmap.md
+- [x] Roadmap.md
 
 ## Phase 2 - Domain
 
