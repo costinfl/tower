@@ -5,7 +5,7 @@ This checklist tracks the architectural documentation required before implementa
 ## Phase 1 - Vision
 
 - [x] Vision.md
-- [ ] Principles.md
+- [x] Principles.md
 - [ ] Guardrails.md
 - [ ] Product-Boundaries.md
 - [ ] Roadmap.md
