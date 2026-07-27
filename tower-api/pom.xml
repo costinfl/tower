@@ -24,51 +24,68 @@
       <artifactId>tower-application</artifactId>
       <version>${project.version}</version>
     </dependency>
+    <!--
+      tower-api is the composition root. It compiles against the domain and
+      the application ports above and against nothing else Tower-owned.
+
+      Every adapter below is runtime scope on purpose: Spring needs them on
+      the classpath to wire, but the compiler will reject any attempt to
+      import an adapter type from this module. That makes the layering a
+      structural fact rather than a convention a reviewer has to police, and
+      the architecture tests in src/test back it up.
+
+      tower-web carries no Java at all. It is the built Viewer packaged as
+      static content under META-INF/resources, and depending on it here is
+      what lets a single `mvn spring-boot:run` serve both the API and the
+      user interface (ADR-009, clone-build-run).
+    -->
     <dependency>
       <groupId>dev.tower</groupId>
       <artifactId>tower-collector</artifactId>
       <version>${project.version}</version>
+      <scope>runtime</scope>
     </dependency>
     <dependency>
       <groupId>dev.tower</groupId>
       <artifactId>tower-connector-api</artifactId>
       <version>${project.version}</version>
+      <scope>runtime</scope>
     </dependency>
     <dependency>
       <groupId>dev.tower</groupId>
       <artifactId>tower-connector-manual</artifactId>
       <version>${project.version}</version>
+      <scope>runtime</scope>
     </dependency>
     <dependency>
       <groupId>dev.tower</groupId>
       <artifactId>tower-persistence</artifactId>
       <version>${project.version}</version>
+      <scope>runtime</scope>
     </dependency>
     <dependency>
       <groupId>dev.tower</groupId>
       <artifactId>tower-config</artifactId>
       <version>${project.version}</version>
+      <scope>runtime</scope>
     </dependency>
     <dependency>
       <groupId>dev.tower</groupId>
       <artifactId>tower-docgen</artifactId>
       <version>${project.version}</version>
+      <scope>runtime</scope>
     </dependency>
     <dependency>
       <groupId>dev.tower</groupId>
       <artifactId>tower-portability</artifactId>
       <version>${project.version}</version>
+      <scope>runtime</scope>
     </dependency>
-    <!--
-      The Viewer is packaged as static content inside the tower-web jar
-      (META-INF/resources). Depending on it here is what makes a single
-      `mvn spring-boot:run` serve both the API and the user interface,
-      which is the clone-build-run goal in ADR-009.
-    -->
     <dependency>
       <groupId>dev.tower</groupId>
       <artifactId>tower-web</artifactId>
       <version>${project.version}</version>
+      <scope>runtime</scope>
     </dependency>
     <dependency>
       <groupId>org.springframework.boot</groupId>
