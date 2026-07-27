@@ -43,22 +43,35 @@ public class TowerConfigEnvironmentPostProcessor implements EnvironmentPostProce
 
         MutablePropertySources propertySources = environment.getPropertySources();
 
-        // Expose the resolved home directory so it can be bound (e.g. by tower-persistence)
-        // without every consumer re-deriving TOWER_HOME resolution logic.
-        propertySources.addLast(new MapPropertySource("towerHome", Map.of("tower.home", home.toString())));
-
         Path configFile = home.resolve("config.yml");
-        if (!Files.isRegularFile(configFile)) {
-            return;
-        }
-        try {
-            List<PropertySource<?>> loaded =
-                    new YamlPropertySourceLoader().load("towerConfig", new FileSystemResource(configFile));
-            for (PropertySource<?> source : loaded) {
-                propertySources.addFirst(source);
+        if (Files.isRegularFile(configFile)) {
+            try {
+                List<PropertySource<?>> loaded =
+                        new YamlPropertySourceLoader().load("towerConfig", new FileSystemResource(configFile));
+                for (PropertySource<?> source : loaded) {
+                    propertySources.addFirst(source);
+                }
+            } catch (IOException e) {
+                throw new IllegalStateException("Unable to load Tower configuration file " + configFile, e);
             }
-        } catch (IOException e) {
-            throw new IllegalStateException("Unable to load Tower configuration file " + configFile, e);
         }
+
+        // Expose the resolved home directory so consumers such as tower-persistence can bind it
+        // without re-deriving the resolution logic.
+        //
+        // This is added LAST so that it sits FIRST in precedence, ahead of everything above
+        // including Spring's systemEnvironment source. That ordering is load-bearing, for two
+        // reasons.
+        //
+        // Spring's relaxed binding maps the TOWER_HOME environment variable onto the property
+        // name tower.home. At lower precedence this source would be shadowed whenever TOWER_HOME
+        // is set, and consumers would receive the raw environment string rather than the resolved
+        // path actually in use — which differ for anything Paths.get normalises, a trailing
+        // slash being the obvious case.
+        //
+        // config.yml must not win either: the directory has already been resolved and read by the
+        // time that file is parsed, so letting it redefine tower.home would report a location
+        // nothing actually used.
+        propertySources.addFirst(new MapPropertySource("towerHome", Map.of("tower.home", home.toString())));
     }
 }
