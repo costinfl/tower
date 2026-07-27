@@ -29,11 +29,11 @@ This checklist tracks the architectural documentation required before implementa
 
 ## Phase 4 - Architecture Decisions
 
-- [ ] ADR-000 Template
-- [ ] ADR-001 Read-only Architecture
-- [ ] ADR-002 Observation is the Atomic Unit
-- [ ] ADR-003 Vendor-neutral Connectors
-- [ ] ADR-004 Release Pack is a Logical Grouping
+- [x] ADR-000-Template.md
+- [x] ADR-001-Read-Only-Architecture.md
+- [x] ADR-002-Observation-Is-The-Atomic-Unit.md
+- [x] ADR-003-Vendor-Neutral-Connectors.md
+- [x] ADR-004-Release-Pack-Is-The-Central-Concept.md
 
 ## Phase 5 - Planning Preparation
 
@@ -43,4 +43,4 @@ This checklist tracks the architectural documentation required before implementa
 
 ---
 
-Current Phase: **Phase 4 - Architecture Decisions**
+Current Phase: **Phase 5 - Planning Preparation**
