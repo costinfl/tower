@@ -1,6 +1,7 @@
 package dev.tower.domain.promotionpath;
 
 import dev.tower.domain.environment.EnvironmentId;
+import dev.tower.domain.shared.DomainConflictException;
 import dev.tower.domain.shared.DomainException;
 
 import java.time.Instant;
@@ -71,7 +72,8 @@ public final class PromotionPath {
      * reporting the topology they followed (ADR-007, SM-06).
      */
     public PromotionPath withNewVersion(List<EnvironmentId> environments, Instant now) {
-        DomainException.require(!archived, "An archived Promotion Path cannot receive new versions.");
+        DomainConflictException.requireNoConflict(!archived,
+                "An archived Promotion Path cannot receive new versions.");
         PromotionPathVersion next = new PromotionPathVersion(versions.size() + 1, environments, now);
         List<PromotionPathVersion> updated = new ArrayList<>(versions);
         updated.add(next);
@@ -79,7 +81,8 @@ public final class PromotionPath {
     }
 
     public PromotionPath rename(String newName) {
-        DomainException.require(!archived, "An archived Promotion Path cannot be renamed.");
+        DomainConflictException.requireNoConflict(!archived,
+                "An archived Promotion Path cannot be renamed.");
         return new PromotionPath(id, newName, versions, false);
     }
 

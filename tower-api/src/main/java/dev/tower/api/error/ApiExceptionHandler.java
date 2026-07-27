@@ -17,6 +17,7 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import dev.tower.application.service.ApplicationException;
 import dev.tower.application.service.NotFoundException;
+import dev.tower.domain.shared.DomainConflictException;
 import dev.tower.domain.shared.DomainException;
 
 /**
@@ -27,7 +28,8 @@ import dev.tower.domain.shared.DomainException;
  *
  * <p>Issue #12 adds the three exceptions the application and domain layers raise:
  * {@link NotFoundException} (404), {@link ApplicationException} (409, a cross-aggregate rule such
- * as a name collision or a broken reference) and {@link DomainException} (400, a single-aggregate
+ * as a name collision or a broken reference), {@link DomainConflictException} (409, a single-aggregate
+ * rule the current state forbids) and {@link DomainException} (400, a single-aggregate
  * invariant such as a blank name).
  */
 @RestControllerAdvice
@@ -43,6 +45,17 @@ public class ApiExceptionHandler {
     @ExceptionHandler(ApplicationException.class)
     public ResponseEntity<ErrorResponse> handleApplicationException(
             ApplicationException ex, HttpServletRequest request) {
+        return build(HttpStatus.CONFLICT, ex.getMessage(), request);
+    }
+
+    /**
+     * A well-formed request the aggregate's current state forbids, such as adding a second version
+     * of an Application a Release Pack already contains. Declared before the DomainException
+     * handler because DomainConflictException extends it, and Spring picks the most specific match.
+     */
+    @ExceptionHandler(DomainConflictException.class)
+    public ResponseEntity<ErrorResponse> handleDomainConflict(
+            DomainConflictException ex, HttpServletRequest request) {
         return build(HttpStatus.CONFLICT, ex.getMessage(), request);
     }
 

@@ -6,6 +6,7 @@ import dev.tower.domain.handover.Handover;
 import dev.tower.domain.iteration.Iteration;
 import dev.tower.domain.iteration.IterationId;
 import dev.tower.domain.promotionpath.PromotionPathId;
+import dev.tower.domain.shared.DomainConflictException;
 import dev.tower.domain.shared.DomainException;
 
 import java.time.Instant;
@@ -112,9 +113,9 @@ public final class ReleasePack {
         PackedVersion incoming = new PackedVersion(applicationId, versionId);
 
         for (PackedVersion existing : contents) {
-            DomainException.require(!existing.versionId().equals(versionId),
+            DomainConflictException.requireNoConflict(!existing.versionId().equals(versionId),
                     "This Application Version is already in the Release Pack.");
-            DomainException.require(!existing.applicationId().equals(applicationId),
+            DomainConflictException.requireNoConflict(!existing.applicationId().equals(applicationId),
                     "The Release Pack already contains a different version of this Application."
                             + " Remove it first, since only one version of an Application can be delivered.");
         }
@@ -129,7 +130,8 @@ public final class ReleasePack {
         requireActive("changed");
         List<PackedVersion> updated = new ArrayList<>(contents);
         boolean removed = updated.removeIf(entry -> entry.versionId().equals(versionId));
-        DomainException.require(removed, "This Application Version is not in the Release Pack.");
+        DomainConflictException.requireNoConflict(removed,
+                "This Application Version is not in the Release Pack.");
         return copyWith(name, description, promotionPath, updated, handover, iterations, archived);
     }
 
@@ -153,7 +155,8 @@ public final class ReleasePack {
         DomainException.require(iteration != null, "Iteration is required.");
         List<Iteration> updated = new ArrayList<>(iterations);
         int index = indexOfIteration(iteration.id());
-        DomainException.require(index >= 0, "This Iteration does not belong to the Release Pack.");
+        DomainConflictException.requireNoConflict(index >= 0,
+                "This Iteration does not belong to the Release Pack.");
         updated.set(index, iteration);
         return copyWith(name, description, promotionPath, contents, handover, updated, archived);
     }
@@ -162,7 +165,8 @@ public final class ReleasePack {
         requireActive("changed");
         List<Iteration> updated = new ArrayList<>(iterations);
         boolean removed = updated.removeIf(existing -> existing.id().equals(iterationId));
-        DomainException.require(removed, "This Iteration does not belong to the Release Pack.");
+        DomainConflictException.requireNoConflict(removed,
+                "This Iteration does not belong to the Release Pack.");
         return copyWith(name, description, promotionPath, contents, handover, updated, archived);
     }
 
@@ -245,7 +249,7 @@ public final class ReleasePack {
     }
 
     private void requireActive(String action) {
-        DomainException.require(!archived,
+        DomainConflictException.requireNoConflict(!archived,
                 "An archived Release Pack cannot be " + action + ". Restore it first.");
     }
 
