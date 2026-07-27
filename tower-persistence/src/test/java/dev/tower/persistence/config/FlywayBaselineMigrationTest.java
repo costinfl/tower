@@ -17,9 +17,9 @@ import org.junit.jupiter.api.io.TempDir;
 import dev.tower.config.TowerPaths;
 
 /**
- * Confirms the baseline migration (V1__baseline.sql, on the module classpath) applies cleanly
- * against the H2 DataSource this module builds. Issue #3: Flyway migrations under
- * tower-persistence/src/main/resources/db/migration.
+ * Confirms every migration on the module classpath (V1__baseline.sql, plus V2 added for issue
+ * #12) applies cleanly against the H2 DataSource this module builds. Issue #3: Flyway migrations
+ * under tower-persistence/src/main/resources/db/migration.
  */
 class FlywayBaselineMigrationTest {
 
@@ -29,7 +29,7 @@ class FlywayBaselineMigrationTest {
     Path tempDir;
 
     @Test
-    void appliesBaselineMigration() throws Exception {
+    void appliesEveryMigration() throws Exception {
         TowerPaths paths = new TowerPaths(tempDir.resolve("data"));
         DataSource dataSource = configuration.dataSource(paths);
 
@@ -37,12 +37,12 @@ class FlywayBaselineMigrationTest {
         MigrateResult result = flyway.migrate();
 
         assertThat(result.success).isTrue();
-        assertThat(result.migrationsExecuted).isEqualTo(1);
+        assertThat(result.migrationsExecuted).isEqualTo(2);
 
         try (Connection connection = dataSource.getConnection();
                 Statement statement = connection.createStatement();
                 ResultSet resultSet = statement.executeQuery(
-                        "SELECT \"version\" FROM \"flyway_schema_history\" WHERE \"version\" = '1'")) {
+                        "SELECT \"version\" FROM \"flyway_schema_history\" WHERE \"version\" = '2'")) {
             assertThat(resultSet.next()).isTrue();
         }
     }

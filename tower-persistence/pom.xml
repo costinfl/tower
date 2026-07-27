@@ -30,9 +30,15 @@
       <artifactId>tower-config</artifactId>
       <version>${project.version}</version>
     </dependency>
+    <!--
+      Pure JDBC (Spring JdbcClient), not JPA: the domain types are immutable and carry no
+      framework dependency (an architecture test enforces that no persistence annotation ever
+      appears on them), so there is nothing for an ORM to map. spring-boot-starter-jdbc pulls in
+      spring-jdbc (JdbcClient), a DataSource-backed PlatformTransactionManager and HikariCP.
+    -->
     <dependency>
       <groupId>org.springframework.boot</groupId>
-      <artifactId>spring-boot-starter-data-jpa</artifactId>
+      <artifactId>spring-boot-starter-jdbc</artifactId>
     </dependency>
     <dependency>
       <groupId>com.h2database</groupId>
