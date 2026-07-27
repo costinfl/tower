@@ -21,11 +21,11 @@ This checklist tracks the architectural documentation required before implementa
 
 ## Phase 3 - Architecture
 
-- [ ] Context.md
-- [ ] Connector-Model.md
-- [ ] Information-Architecture.md
-- [ ] Functional-Requirements.md
-- [ ] Non-Functional-Requirements.md
+- [x] Context.md
+- [x] Connector-Model.md
+- [x] Information-Architecture.md
+- [x] Functional-Requirements.md
+- [x] Non-Functional-Requirements.md
 
 ## Phase 4 - Architecture Decisions
 
@@ -43,4 +43,4 @@ This checklist tracks the architectural documentation required before implementa
 
 ---
 
-Current Phase: **Phase 3 - Architecture**
+Current Phase: **Phase 4 - Architecture Decisions**
