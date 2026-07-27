@@ -1,0 +1,68 @@
+name: build
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+# Cancel superseded runs on the same ref rather than paying for both.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: build and verify
+    runs-on: ubuntu-latest
+
+    env:
+      # ADR-009 resolves application data to ~/.tower, overridable for CI so the
+      # build never depends on, or writes to, the runner's home directory.
+      TOWER_HOME: ${{ github.workspace }}/.ci-tower-home
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: temurin
+          cache: maven
+
+      # The frontend is built by frontend-maven-plugin inside the Maven
+      # reactor, so a single `mvn verify` covers backend and Viewer alike.
+      # Node itself is downloaded by that plugin; caching it keeps the run fast.
+      - name: Cache frontend toolchain
+        uses: actions/cache@v4
+        with:
+          path: |
+            tower-web/node
+            tower-web/node_modules
+          key: ${{ runner.os }}-frontend-${{ hashFiles('tower-web/package-lock.json') }}
+          restore-keys: ${{ runner.os }}-frontend-
+
+      - name: Build, test and verify architecture
+        run: mvn -B --no-transfer-progress verify
+
+      # ADR-009 keeps application data outside the working tree. If a build ever
+      # writes a database file or a config file into the repository, that is a
+      # defect and the build should say so rather than let it reach a commit.
+      - name: Assert the working tree is clean
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "::error::Build wrote files into the working tree:"
+            git status --porcelain
+            exit 1
+          fi
+          echo "Working tree is clean."
+
+      - name: Upload test reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: "**/target/surefire-reports/**"
+          retention-days: 7
