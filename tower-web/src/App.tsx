@@ -1,18 +1,22 @@
 import { useEffect, useState } from "react";
 import { getHealth } from "./api/client";
+import ApplicationsPage from "./pages/ApplicationsPage";
 import EnvironmentsPage from "./pages/EnvironmentsPage";
 import PromotionPathsPage from "./pages/PromotionPathsPage";
+import ReleasePacksPage from "./pages/ReleasePacksPage";
 
 type ConnectionState =
   | { kind: "loading" }
   | { kind: "connected"; status: string }
   | { kind: "error"; message: string };
 
-type Tab = "paths" | "environments";
+// Release Packs leads the nav — it is Tower's central business concept
+// (ADR-004) and every other screen exists to support it.
+type Tab = "releasePacks" | "applications" | "paths" | "environments";
 
 export default function App() {
   const [connection, setConnection] = useState<ConnectionState>({ kind: "loading" });
-  const [tab, setTab] = useState<Tab>("paths");
+  const [tab, setTab] = useState<Tab>("releasePacks");
 
   useEffect(() => {
     let cancelled = false;
@@ -42,6 +46,20 @@ export default function App() {
         <nav className="app-nav">
           <button
             type="button"
+            className={tab === "releasePacks" ? "app-nav__tab app-nav__tab--active" : "app-nav__tab"}
+            onClick={() => setTab("releasePacks")}
+          >
+            Release Packs
+          </button>
+          <button
+            type="button"
+            className={tab === "applications" ? "app-nav__tab app-nav__tab--active" : "app-nav__tab"}
+            onClick={() => setTab("applications")}
+          >
+            Applications
+          </button>
+          <button
+            type="button"
             className={tab === "paths" ? "app-nav__tab app-nav__tab--active" : "app-nav__tab"}
             onClick={() => setTab("paths")}
           >
@@ -62,7 +80,10 @@ export default function App() {
         </p>
       </header>
       <main className="app-main">
-        {tab === "paths" ? <PromotionPathsPage /> : <EnvironmentsPage />}
+        {tab === "releasePacks" && <ReleasePacksPage />}
+        {tab === "applications" && <ApplicationsPage />}
+        {tab === "paths" && <PromotionPathsPage />}
+        {tab === "environments" && <EnvironmentsPage />}
       </main>
     </div>
   );

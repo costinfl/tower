@@ -123,6 +123,15 @@ function deleteRequest(path: string): Promise<void> {
   return request<void>(path, { method: "DELETE" });
 }
 
+// A handful of DELETE endpoints below remove one thing from inside a
+// Release Pack (a content version, an Iteration, the pinned Promotion
+// Path) rather than deleting a standalone resource, so — like the POST/PUT
+// mutations on the same aggregate — they hand back the updated
+// ReleasePackView instead of 204 No Content.
+function deleteJson<T>(path: string): Promise<T> {
+  return request<T>(path, { method: "DELETE" });
+}
+
 // --- Health ---------------------------------------------------------------
 
 export function getHealth(): Promise<HealthStatus> {
@@ -179,4 +188,261 @@ export function restorePromotionPath(id: string): Promise<PathView> {
 
 export function deletePromotionPath(id: string): Promise<void> {
   return deleteRequest(`/api/promotion-paths/${encodeURIComponent(id)}`);
+}
+
+// --- Applications -----------------------------------------------------
+
+export interface Application {
+  id: string;
+  name: string;
+  description: string;
+}
+
+export interface ApplicationInput {
+  name: string;
+  description: string;
+}
+
+// --- Application Versions -----------------------------------------------
+
+// Application Versions are immutable once registered (BR-01): the API
+// surface intentionally offers create and delete only, never update.
+export interface ApplicationVersion {
+  id: string;
+  applicationId: string;
+  version: string;
+  branch: string | null;
+  tag: string | null;
+  commit: string | null;
+  buildIdentifier: string | null;
+}
+
+export interface ApplicationVersionInput {
+  applicationId: string;
+  version: string;
+  branch?: string;
+  tag?: string;
+  commit?: string;
+  buildIdentifier?: string;
+}
+
+// --- Release Packs --------------------------------------------------------
+
+// A Release Pack pins a specific Promotion Path VERSION (ADR-007), not the
+// path's current state — pathName/versionNumber/environments describe the
+// topology as it stood when pinned, which may differ from the path today.
+export interface ReleasePackPromotionPath {
+  pathId: string;
+  pathName: string;
+  versionNumber: number;
+  environments: Environment[];
+}
+
+export interface ReleasePackContent {
+  applicationId: string;
+  applicationName: string;
+  versionId: string;
+  version: string;
+  branch: string | null;
+  tag: string | null;
+  commit: string | null;
+  buildIdentifier: string | null;
+}
+
+// Handed to another team to carry out a deployment. Every field is free
+// text; none are required up front (see ReleasePacksPage's "not prepared
+// yet" state).
+export interface ReleasePackHandover {
+  deploymentInstructions: string;
+  shellCommands: string;
+  databaseMigrations: string;
+  rollbackProcedure: string;
+  validationNotes: string;
+  operationalNotes: string;
+}
+
+export interface ReleasePackIteration {
+  id: string;
+  name: string;
+  startedAt: string;
+  completedAt: string | null;
+  notes: string;
+}
+
+// Archived is an explicit lifecycle flag (ADR-008), not a deployment
+// state — it records that the team stopped working the release. Where a
+// pack was actually observed belongs to Epic 3 and is not modelled here.
+export interface ReleasePackView {
+  id: string;
+  name: string;
+  description: string;
+  archived: boolean;
+  promotionPath: ReleasePackPromotionPath | null;
+  contents: ReleasePackContent[];
+  handover: ReleasePackHandover;
+  iterations: ReleasePackIteration[];
+}
+
+export interface ReleasePackInput {
+  name: string;
+  description: string;
+}
+
+export interface SetReleasePackPromotionPathInput {
+  pathId: string;
+  versionNumber: number;
+}
+
+export interface ReleasePackHandoverInput {
+  deploymentInstructions: string;
+  shellCommands: string;
+  databaseMigrations: string;
+  rollbackProcedure: string;
+  validationNotes: string;
+  operationalNotes: string;
+}
+
+export interface ReleasePackIterationInput {
+  name: string;
+  startedAt: string;
+  notes: string;
+}
+
+// --- Applications -----------------------------------------------------
+
+export function getApplications(): Promise<Application[]> {
+  return getJson<Application[]>("/api/applications");
+}
+
+export function getApplication(id: string): Promise<Application> {
+  return getJson<Application>(`/api/applications/${encodeURIComponent(id)}`);
+}
+
+export function createApplication(input: ApplicationInput): Promise<Application> {
+  return postJson<Application>("/api/applications", input);
+}
+
+export function updateApplication(id: string, input: ApplicationInput): Promise<Application> {
+  return putJson<Application>(`/api/applications/${encodeURIComponent(id)}`, input);
+}
+
+export function deleteApplication(id: string): Promise<void> {
+  return deleteRequest(`/api/applications/${encodeURIComponent(id)}`);
+}
+
+export function getApplicationVersions(applicationId: string): Promise<ApplicationVersion[]> {
+  return getJson<ApplicationVersion[]>(`/api/applications/${encodeURIComponent(applicationId)}/versions`);
+}
+
+// --- Application Versions -----------------------------------------------
+
+export function getAllApplicationVersions(): Promise<ApplicationVersion[]> {
+  return getJson<ApplicationVersion[]>("/api/application-versions");
+}
+
+export function getApplicationVersion(id: string): Promise<ApplicationVersion> {
+  return getJson<ApplicationVersion>(`/api/application-versions/${encodeURIComponent(id)}`);
+}
+
+export function createApplicationVersion(input: ApplicationVersionInput): Promise<ApplicationVersion> {
+  return postJson<ApplicationVersion>("/api/application-versions", input);
+}
+
+export function deleteApplicationVersion(id: string): Promise<void> {
+  return deleteRequest(`/api/application-versions/${encodeURIComponent(id)}`);
+}
+
+// --- Release Packs --------------------------------------------------------
+
+export function getReleasePacks(): Promise<ReleasePackView[]> {
+  return getJson<ReleasePackView[]>("/api/release-packs");
+}
+
+export function getReleasePack(id: string): Promise<ReleasePackView> {
+  return getJson<ReleasePackView>(`/api/release-packs/${encodeURIComponent(id)}`);
+}
+
+export function createReleasePack(input: ReleasePackInput): Promise<ReleasePackView> {
+  return postJson<ReleasePackView>("/api/release-packs", input);
+}
+
+export function updateReleasePack(id: string, input: ReleasePackInput): Promise<ReleasePackView> {
+  return putJson<ReleasePackView>(`/api/release-packs/${encodeURIComponent(id)}`, input);
+}
+
+export function deleteReleasePack(id: string): Promise<void> {
+  return deleteRequest(`/api/release-packs/${encodeURIComponent(id)}`);
+}
+
+export function setReleasePackPromotionPath(
+  id: string,
+  input: SetReleasePackPromotionPathInput,
+): Promise<ReleasePackView> {
+  return putJson<ReleasePackView>(`/api/release-packs/${encodeURIComponent(id)}/promotion-path`, input);
+}
+
+export function clearReleasePackPromotionPath(id: string): Promise<ReleasePackView> {
+  return deleteJson<ReleasePackView>(`/api/release-packs/${encodeURIComponent(id)}/promotion-path`);
+}
+
+export function addReleasePackVersion(id: string, versionId: string): Promise<ReleasePackView> {
+  return postJson<ReleasePackView>(
+    `/api/release-packs/${encodeURIComponent(id)}/versions/${encodeURIComponent(versionId)}`,
+  );
+}
+
+export function removeReleasePackVersion(id: string, versionId: string): Promise<ReleasePackView> {
+  return deleteJson<ReleasePackView>(
+    `/api/release-packs/${encodeURIComponent(id)}/versions/${encodeURIComponent(versionId)}`,
+  );
+}
+
+export function updateReleasePackHandover(id: string, input: ReleasePackHandoverInput): Promise<ReleasePackView> {
+  return putJson<ReleasePackView>(`/api/release-packs/${encodeURIComponent(id)}/handover`, input);
+}
+
+export function addReleasePackIteration(id: string, input: ReleasePackIterationInput): Promise<ReleasePackView> {
+  return postJson<ReleasePackView>(`/api/release-packs/${encodeURIComponent(id)}/iterations`, input);
+}
+
+export function completeReleasePackIteration(
+  id: string,
+  iterationId: string,
+  completedAt: string,
+): Promise<ReleasePackView> {
+  return postJson<ReleasePackView>(
+    `/api/release-packs/${encodeURIComponent(id)}/iterations/${encodeURIComponent(iterationId)}/complete`,
+    { completedAt },
+  );
+}
+
+export function reopenReleasePackIteration(id: string, iterationId: string): Promise<ReleasePackView> {
+  return postJson<ReleasePackView>(
+    `/api/release-packs/${encodeURIComponent(id)}/iterations/${encodeURIComponent(iterationId)}/reopen`,
+  );
+}
+
+export function updateReleasePackIterationNotes(
+  id: string,
+  iterationId: string,
+  notes: string,
+): Promise<ReleasePackView> {
+  return putJson<ReleasePackView>(
+    `/api/release-packs/${encodeURIComponent(id)}/iterations/${encodeURIComponent(iterationId)}/notes`,
+    { notes },
+  );
+}
+
+export function deleteReleasePackIteration(id: string, iterationId: string): Promise<ReleasePackView> {
+  return deleteJson<ReleasePackView>(
+    `/api/release-packs/${encodeURIComponent(id)}/iterations/${encodeURIComponent(iterationId)}`,
+  );
+}
+
+export function archiveReleasePack(id: string): Promise<ReleasePackView> {
+  return postJson<ReleasePackView>(`/api/release-packs/${encodeURIComponent(id)}/archive`);
+}
+
+export function restoreReleasePack(id: string): Promise<ReleasePackView> {
+  return postJson<ReleasePackView>(`/api/release-packs/${encodeURIComponent(id)}/restore`);
 }

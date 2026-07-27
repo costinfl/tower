@@ -542,3 +542,442 @@ select {
   display: flex;
   gap: 0.5rem;
 }
+
+/* --- Applications ------------------------------------------------------- */
+
+.app-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.app-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1rem 1.25rem 1.25rem;
+  background: var(--bg);
+  box-shadow: var(--shadow);
+}
+
+.app-card__header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.app-card__name {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.app-card__edit {
+  display: inline-flex;
+  gap: 0.4rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.app-card__description {
+  color: var(--text-muted);
+  margin: 0.35rem 0 0;
+}
+
+.app-card__versions {
+  margin-top: 1rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.85rem;
+}
+
+.app-card__versions h4 {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-muted);
+}
+
+.version-list {
+  list-style: none;
+  margin: 0 0 0.85rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.version-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.85rem;
+}
+
+/* Application Versions are immutable (BR-01): the row offers Delete only,
+   never Edit — there is deliberately no pencil icon here. */
+.version-item__version {
+  font-weight: 600;
+}
+
+.version-item__attr {
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0 0.4rem;
+  font-size: 0.78rem;
+}
+
+.version-item__delete {
+  margin-left: auto;
+}
+
+.inline-form--compact {
+  margin-bottom: 0;
+  padding: 0.75rem 1rem;
+}
+
+/* --- Release Packs ------------------------------------------------------- */
+
+.release-packs-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.release-packs-layout {
+  display: grid;
+  grid-template-columns: 16rem 1fr;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+@media (max-width: 56rem) {
+  .release-packs-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.pack-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  position: sticky;
+  top: 1rem;
+}
+
+.pack-list__item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  text-align: left;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.55rem 0.75rem;
+}
+
+.pack-list__item--active {
+  border-color: var(--accent);
+  background: var(--bg-subtle);
+  font-weight: 600;
+}
+
+.pack-list__item--archived {
+  opacity: 0.6;
+}
+
+.pack-list__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pack-detail {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1.25rem 1.5rem 1.5rem;
+  background: var(--bg);
+  box-shadow: var(--shadow);
+  min-width: 0;
+}
+
+.pack-detail__header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.pack-detail__name {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.pack-detail__edit {
+  display: inline-flex;
+  gap: 0.4rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.pack-detail__description {
+  color: var(--text-muted);
+  margin: 0.35rem 0 0;
+}
+
+.pack-detail__lifecycle {
+  display: flex;
+  gap: 0.5rem;
+  margin: 0.85rem 0;
+}
+
+.pack-section {
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--border);
+}
+
+.pack-section h4 {
+  margin: 0 0 0.75rem;
+  font-size: 0.95rem;
+}
+
+.pack-contents__attrs {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+/* --- Promotion Path panel (inside a Release Pack) ----------------------- */
+
+.promotion-path-panel__header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.25rem;
+}
+
+.promotion-path-panel__name {
+  font-weight: 600;
+}
+
+.promotion-path-panel__actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.promotion-path-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  align-items: flex-start;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.promotion-path-picker__actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* --- Handover ------------------------------------------------------------ */
+
+.handover__toolbar {
+  margin-bottom: 0.75rem;
+}
+
+.handover__fields {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.handover__field dt {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.handover__field dd {
+  margin: 0.25rem 0 0;
+  white-space: pre-wrap;
+}
+
+.handover--editing {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.handover__input textarea {
+  font: inherit;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.5rem 0.6rem;
+  resize: vertical;
+}
+
+.field-hint {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.handover__actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* --- Iterations ------------------------------------------------------------
+   Iteration state (open/complete) is conveyed through colour, a glyph and a
+   text label together, mirroring how Stage is encoded (domain/iteration.ts,
+   domain/stage.ts) — never colour alone. */
+
+.iterations__toolbar {
+  margin-bottom: 0.85rem;
+}
+
+.iteration-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  align-items: flex-start;
+}
+
+.iteration-form textarea {
+  width: 100%;
+  font: inherit;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.5rem 0.6rem;
+  resize: vertical;
+}
+
+.iteration-form__actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.iteration-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.iteration-item {
+  border: 1px solid var(--border);
+  border-left-width: 4px;
+  border-radius: 8px;
+  padding: 0.65rem 0.85rem;
+}
+
+.iteration-state--open {
+  border-left-color: var(--accent);
+}
+
+.iteration-state--complete {
+  border-left-color: var(--ok-text);
+}
+
+.iteration-item__header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.iteration-item__state {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  border-radius: 999px;
+  padding: 0.1rem 0.55rem;
+  border: 1px solid currentColor;
+}
+
+.iteration-state--open .iteration-item__state {
+  color: var(--accent);
+  background: var(--bg-subtle);
+}
+
+.iteration-state--complete .iteration-item__state {
+  color: var(--ok-text);
+  background: var(--ok-bg);
+}
+
+.iteration-item__name {
+  font-weight: 600;
+}
+
+.iteration-item__dates {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  margin-left: auto;
+}
+
+.iteration-item__notes {
+  margin: 0.5rem 0 0;
+  white-space: pre-wrap;
+}
+
+.iteration-item__notes-edit {
+  margin-top: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: flex-start;
+}
+
+.iteration-item__notes-edit textarea {
+  width: 100%;
+  font: inherit;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.5rem 0.6rem;
+  resize: vertical;
+}
+
+.iteration-item__notes-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.iteration-item__actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+  flex-wrap: wrap;
+}
