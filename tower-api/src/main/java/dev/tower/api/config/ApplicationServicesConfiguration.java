@@ -9,10 +9,13 @@ import dev.tower.application.port.out.EnvironmentRepository;
 import dev.tower.application.port.out.ApplicationRepository;
 import dev.tower.application.port.out.ApplicationVersionRepository;
 import dev.tower.application.port.out.PromotionPathRepository;
+import dev.tower.application.port.out.ManualObservationCollector;
+import dev.tower.application.port.out.ObservationRepository;
 import dev.tower.application.port.out.ReleasePackRepository;
 import dev.tower.application.service.ApplicationService;
 import dev.tower.application.service.EnvironmentService;
 import dev.tower.application.service.PromotionPathService;
+import dev.tower.application.service.ObservationService;
 import dev.tower.application.service.ReleasePackService;
 
 /**
@@ -59,5 +62,15 @@ public class ApplicationServicesConfiguration {
             PromotionPathRepository promotionPathRepository, Clock clock) {
         return new ReleasePackService(
                 releasePackRepository, applicationVersionRepository, promotionPathRepository, clock);
+    }
+
+    @Bean
+    public ObservationService observationService(
+            ObservationRepository observationRepository, EnvironmentRepository environmentRepository,
+            ApplicationVersionRepository applicationVersionRepository,
+            ReleasePackRepository releasePackRepository,
+            ManualObservationCollector manualObservationCollector, Clock clock) {
+        return new ObservationService(observationRepository, environmentRepository,
+                applicationVersionRepository, releasePackRepository, manualObservationCollector, clock);
     }
 }
