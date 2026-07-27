@@ -1,0 +1,15 @@
+# ADR-009 (Decision): Tower binds to the local loopback interface only. No authentication is
+# introduced in Milestone 1, and that omission is justified solely by this binding - exposing
+# the application on any other interface requires authentication to be introduced first.
+server:
+  address: 127.0.0.1
+  port: 8080
+
+spring:
+  application:
+    name: tower-api
+
+# Manually kept in sync with the root pom's <version>. Milestone 1+ may replace this with
+# Maven resource-filtered build info; out of scope for issue #4.
+tower:
+  version: 0.1.0-SNAPSHOT
