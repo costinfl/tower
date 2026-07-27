@@ -1,0 +1,25 @@
+# Build output
+target/
+dist/
+node_modules/
+
+# Application data lives in ~/.tower and must never enter the repository.
+# ADR-009 keeps it outside the working tree; these rules are defence in depth.
+.tower/
+*.mv.db
+*.trace.db
+config.yml
+application-local.yml
+application-local.properties
+.env
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.settings/
+.classpath
+.project
+
+# OS
+.DS_Store

@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>dev.tower</groupId>
+  <artifactId>tower-parent</artifactId>
+  <version>0.1.0-SNAPSHOT</version>
+  <packaging>pom</packaging>
+
+  <name>tower-parent</name>
+  <description>Tower — a developer-centric command center for software delivery</description>
+
+  <!--
+    Spring Boot is imported through dependencyManagement rather than inherited as a
+    parent POM. This is deliberate: it lets tower-domain remain free of framework
+    dependencies, which is what makes NFR-004, NFR-005 and NFR-006 enforceable rather
+    than aspirational. See docs/planning/Implementation-Plan.md.
+  -->
+
+  <modules>
+    <module>tower-domain</module>
+    <module>tower-application</module>
+    <module>tower-collector</module>
+    <module>tower-connector-api</module>
+    <module>tower-connector-manual</module>
+    <module>tower-connector-git</module>
+    <module>tower-connector-k8s</module>
+    <module>tower-persistence</module>
+    <module>tower-config</module>
+    <module>tower-docgen</module>
+    <module>tower-portability</module>
+    <module>tower-api</module>
+    <module>tower-web</module>
+  </modules>
+
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <maven.compiler.release>21</maven.compiler.release>
+
+    <spring-boot.version>3.4.1</spring-boot.version>
+    <archunit.version>1.3.0</archunit.version>
+    <jasypt.version>3.0.5</jasypt.version>
+    <frontend-plugin.version>1.15.1</frontend-plugin.version>
+    <node.version>v22.11.0</node.version>
+  </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-dependencies</artifactId>
+        <version>${spring-boot.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <dependency>
+        <groupId>com.tngtech.archunit</groupId>
+        <artifactId>archunit-junit5</artifactId>
+        <version>${archunit.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.github.ulisesbocchio</groupId>
+        <artifactId>jasypt-spring-boot-starter</artifactId>
+        <version>${jasypt.version}</version>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+  <build>
+    <pluginManagement>
+      <plugins>
+        <plugin>
+          <groupId>org.springframework.boot</groupId>
+          <artifactId>spring-boot-maven-plugin</artifactId>
+          <version>${spring-boot.version}</version>
+        </plugin>
+        <plugin>
+          <groupId>com.github.eirslett</groupId>
+          <artifactId>frontend-maven-plugin</artifactId>
+          <version>${frontend-plugin.version}</version>
+        </plugin>
+      </plugins>
+    </pluginManagement>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>3.5.2</version>
+      </plugin>
+    </plugins>
+  </build>
+</project>
