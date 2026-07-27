@@ -25,6 +25,12 @@
       <version>${project.version}</version>
     </dependency>
     <dependency>
+      <!-- Provides TowerPaths, so the database file location follows the resolved data directory. -->
+      <groupId>dev.tower</groupId>
+      <artifactId>tower-config</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-data-jpa</artifactId>
     </dependency>

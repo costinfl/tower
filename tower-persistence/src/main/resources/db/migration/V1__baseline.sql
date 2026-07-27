@@ -1,0 +1,8 @@
+-- V1: baseline.
+--
+-- Establishes the Flyway migration history for the Tower schema. Milestone 1 issues add the
+-- first business tables in later versioned migrations.
+--
+-- ADR-009: the embedded database runs in PostgreSQL compatibility mode and migrations avoid
+-- vendor-specific syntax, so the deferred move to PostgreSQL stays contained to this module.
+-- This migration intentionally defines no tables.
