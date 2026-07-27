@@ -17,8 +17,77 @@
     The Viewer. Communicates exclusively with tower-api and never with an
     External System (CRC-Cards.md, Viewer responsibilities).
 
-    Issue #5 adds the React application and the frontend-maven-plugin binding
-    that builds it into this module's jar, so that a single `mvn spring-boot:run`
-    serves both the API and the user interface (ADR-009, clone-build-run).
+    This module has no Java sources. frontend-maven-plugin installs a
+    project-local Node/npm, runs "npm ci" and "npm run build" against the
+    React + TypeScript + Vite application under src/, and maven-resources-plugin
+    copies the resulting dist/ into META-INF/resources so Spring Boot serves the
+    built SPA as static content. The net effect is that a single
+    `mvn spring-boot:run` (from tower-api, which depends on this jar) serves
+    both the API and the UI with no separate frontend step (ADR-009,
+    clone-build-run).
   -->
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>com.github.eirslett</groupId>
+        <artifactId>frontend-maven-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>install-node-and-npm</id>
+            <goals>
+              <goal>install-node-and-npm</goal>
+            </goals>
+            <configuration>
+              <nodeVersion>${node.version}</nodeVersion>
+            </configuration>
+          </execution>
+          <execution>
+            <id>npm-install</id>
+            <goals>
+              <goal>npm</goal>
+            </goals>
+            <configuration>
+              <arguments>ci</arguments>
+            </configuration>
+          </execution>
+          <execution>
+            <id>npm-build</id>
+            <goals>
+              <goal>npm</goal>
+            </goals>
+            <configuration>
+              <arguments>run build</arguments>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-resources-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>copy-frontend-dist</id>
+            <!--
+              generate-resources (frontend-maven-plugin's default phase for the
+              executions above) runs before process-resources, so dist/ exists
+              by the time this copy runs.
+            -->
+            <phase>process-resources</phase>
+            <goals>
+              <goal>copy-resources</goal>
+            </goals>
+            <configuration>
+              <outputDirectory>${project.build.outputDirectory}/META-INF/resources</outputDirectory>
+              <resources>
+                <resource>
+                  <directory>${project.basedir}/dist</directory>
+                </resource>
+              </resources>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
 </project>

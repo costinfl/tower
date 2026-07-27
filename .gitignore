@@ -3,6 +3,10 @@ target/
 dist/
 node_modules/
 
+# frontend-maven-plugin installs a project-local Node/npm here during the
+# Maven build. It is a downloaded toolchain, not source.
+/tower-web/node/
+
 # Application data lives in ~/.tower and must never enter the repository.
 # ADR-009 keeps it outside the working tree; these rules are defence in depth.
 .tower/
