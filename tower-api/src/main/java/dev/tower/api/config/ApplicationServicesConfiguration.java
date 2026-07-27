@@ -6,9 +6,14 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import dev.tower.application.port.out.EnvironmentRepository;
+import dev.tower.application.port.out.ApplicationRepository;
+import dev.tower.application.port.out.ApplicationVersionRepository;
 import dev.tower.application.port.out.PromotionPathRepository;
+import dev.tower.application.port.out.ReleasePackRepository;
+import dev.tower.application.service.ApplicationService;
 import dev.tower.application.service.EnvironmentService;
 import dev.tower.application.service.PromotionPathService;
+import dev.tower.application.service.ReleasePackService;
 
 /**
  * Wires the framework-free application layer into Spring.
@@ -34,7 +39,25 @@ public class ApplicationServicesConfiguration {
 
     @Bean
     public PromotionPathService promotionPathService(
-            PromotionPathRepository promotionPathRepository, EnvironmentRepository environmentRepository, Clock clock) {
-        return new PromotionPathService(promotionPathRepository, environmentRepository, clock);
+            PromotionPathRepository promotionPathRepository, EnvironmentRepository environmentRepository,
+            ReleasePackRepository releasePackRepository, Clock clock) {
+        return new PromotionPathService(
+                promotionPathRepository, environmentRepository, releasePackRepository, clock);
+    }
+
+    @Bean
+    public ApplicationService applicationService(
+            ApplicationRepository applicationRepository, ApplicationVersionRepository applicationVersionRepository,
+            ReleasePackRepository releasePackRepository) {
+        return new ApplicationService(
+                applicationRepository, applicationVersionRepository, releasePackRepository);
+    }
+
+    @Bean
+    public ReleasePackService releasePackService(
+            ReleasePackRepository releasePackRepository, ApplicationVersionRepository applicationVersionRepository,
+            PromotionPathRepository promotionPathRepository, Clock clock) {
+        return new ReleasePackService(
+                releasePackRepository, applicationVersionRepository, promotionPathRepository, clock);
     }
 }

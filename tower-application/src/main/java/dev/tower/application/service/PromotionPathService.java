@@ -3,10 +3,12 @@ package dev.tower.application.service;
 import dev.tower.application.port.in.PromotionPathUseCases;
 import dev.tower.application.port.out.EnvironmentRepository;
 import dev.tower.application.port.out.PromotionPathRepository;
+import dev.tower.application.port.out.ReleasePackRepository;
 import dev.tower.domain.environment.Environment;
 import dev.tower.domain.environment.EnvironmentId;
 import dev.tower.domain.promotionpath.PromotionPath;
 import dev.tower.domain.promotionpath.PromotionPathId;
+import dev.tower.domain.releasepack.ReleasePack;
 
 import java.time.Clock;
 import java.util.List;
@@ -23,13 +25,16 @@ public class PromotionPathService implements PromotionPathUseCases {
 
     private final PromotionPathRepository promotionPaths;
     private final EnvironmentRepository environments;
+    private final ReleasePackRepository releasePacks;
     private final Clock clock;
 
     public PromotionPathService(PromotionPathRepository promotionPaths,
                                 EnvironmentRepository environments,
+                                ReleasePackRepository releasePacks,
                                 Clock clock) {
         this.promotionPaths = Objects.requireNonNull(promotionPaths);
         this.environments = Objects.requireNonNull(environments);
+        this.releasePacks = Objects.requireNonNull(releasePacks);
         this.clock = Objects.requireNonNull(clock);
     }
 
@@ -78,9 +83,18 @@ public class PromotionPathService implements PromotionPathUseCases {
         PromotionPath path = get(id);
 
         // ADR-007 permits outright deletion only while nothing references the
-        // path. Release Packs arrive in Epic 2; until then the only history a
-        // path can carry is its own published versions, so a path that has been
-        // edited or archived is kept rather than dropped.
+        // path. Now that Release Packs exist, that is a real lookup rather than
+        // an approximation: a pack pins a specific version, and deleting the
+        // path beneath it would leave the pack describing a topology that no
+        // longer exists.
+        List<ReleasePack> referencing = releasePacks.findAllReferencingPromotionPath(id);
+        if (!referencing.isEmpty()) {
+            String names = referencing.stream().map(ReleasePack::name).sorted()
+                    .collect(Collectors.joining(", "));
+            throw new ApplicationException("Promotion Path '" + path.name()
+                    + "' is followed by Release Pack(s): " + names
+                    + ". Archive it instead of deleting it.");
+        }
         if (path.isArchived()) {
             throw new ApplicationException("Promotion Path '" + path.name()
                     + "' is archived and is kept for historical reference. It cannot be deleted.");
