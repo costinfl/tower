@@ -1,15 +1,123 @@
 :root {
   color-scheme: light dark;
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --bg: #ffffff;
+  --bg-subtle: #f4f5f7;
+  --text: #1a1d21;
+  --text-muted: #5b616b;
+  --border: #d7dbe0;
+  --accent: #2b5fd9;
+  --accent-contrast: #ffffff;
+  --danger: #b3261e;
+  --danger-bg: #fdecea;
+  --ok-bg: #e8f5e9;
+  --ok-text: #256029;
+  --shadow: 0 1px 2px rgba(20, 20, 30, 0.08);
+
+  --stage-development: #2b5fd9;
+  --stage-development-bg: #e8eefc;
+  --stage-validation: #a15c00;
+  --stage-validation-bg: #fdf1de;
+  --stage-pre-production: #7a3fb0;
+  --stage-pre-production-bg: #f2e9fa;
+  --stage-production: #1f7a3d;
+  --stage-production-bg: #e5f5ea;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #16181d;
+    --bg-subtle: #1e2127;
+    --text: #eceef1;
+    --text-muted: #a2a8b3;
+    --border: #33373f;
+    --accent: #7ea1ff;
+    --accent-contrast: #0c1220;
+    --danger: #ff8a80;
+    --danger-bg: #3a1c1a;
+    --ok-bg: #16321c;
+    --ok-text: #8fd6a1;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+
+    --stage-development: #8fb0ff;
+    --stage-development-bg: #202944;
+    --stage-validation: #e3a94c;
+    --stage-validation-bg: #3a2c14;
+    --stage-pre-production: #c79bef;
+    --stage-pre-production-bg: #2f2140;
+    --stage-production: #7ed996;
+    --stage-production-bg: #17301e;
+  }
+}
+
+* {
+  box-sizing: border-box;
 }
 
 body {
   margin: 0;
+  background: var(--bg);
+  color: var(--text);
 }
+
+button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.4rem 0.75rem;
+}
+
+button:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+button.danger {
+  color: var(--danger);
+  border-color: var(--danger);
+  background: var(--danger-bg);
+}
+
+button.link-button {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  text-decoration: underline;
+  font-size: 0.85rem;
+}
+
+input,
+select {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.4rem 0.6rem;
+}
+
+/* --- App shell ----------------------------------------------------- */
 
 .app-header {
   padding: 1rem 1.5rem;
-  border-bottom: 1px solid rgba(127, 127, 127, 0.3);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  flex-wrap: wrap;
 }
 
 .app-header h1 {
@@ -17,6 +125,420 @@ body {
   font-size: 1.25rem;
 }
 
+.app-nav {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.app-nav__tab {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 0.4rem 0.75rem;
+  color: var(--text-muted);
+}
+
+.app-nav__tab--active {
+  color: var(--text);
+  background: var(--bg-subtle);
+  border-color: var(--border);
+  font-weight: 600;
+}
+
+.backend-status {
+  margin: 0 0 0 auto;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.backend-status[data-state="error"] {
+  color: var(--danger);
+}
+
 .app-main {
   padding: 1.5rem;
+  max-width: 72rem;
+  margin: 0 auto;
+}
+
+/* --- Generic page/form bits ------------------------------------------ */
+
+.page h2 {
+  margin-top: 0;
+}
+
+.page__intro {
+  color: var(--text-muted);
+  max-width: 56rem;
+}
+
+.hint {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.error-note,
+.row-error {
+  color: var(--danger);
+  background: var(--danger-bg);
+  border: 1px solid var(--danger);
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.85rem;
+  max-width: 40rem;
+}
+
+.row-error {
+  margin-top: 0.35rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+}
+
+.field-label {
+  font-size: 0.85rem;
+  display: block;
+  margin-bottom: 0.35rem;
+}
+
+.checkbox-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+}
+
+.inline-form {
+  display: flex;
+  align-items: flex-end;
+  gap: 1rem;
+  flex-wrap: wrap;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+/* --- Environments table ------------------------------------------------ */
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 0.5rem;
+}
+
+.data-table th,
+.data-table td {
+  text-align: left;
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+.data-table__actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.stage-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border: 1px solid transparent;
+}
+
+/* --- Stage colour + shape encoding --------------------------------------
+   Stage is never conveyed by colour alone: every use pairs a colour with a
+   glyph shape and a short text label (see domain/stage.ts and the legend). */
+
+.stage--development {
+  color: var(--stage-development);
+  background: var(--stage-development-bg);
+  border-color: var(--stage-development);
+}
+
+.stage--validation {
+  color: var(--stage-validation);
+  background: var(--stage-validation-bg);
+  border-color: var(--stage-validation);
+}
+
+.stage--pre-production {
+  color: var(--stage-pre-production);
+  background: var(--stage-pre-production-bg);
+  border-color: var(--stage-pre-production);
+}
+
+.stage--production {
+  color: var(--stage-production);
+  background: var(--stage-production-bg);
+  border-color: var(--stage-production);
+}
+
+.stage-legend {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  margin: 0.75rem 0 1.25rem;
+}
+
+.stage-legend__title {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.stage-legend__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+}
+
+.stage-legend__glyph {
+  font-size: 0.75rem;
+}
+
+/* --- Lanes ------------------------------------------------------------ */
+
+.lanes-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.lanes {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.path-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1rem 1.25rem 1.25rem;
+  background: var(--bg);
+  box-shadow: var(--shadow);
+}
+
+.path-card--archived {
+  opacity: 0.6;
+  background: var(--bg-subtle);
+}
+
+.path-card__header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+
+.path-card__name {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.path-card__rename {
+  display: inline-flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.badge {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.1rem 0.55rem;
+}
+
+.badge--muted {
+  color: var(--text);
+  background: var(--bg-subtle);
+  font-weight: 600;
+}
+
+.lane {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  padding: 0.75rem 0.25rem;
+}
+
+.lane--empty {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.lane__connector {
+  color: var(--text-muted);
+  font-size: 1.1rem;
+  padding: 0 0.1rem;
+}
+
+.env-node {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.7rem;
+  border-radius: 8px;
+  border: 2px solid transparent;
+  cursor: default;
+  outline-offset: 2px;
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+.env-node__glyph {
+  font-size: 0.8rem;
+}
+
+.env-node__name {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.env-node__stage {
+  font-size: 0.68rem;
+  letter-spacing: 0.03em;
+  color: var(--text-muted);
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  padding: 0 0.3rem;
+}
+
+.env-node__shared-badge {
+  font-size: 0.7rem;
+  line-height: 1;
+  border-radius: 999px;
+  padding: 0.1rem 0.3rem;
+  background: var(--bg);
+  border: 1px solid currentColor;
+}
+
+/* Shared Environments (ADR-005 convergence) always carry the ⇄ marker,
+   regardless of hover state, so convergence is visible at rest. */
+.env-node--shared {
+  border-style: dashed;
+}
+
+/* Hovering or focusing any occurrence of an Environment highlights every
+   other occurrence of that same Environment across all visible Lanes. */
+.env-node--linked {
+  box-shadow: 0 0 0 3px var(--accent);
+  transform: translateY(-1px);
+}
+
+.path-card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-top: 0.5rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.75rem;
+}
+
+.version-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.path-card__actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+/* --- Path editor (create path / publish version) ----------------------- */
+
+.path-editor {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  background: var(--bg-subtle);
+  margin-bottom: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.path-editor__title {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.path-editor__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.path-editor__item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.35rem 0.6rem;
+}
+
+.path-editor__item-name {
+  font-weight: 600;
+  flex: 1;
+}
+
+.path-editor__item-stage {
+  font-size: 0.68rem;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  padding: 0 0.3rem;
+}
+
+.path-editor__item-actions {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.path-editor__item-actions button {
+  padding: 0.15rem 0.5rem;
+  font-size: 0.8rem;
+}
+
+.path-editor__add {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.path-editor__actions {
+  display: flex;
+  gap: 0.5rem;
 }
