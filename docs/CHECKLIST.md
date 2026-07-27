@@ -12,12 +12,12 @@ This checklist tracks the architectural documentation required before implementa
 
 ## Phase 2 - Domain
 
-- [ ] Glossary.md
-- [ ] Domain-Model.md
-- [ ] CRC-Cards.md
-- [ ] Event-Model.md
-- [ ] State-Model.md
-- [ ] Scenarios.md
+- [x] Glossary.md
+- [x] Domain-Model.md
+- [x] CRC-Cards.md
+- [x] Event-Model.md
+- [x] State-Model.md
+- [x] Scenarios.md
 
 ## Phase 3 - Architecture
 
@@ -43,4 +43,4 @@ This checklist tracks the architectural documentation required before implementa
 
 ---
 
-Current Phase: Phase 1 - Vision
+Current Phase: **Phase 3 - Architecture**
