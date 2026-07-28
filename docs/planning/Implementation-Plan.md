@@ -187,6 +187,8 @@ Converts source payloads into Observations.
 
 Responsible for validation, timestamp preservation and source reference preservation.
 
+From Milestone 2 it also applies External Bindings and performs the change comparison required by ADR-011, so that a synchronization run appends an Observation only when observed state has changed.
+
 ---
 
 ## tower-connector-api
@@ -211,7 +213,11 @@ Delivered in Milestone 1.
 
 Source Control and Deployment Platform Connectors.
 
-Delivered in Milestone 2.
+Delivered in Milestone 2, the Deployment Platform Connector first.
+
+Only the Deployment Platform Connector ends manual maintenance of deployment information, which is the stated goal of the milestone.
+
+Each module is the only place its vendor client types may appear, as tower-persistence is for H2.
 
 ---
 
@@ -295,6 +301,9 @@ The following rules are enforced by automated architecture tests rather than by 
 | Only tower-config reads or writes credential material | NFR-028 |
 | tower-portability never exports credentials or configuration | ADR-010 |
 | No module outside tower-persistence references H2 types | ADR-009 |
+| No module outside tower-connector-k8s references Kubernetes client types | CM-05, FR-037, ADR-012 |
+| No vendor locator appears on a domain type | CM-03, CM-05, ADR-012 |
+| The Sync Run never enters tower-domain | ADR-011 |
 
 Every domain type and use case carries a comment referencing the requirement it satisfies.
 
@@ -440,21 +449,34 @@ Adding it to the Backlog is part of the documentation reconciliation in issue 7,
 
 # Later Milestones
 
-| Issue | Title | Milestone |
-| --- | --- | --- |
-| 30 | Epic: Connector framework and interface hardening | M2 |
-| 31 | Epic: Source Control Connector | M2 |
-| 32 | Epic: Deployment Platform Connector | M2 |
-| 41 | Encrypted credential storage and credentials outbound port | M2 |
-| 42 | Settings screen with masked write-only credential fields | M2 |
-| 43 | Read-only connection test for each configured Connector | M2 |
-| 33 | Epic: Documentation templates and export formats | M3 |
-| 34 | Epic: Snapshots and historical comparison, resolving C7 | M4 |
-| 35 | Epic: Operational dashboard | M5 |
+Milestone 2 is decomposed below, because Milestone 1 has now informed it.
 
-Later milestones remain at epic level deliberately.
+Issues 30 to 32 and 41 to 43 were written before that and are superseded by issues 44 to 56.
 
-Decomposing them now would anticipate decisions that Milestone 1 will inform.
+The Deployment Platform Connector precedes the Source Control Connector, because only the former ends manual maintenance of deployment information, which is what Milestone 2 exists to do.
+
+| Issue | Title | Traceability | Milestone |
+| --- | --- | --- | --- |
+| 44 | ADR-011 and ADR-012, accepted before implementation | — | M2 |
+| 45 | Connector service provider interface and vendor-neutral deployment records | CM-02, CM-03, ADR-003 | M2 |
+| 46 | Encrypted credential storage and credentials outbound port | NFR-026, NFR-028, ADR-009 | M2 |
+| 47 | External Bindings for Environments and Applications | ADR-012, FR-055, FR-056 | M2 |
+| 48 | Kubernetes Deployment Platform Connector, read-only | ADR-001, CM-01, FR-039 | M2 |
+| 49 | Deployment Collector with change detection | ADR-011, FR-058, FR-021, FR-022 | M2 |
+| 50 | Sync Run recording and reporting | ADR-011, FR-059, FR-060 | M2 |
+| 51 | Synchronize-now use case and API | FR-057 | M2 |
+| 52 | Connectors screen with bindings, masked credentials and run status | FR-055 to FR-060, NFR-028 | M2 |
+| 53 | Read-only connection test for each configured Connector | FR-061, FR-036, CM-01 | M2 |
+| 54 | Enforced boundary: vendor client types confined to their Connector module | CM-05, FR-037 | M2 |
+| 55 | Demonstration seed and mock backend cover the Connectors screen | — | M2 |
+| 56 | Epic: Source Control Connector | ADR-003 | M2 |
+| 33 | Epic: Documentation templates and export formats | — | M3 |
+| 34 | Epic: Snapshots and historical comparison, resolving C7 | — | M4 |
+| 35 | Epic: Operational dashboard | — | M5 |
+
+Milestones 3 to 5 remain at epic level deliberately.
+
+Decomposing them now would anticipate decisions that Milestone 2 will inform.
 
 ---
 
@@ -533,6 +555,24 @@ Confirm that the configuration file contains no plaintext secret and carries own
 Confirm that the API never returns a stored credential and that no credential appears in logs or in generated documentation.
 
 Confirm that connection testing performs no write operation against any External System.
+
+Synchronization is verified against a real cluster, because no automated test can prove what a Connector does to a system it is not connected to.
+
+1. Bind an Environment to a namespace and an Application to an image. Synchronize. Confirm that the deployed version appears with the Kubernetes Collector as its source and the cluster's timestamp rather than the time of synchronization.
+
+2. Synchronize again with nothing changed. Confirm that no Observation is appended and that the Sync Run records zero.
+
+3. Deploy a different version. Synchronize. Confirm that exactly one Observation is appended and that the Environment view moves.
+
+4. Synchronize a namespace containing an image bound to no Application. Confirm that it is reported as unrecognized rather than guessed or discarded.
+
+5. Invalidate the credential. Synchronize. Confirm that the run is recorded as failed, that previously recorded Observations remain valid and that the failure is visible to the user.
+
+6. Confirm from the cluster's own audit log that Tower issued read verbs only.
+
+The audit log is the evidence for the read-only claim, because a test written against our own Connector could only confirm what we already intended.
+
+Automated tests cover change detection, unchanged runs, unrecognized workloads and failure handling through a fake Connector, and the architecture tests prove statically that no write path exists.
 
 ---
 

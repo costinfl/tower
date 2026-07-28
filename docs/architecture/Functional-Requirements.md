@@ -16,6 +16,8 @@
 
 This document defines the functional capabilities required for Milestone 1.
 
+FR-055 to FR-061 extend it to Milestone 2 and are grouped under their own heading.
+
 Each requirement is atomic, uniquely identified and traceable.
 
 The requirements intentionally avoid implementation details.
@@ -360,6 +362,58 @@ The system shall preserve segregation of duties by limiting itself to observatio
 
 ---
 
+# Milestone 2 — Automated Synchronization
+
+FR-019 to FR-022 require Observations to be collected through Connectors.
+
+ADR-006 records that Milestone 1 satisfies them with a manual source and Milestone 2 satisfies them with external Connectors.
+
+The requirements below cover what Milestone 2 adds in order to do so.
+
+---
+
+## FR-055
+
+The system shall allow an Environment to be bound to a Deployment Platform locator.
+
+---
+
+## FR-056
+
+The system shall allow an Application to be bound to an image reference and a pattern that yields the Application Version.
+
+---
+
+## FR-057
+
+The system shall synchronize a Connector on user request.
+
+---
+
+## FR-058
+
+The system shall append an Observation only when the observed state differs from the newest state already held.
+
+---
+
+## FR-059
+
+The system shall record the outcome of every synchronization run and make it available to the user.
+
+---
+
+## FR-060
+
+The system shall report workloads that it could not attribute to a bound Application.
+
+---
+
+## FR-061
+
+The system shall verify Connector connectivity without modifying the External System.
+
+---
+
 # Deferred
 
 ## FR-054
@@ -374,6 +428,8 @@ Full coverage of IA-02 is deferred to a later milestone and recorded here so the
 
 # Scope
 
-These requirements define the functional scope of Milestone 1.
+FR-001 to FR-054 define the functional scope of Milestone 1.
+
+FR-055 to FR-061 define what Milestone 2 adds.
 
 Capabilities beyond these requirements shall be evaluated in future milestones.
