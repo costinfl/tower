@@ -17,6 +17,8 @@ import dev.tower.application.service.EnvironmentService;
 import dev.tower.application.service.PromotionPathService;
 import dev.tower.application.service.ObservationService;
 import dev.tower.application.service.ReleasePackService;
+import dev.tower.docgen.MarkdownReleaseDocumentRenderer;
+import dev.tower.docgen.ReleaseDocumentAssembler;
 
 /**
  * Wires the framework-free application layer into Spring.
@@ -72,5 +74,19 @@ public class ApplicationServicesConfiguration {
             ManualObservationCollector manualObservationCollector, Clock clock) {
         return new ObservationService(observationRepository, environmentRepository,
                 applicationVersionRepository, releasePackRepository, manualObservationCollector, clock);
+    }
+
+    @Bean
+    public ReleaseDocumentAssembler releaseDocumentAssembler(
+            ReleasePackService releasePackService, ApplicationService applicationService,
+            PromotionPathService promotionPathService, EnvironmentService environmentService,
+            ObservationService observationService) {
+        return new ReleaseDocumentAssembler(releasePackService, applicationService,
+                promotionPathService, environmentService, observationService);
+    }
+
+    @Bean
+    public MarkdownReleaseDocumentRenderer markdownReleaseDocumentRenderer() {
+        return new MarkdownReleaseDocumentRenderer();
     }
 }

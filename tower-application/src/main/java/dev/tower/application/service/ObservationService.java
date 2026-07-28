@@ -145,7 +145,10 @@ public class ObservationService implements ObservationUseCases {
                         observation.environmentId(),
                         byId.get(observation.environmentId()).name(),
                         observation.applicationVersionId(),
-                        observation.observedAt()))
+                        observation.observedAt(),
+                        observation.source().collector(),
+                        observation.source().actor(),
+                        observation.id()))
                 .toList();
     }
 

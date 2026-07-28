@@ -4,6 +4,7 @@ import dev.tower.domain.application.ApplicationVersionId;
 import dev.tower.domain.environment.EnvironmentId;
 import dev.tower.domain.observation.EnvironmentState;
 import dev.tower.domain.observation.Observation;
+import dev.tower.domain.observation.ObservationId;
 import dev.tower.domain.releasepack.ReleasePackId;
 import dev.tower.domain.releasepack.ReleasePackState;
 
@@ -48,9 +49,19 @@ public interface ObservationUseCases {
                                    ApplicationVersionId applicationVersionId,
                                    Instant observedAt) {}
 
-    /** One Environment in which a Release Pack's content was seen. */
+    /**
+     * One Environment in which a Release Pack's content was seen.
+     *
+     * <p>Carries the originating Observation and its source, so that anything
+     * built on top of this — generated documentation in particular — can cite
+     * the fact behind each claim rather than asserting it bare (FR-031,
+     * FR-032, NFR-011).
+     */
     record PackSighting(EnvironmentId environmentId,
                         String environmentName,
                         ApplicationVersionId applicationVersionId,
-                        Instant observedAt) {}
+                        Instant observedAt,
+                        String sourceCollector,
+                        String sourceActor,
+                        ObservationId observationId) {}
 }

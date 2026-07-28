@@ -69,11 +69,18 @@
       <version>${project.version}</version>
       <scope>runtime</scope>
     </dependency>
+    <!--
+      tower-docgen is compile scope, unlike the adapters above. It is not an
+      adapter: it reaches no external system and sits above the application
+      ports, reading the Canonical Model exactly as a controller would. Keeping
+      it compile scope lets the composition root wire it explicitly and lets
+      tower-docgen stay free of Spring, which suits a deterministic renderer
+      that is otherwise a pure function.
+    -->
     <dependency>
       <groupId>dev.tower</groupId>
       <artifactId>tower-docgen</artifactId>
       <version>${project.version}</version>
-      <scope>runtime</scope>
     </dependency>
     <dependency>
       <groupId>dev.tower</groupId>
