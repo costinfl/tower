@@ -104,6 +104,23 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (await response.json()) as T;
 }
 
+// The documentation endpoints return Markdown as text rather than JSON, so
+// they need their own fetch. Errors still arrive as the standard JSON error
+// body, and are surfaced through ApiError exactly as elsewhere.
+async function getText(path: string): Promise<string> {
+  const response = await fetch(path);
+  if (!response.ok) {
+    let body: Partial<ApiErrorBody> = {};
+    try {
+      body = (await response.json()) as Partial<ApiErrorBody>;
+    } catch {
+      // Not a JSON error body; ApiError falls back to a generic message.
+    }
+    throw new ApiError(response.status, body);
+  }
+  return response.text();
+}
+
 function getJson<T>(path: string): Promise<T> {
   return request<T>(path);
 }
@@ -572,4 +589,19 @@ export function restoreReleasePack(id: string): Promise<ReleasePackView> {
 
 export function getReleasePackState(id: string): Promise<ReleasePackStateView> {
   return getJson<ReleasePackStateView>(`/api/release-packs/${encodeURIComponent(id)}/state`);
+}
+
+// --- Release documentation (Epic 4) -----------------------------------------
+
+// Generated from the Canonical Model on every request. Nothing is stored, and
+// the same model always yields the same bytes, so a document is disposable and
+// reproducible (IA-03) rather than an artifact to keep in step with reality.
+export function getReleaseDocumentMarkdown(releasePackId: string): Promise<string> {
+  return getText(`/api/release-packs/${encodeURIComponent(releasePackId)}/documentation/markdown`);
+}
+
+// A plain link, not a fetch: letting the browser follow it preserves the
+// Content-Disposition filename the server derives from the pack name.
+export function releaseDocumentDownloadUrl(releasePackId: string): string {
+  return `/api/release-packs/${encodeURIComponent(releasePackId)}/documentation/markdown/download`;
 }

@@ -981,3 +981,53 @@ select {
   margin-top: 0.6rem;
   flex-wrap: wrap;
 }
+
+/* --- Release documentation (Epic 4) ------------------------------------- */
+
+.panel {
+  margin-top: 0.5rem;
+}
+
+/*
+  The download is an anchor, not a button, so the browser follows it and keeps
+  the Content-Disposition filename the server derives. It is styled to match
+  surrounding buttons so the difference in mechanism is not a difference in
+  appearance.
+*/
+.button-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.4rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-raised);
+  color: inherit;
+  font: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.button-link:hover {
+  border-color: var(--accent);
+}
+
+/*
+  The generated Markdown is shown verbatim rather than rendered, so what is
+  previewed is exactly what is downloaded. Long lines scroll inside the block
+  instead of widening the page.
+*/
+.document-preview {
+  margin-top: 0.6rem;
+  padding: 0.9rem 1rem;
+  max-height: 32rem;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-sunken, var(--surface-raised));
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  tab-size: 2;
+}

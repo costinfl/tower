@@ -17,6 +17,7 @@ import {
 import ErrorNote, { describeError } from "../components/ErrorNote";
 import HandoverEditor from "../components/HandoverEditor";
 import IterationsPanel from "../components/IterationsPanel";
+import ReleaseDocumentPanel from "../components/ReleaseDocumentPanel";
 import ReleasePackContents from "../components/ReleasePackContents";
 import ReleasePackPromotionPathPanel from "../components/ReleasePackPromotionPathPanel";
 
@@ -309,6 +310,21 @@ export default function ReleasePacksPage() {
                     iterations={selectedPack.iterations}
                     archived={selectedPack.archived}
                     onUpdated={replacePack}
+                  />
+                </section>
+
+                <section className="pack-section">
+                  {/*
+                    Keyed on the pack so switching selection clears any preview
+                    rather than showing the previous pack's document under a new
+                    heading. Available for archived packs too: an archived
+                    release is exactly the one whose documentation someone is
+                    most likely to need later.
+                  */}
+                  <ReleaseDocumentPanel
+                    key={selectedPack.id}
+                    releasePackId={selectedPack.id}
+                    packName={selectedPack.name}
                   />
                 </section>
               </>

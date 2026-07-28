@@ -1,0 +1,78 @@
+import { useState } from "react";
+import { getReleaseDocumentMarkdown, releaseDocumentDownloadUrl } from "../api/client";
+import ErrorNote from "./ErrorNote";
+
+interface ReleaseDocumentPanelProps {
+  releasePackId: string;
+  packName: string;
+}
+
+// Release documentation generated from the Canonical Model (FR-024).
+//
+// The Markdown is shown verbatim in a <pre> rather than rendered to HTML. What
+// gets handed to another team is the Markdown itself, so previewing the exact
+// bytes is more honest than previewing a prettier interpretation of them — and
+// it means what you read here is what you download.
+//
+// Generation is a read: nothing is stored, and the same model always produces
+// the same bytes, so this can be regenerated freely (IA-03, Scenario 8).
+export default function ReleaseDocumentPanel({ releasePackId, packName }: ReleaseDocumentPanelProps) {
+  const [markdown, setMarkdown] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const [copied, setCopied] = useState(false);
+
+  function generate() {
+    setBusy(true);
+    setError(null);
+    setCopied(false);
+    getReleaseDocumentMarkdown(releasePackId)
+      .then(setMarkdown)
+      .catch((e: unknown) => setError(e))
+      .finally(() => setBusy(false));
+  }
+
+  function copy() {
+    if (markdown === null) return;
+    navigator.clipboard
+      .writeText(markdown)
+      .then(() => setCopied(true))
+      .catch((e: unknown) => setError(e));
+  }
+
+  return (
+    <section className="panel">
+      <h4>Release documentation</h4>
+      <p className="hint">
+        Generated from the Canonical Model each time you ask for it. Nothing is stored, so this is always
+        current and never needs keeping in step by hand.
+      </p>
+
+      <div className="inline-form">
+        <button type="button" onClick={generate} disabled={busy}>
+          {busy ? "Generating…" : markdown === null ? "Generate" : "Regenerate"}
+        </button>
+        <a className="button-link" href={releaseDocumentDownloadUrl(releasePackId)} download>
+          Download Markdown
+        </a>
+        {markdown !== null && (
+          <button type="button" onClick={copy}>
+            {copied ? "Copied" : "Copy"}
+          </button>
+        )}
+      </div>
+
+      {error !== null && <ErrorNote error={error} />}
+
+      {markdown !== null && (
+        <>
+          <p className="hint">
+            Preview of <code>{packName}</code> — {markdown.length} characters. This is exactly what the
+            download contains.
+          </p>
+          <pre className="document-preview">{markdown}</pre>
+        </>
+      )}
+    </section>
+  );
+}
