@@ -226,6 +226,110 @@ export interface ApplicationVersionInput {
   buildIdentifier?: string;
 }
 
+// --- Observations -----------------------------------------------------
+
+// Where an Observation came from (ADR-006). Milestone 1 has only the
+// Manual Collector, so `manual` is always true today and `actor` carries
+// the name of the person who entered it. `collector`/`originInstance` are
+// shaped so an automated Connector can slot in later (Milestone 2)
+// without changing this contract.
+export interface ObservationSource {
+  collector: string;
+  actor: string | null;
+  originInstance: string | null;
+  manual: boolean;
+}
+
+export interface ObservationEnvironmentRef {
+  id: string;
+  name: string;
+  stage: Stage;
+}
+
+export interface ObservationApplicationRef {
+  id: string;
+  name: string;
+}
+
+export interface ObservationApplicationVersionRef {
+  id: string;
+  version: string;
+}
+
+// An Observation is the atomic unit of information in Tower (ADR-002): an
+// immutable, timestamped fact that a version was seen in an Environment,
+// from an identified source. Observations are never edited or deleted —
+// correcting a mistake means recording a later Observation, and the
+// earlier one remains in history.
+export interface ObservationView {
+  id: string;
+  environment: ObservationEnvironmentRef;
+  application: ObservationApplicationRef;
+  applicationVersion: ObservationApplicationVersionRef;
+  observedAt: string;
+  source: ObservationSource;
+}
+
+// observedAt is optional; the server defaults it to now. A future-dated
+// observedAt is rejected by the server with 409.
+export interface CreateObservationInput {
+  environmentId: string;
+  applicationVersionId: string;
+  observedAt?: string;
+}
+
+export interface DeployedApplicationVersion {
+  id: string;
+  version: string;
+  branch: string | null;
+  tag: string | null;
+  commit: string | null;
+  buildIdentifier: string | null;
+}
+
+// One row of an Environment's current derived state: the most recent
+// Observation for a given Application in that Environment.
+export interface DeployedApplicationView {
+  application: ObservationApplicationRef;
+  applicationVersion: DeployedApplicationVersion;
+  observedAt: string;
+  source: ObservationSource;
+  observationId: string;
+}
+
+// Environment state is derived, never stored — for each Application, the
+// most recent Observation wins. `hasBeenObserved` is false when no
+// Observation has ever been recorded for this Environment; that is a
+// distinct fact from "observed and found empty" and must be rendered as
+// such, never as an empty-and-therefore-fine table (Scenarios.md
+// Scenario 4).
+export interface EnvironmentStateView {
+  environment: ObservationEnvironmentRef;
+  hasBeenObserved: boolean;
+  lastObservedAt: string | null;
+  deployed: DeployedApplicationView[];
+}
+
+// --- Release Pack state -------------------------------------------------
+
+// Derived as the highest Stage at which any content version of the pack
+// has been observed (ADR-008). PLANNED means no Observation has matched
+// this pack yet. This is entirely independent of ReleasePackView.archived
+// — never merge the two into a single indicator.
+export type ReleasePackState = "PLANNED" | "DEVELOPMENT" | "VALIDATION" | "PRE_PRODUCTION" | "PRODUCTION";
+
+export interface ReleasePackSighting {
+  environmentId: string;
+  environmentName: string;
+  applicationVersionId: string;
+  observedAt: string;
+}
+
+export interface ReleasePackStateView {
+  state: ReleasePackState;
+  sightings: ReleasePackSighting[];
+}
+
 // --- Release Packs --------------------------------------------------------
 
 // A Release Pack pins a specific Promotion Path VERSION (ADR-007), not the
@@ -352,6 +456,25 @@ export function deleteApplicationVersion(id: string): Promise<void> {
   return deleteRequest(`/api/application-versions/${encodeURIComponent(id)}`);
 }
 
+// --- Observations -----------------------------------------------------
+
+// Records that a version was already seen running in an Environment
+// (ADR-001 — Tower observes, it never acts: this states a fact, it does
+// not deploy or promote anything).
+export function createObservation(input: CreateObservationInput): Promise<ObservationView> {
+  return postJson<ObservationView>("/api/observations", input);
+}
+
+export function getEnvironmentState(environmentId: string): Promise<EnvironmentStateView> {
+  return getJson<EnvironmentStateView>(`/api/environments/${encodeURIComponent(environmentId)}/state`);
+}
+
+// Full Observation history for an Environment, newest first. Superseded
+// Observations remain in this list — history is append-only (ADR-002).
+export function getEnvironmentObservations(environmentId: string): Promise<ObservationView[]> {
+  return getJson<ObservationView[]>(`/api/environments/${encodeURIComponent(environmentId)}/observations`);
+}
+
 // --- Release Packs --------------------------------------------------------
 
 export function getReleasePacks(): Promise<ReleasePackView[]> {
@@ -445,4 +568,8 @@ export function archiveReleasePack(id: string): Promise<ReleasePackView> {
 
 export function restoreReleasePack(id: string): Promise<ReleasePackView> {
   return postJson<ReleasePackView>(`/api/release-packs/${encodeURIComponent(id)}/restore`);
+}
+
+export function getReleasePackState(id: string): Promise<ReleasePackStateView> {
+  return getJson<ReleasePackStateView>(`/api/release-packs/${encodeURIComponent(id)}/state`);
 }

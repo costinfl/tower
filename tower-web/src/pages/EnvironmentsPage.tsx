@@ -2,18 +2,27 @@ import { useEffect, useState } from "react";
 import {
   createEnvironment,
   deleteEnvironment,
+  getAllApplicationVersions,
+  getApplications,
   getEnvironments,
   updateEnvironment,
+  type Application,
+  type ApplicationVersion,
   type Environment,
   type Stage,
 } from "../api/client";
 import { stageMeta } from "../domain/stage";
+import EnvironmentStatePanel from "../components/EnvironmentStatePanel";
 import ErrorNote, { describeError } from "../components/ErrorNote";
 import StageSelect from "../components/StageSelect";
 
 export default function EnvironmentsPage() {
   const [environments, setEnvironments] = useState<Environment[] | null>(null);
+  const [applications, setApplications] = useState<Application[]>([]);
+  const [versions, setVersions] = useState<ApplicationVersion[]>([]);
   const [loadError, setLoadError] = useState<unknown>(null);
+
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const [newName, setNewName] = useState("");
   const [newStage, setNewStage] = useState<Stage>("DEVELOPMENT");
@@ -31,12 +40,18 @@ export default function EnvironmentsPage() {
 
   function load() {
     setLoadError(null);
-    getEnvironments()
-      .then(setEnvironments)
+    Promise.all([getEnvironments(), getApplications(), getAllApplicationVersions()])
+      .then(([envs, apps, allVersions]) => {
+        setEnvironments(envs);
+        setApplications(apps);
+        setVersions(allVersions);
+      })
       .catch((error: unknown) => setLoadError(error));
   }
 
   useEffect(load, []);
+
+  const selectedEnvironment = environments?.find((env) => env.id === selectedId) ?? null;
 
   function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -87,6 +102,7 @@ export default function EnvironmentsPage() {
     deleteEnvironment(id)
       .then(() => {
         setEnvironments((prev) => prev?.filter((env) => env.id !== id) ?? prev);
+        setSelectedId((prev) => (prev === id ? null : prev));
       })
       .catch((error: unknown) => {
         // A 409 means a Promotion Path still references this Environment.
@@ -171,6 +187,13 @@ export default function EnvironmentsPage() {
                         </span>
                       </td>
                       <td className="data-table__actions">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedId((prev) => (prev === env.id ? null : env.id))}
+                          aria-expanded={selectedId === env.id}
+                        >
+                          {selectedId === env.id ? "Hide state" : "View state"}
+                        </button>
                         <button type="button" onClick={() => startEdit(env)}>
                           Edit
                         </button>
@@ -193,6 +216,18 @@ export default function EnvironmentsPage() {
             })}
           </tbody>
         </table>
+      )}
+
+      {selectedEnvironment && (
+        // Keyed on the Environment so switching selection remounts the panel
+        // rather than briefly showing the previous Environment's Observations
+        // under the new heading.
+        <EnvironmentStatePanel
+          key={selectedEnvironment.id}
+          environment={selectedEnvironment}
+          applications={applications}
+          versions={versions}
+        />
       )}
     </section>
   );
