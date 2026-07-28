@@ -13,9 +13,12 @@ name: demo-pages
 # first. A public Pages deployment of the real thing would let anyone who found
 # the URL edit the Release Packs.
 
+# Published from the default branch, whatever it is currently named, rather
+# than from a hardcoded "main" — this repository's default branch is not called
+# main, so a name filter here silently never fires. workflow_dispatch is allowed
+# from any branch so a change can be previewed before it becomes the default.
 on:
   push:
-    branches: ["main"]
     paths:
       - "tower-web/**"
       - ".github/workflows/demo-pages.yml"
@@ -34,6 +37,11 @@ concurrency:
 
 jobs:
   build:
+    # Pushes to feature branches are not published. Skipping here rather than in
+    # deploy means no runner time is spent building an artifact nothing consumes.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.ref_name == github.event.repository.default_branch
     runs-on: ubuntu-latest
     defaults:
       run:
