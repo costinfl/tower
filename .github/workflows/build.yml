@@ -24,7 +24,11 @@ jobs:
       # be one app-booting integration test away from writing a database file
       # into the checkout and failing the working-tree assertion below — which
       # is the very thing ADR-009 keeps application data out of.
-      TOWER_HOME: ${{ runner.temp }}/tower-home
+      #
+      # A literal path, not ${{ runner.temp }}: the runner context is only
+      # available inside steps, and referencing it here makes the whole workflow
+      # fail validation before a single job is scheduled.
+      TOWER_HOME: /tmp/tower-ci-home
 
     steps:
       - name: Check out
