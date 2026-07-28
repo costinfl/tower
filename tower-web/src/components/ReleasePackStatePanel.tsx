@@ -25,10 +25,6 @@ export default function ReleasePackStatePanel({ pack }: ReleasePackStatePanelPro
       .catch((err: unknown) => setLoadError(err));
   }, [pack.id]);
 
-  function contentFor(applicationVersionId: string) {
-    return pack.contents.find((c) => c.versionId === applicationVersionId) ?? null;
-  }
-
   return (
     <div className="pack-state">
       {loadError !== null && <ErrorNote error={loadError} />}
@@ -65,17 +61,14 @@ export default function ReleasePackStatePanel({ pack }: ReleasePackStatePanelPro
                 {state.sightings
                   .slice()
                   .sort((a, b) => b.observedAt.localeCompare(a.observedAt))
-                  .map((s, i) => {
-                    const content = contentFor(s.applicationVersionId);
-                    return (
-                      <tr key={`${s.environmentId}-${s.applicationVersionId}-${i}`}>
-                        <td>{s.environmentName}</td>
-                        <td>{content?.applicationName ?? "—"}</td>
-                        <td>{content?.version ?? "—"}</td>
-                        <td>{new Date(s.observedAt).toLocaleString()}</td>
-                      </tr>
-                    );
-                  })}
+                  .map((s, i) => (
+                    <tr key={`${s.environment.id}-${s.applicationVersion.id}-${i}`}>
+                      <td>{s.environment.name}</td>
+                      <td>{s.application.name}</td>
+                      <td>{s.applicationVersion.version}</td>
+                      <td>{new Date(s.observedAt).toLocaleString()}</td>
+                    </tr>
+                  ))}
               </tbody>
             </table>
           )}

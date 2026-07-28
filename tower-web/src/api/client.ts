@@ -335,10 +335,14 @@ export interface EnvironmentStateView {
 // — never merge the two into a single indicator.
 export type ReleasePackState = "PLANNED" | "DEVELOPMENT" | "VALIDATION" | "PRE_PRODUCTION" | "PRODUCTION";
 
+// The server returns nested references here, consistent with ObservationView.
+// This type previously declared flat environmentId/environmentName fields that
+// the response never carried, so the Environment column rendered blank —
+// TypeScript could not catch it because the response is cast, not validated.
 export interface ReleasePackSighting {
-  environmentId: string;
-  environmentName: string;
-  applicationVersionId: string;
+  environment: ObservationEnvironmentRef;
+  application: ObservationApplicationRef;
+  applicationVersion: ObservationApplicationVersionRef;
   observedAt: string;
 }
 

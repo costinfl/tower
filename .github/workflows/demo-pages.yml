@@ -1,0 +1,90 @@
+name: demo-pages
+
+# Publishes the Viewer to GitHub Pages with an in-browser mock backend.
+#
+# Only the user interface is published. Tower's backend is Spring Boot with an
+# embedded database and Pages has no runtime, so the demo runs against the mock
+# in src/demo — every value it shows is fabricated, and the banner says so on
+# every page.
+#
+# This is deliberately NOT the real application exposed publicly. ADR-009
+# justifies Tower having no authentication solely by its loopback binding, and
+# records that exposing it on any other interface requires authentication
+# first. A public Pages deployment of the real thing would let anyone who found
+# the URL edit the Release Packs.
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "tower-web/**"
+      - ".github/workflows/demo-pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time; queue rather than cancel, so a run that is already
+# publishing is allowed to finish.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tower-web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: tower-web/package-lock.json
+
+      - run: npm ci
+
+      - name: Type-check
+        run: npx tsc --noEmit
+
+      - name: Build the demo
+        env:
+          VITE_DEMO: "true"
+          # Project Pages serve at /<repo>/, so assets need that prefix or they
+          # 404. Derived from the repository name rather than hardcoded.
+          VITE_BASE: "/${{ github.event.repository.name }}/"
+        run: npm run build
+
+      # A visitor who deep-links or reloads should reach the app rather than a
+      # 404. The app keeps its state in tabs rather than the URL, so serving
+      # index.html for unknown paths is enough.
+      - name: Add SPA fallback
+        run: cp dist/index.html dist/404.html
+
+      - name: Fail if the published bundle lost its demo backend
+        run: |
+          if ! grep -q "demo.tower" dist/assets/*.js; then
+            echo "::error::The demo backend is missing from the bundle."
+            echo "Publishing this would give visitors a UI calling an API that is not there."
+            exit 1
+          fi
+          echo "Demo backend present in the bundle."
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: tower-web/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

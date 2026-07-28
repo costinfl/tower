@@ -3,6 +3,8 @@ import { getHealth } from "./api/client";
 import ApplicationsPage from "./pages/ApplicationsPage";
 import EnvironmentsPage from "./pages/EnvironmentsPage";
 import PortabilityPage from "./pages/PortabilityPage";
+import DemoBanner from "./components/DemoBanner";
+import { DEMO_MODE } from "./demo/install";
 import PromotionPathsPage from "./pages/PromotionPathsPage";
 import ReleasePacksPage from "./pages/ReleasePacksPage";
 
@@ -91,6 +93,7 @@ export default function App() {
           {connection.kind === "error" && `Backend unreachable: ${connection.message}`}
         </p>
       </header>
+      {DEMO_MODE && <DemoBanner />}
       <main className="app-main">
         {tab === "releasePacks" && <ReleasePacksPage />}
         {tab === "applications" && <ApplicationsPage />}

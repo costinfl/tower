@@ -1095,3 +1095,32 @@ select {
 .outcome--skipped { border-color: var(--border); opacity: 0.85; }
 .outcome--duplicated { border-color: #6a4bb2; }
 .outcome--unchanged { border-color: var(--border); opacity: 0.7; }
+
+/* --- Demo banner ---------------------------------------------------------- */
+
+/*
+  Deliberately prominent and not dismissible. Tower's claim is that it reports
+  observed facts with provenance; a demo of fabricated data that did not say so
+  would undercut the property it exists to show.
+*/
+.demo-banner {
+  margin: 0;
+  padding: 0.7rem 1.1rem;
+  border-bottom: 1px solid #b26a00;
+  background: #fff4e0;
+  color: #5a3600;
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.demo-banner strong {
+  font-weight: 650;
+}
+
+@media (prefers-color-scheme: dark) {
+  .demo-banner {
+    border-bottom-color: #c98a2e;
+    background: #33270f;
+    color: #f0d9ac;
+  }
+}
