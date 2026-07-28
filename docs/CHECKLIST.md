@@ -48,6 +48,18 @@ This checklist tracks the architectural documentation required before implementa
 - [x] ADR-005 to ADR-010
 - [x] Documentation reconciliation (issue #7)
 
+## Milestone 2 - Automated Synchronization
+
+- [x] ADR-011-Synchronization-Records-Change-Not-Repetition.md
+- [x] ADR-012-External-Bindings-Map-Tower-Concepts-To-Vendor-Locators.md
+- [ ] FR-055 to FR-061
+- [ ] Connector service provider interface
+- [ ] Encrypted credential storage
+- [ ] External Bindings
+- [ ] Kubernetes Deployment Platform Connector
+- [ ] Deployment Collector with change detection
+- [ ] Sync Run recording and reporting
+
 ---
 
-Current Phase: **Milestone 1 delivered — Epics 1, 2, 3, 4 and 8**
+Current Phase: **Milestone 2 — Automated Synchronization**
