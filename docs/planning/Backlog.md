@@ -210,6 +210,33 @@ Developers gain a single operational view of active releases.
 
 ---
 
+# Epic 8 — Portability
+
+**Priority**
+
+1
+
+## Goal
+
+Allow Tower-owned information to move between developer instances.
+
+## Capabilities
+
+- Export Release Packs, Promotion Paths, Handover information and Iterations
+- Optionally include Observations
+- Import with explicit conflict resolution
+- Preserve Observation provenance across transfer
+
+## Success Criteria
+
+A developer can share release information with a colleague, and an imported Observation still names the instance that first observed it.
+
+## Origin
+
+This Epic was introduced by ADR-010, after the Backlog was first written. ADR-009 gives every developer an isolated instance, which leaves the Vision's "team's operational reference" unmet without a way to move information between them.
+
+---
+
 # Epic Dependencies
 
 ```
@@ -223,6 +250,9 @@ Environment Visibility
         │
         ▼
 Documentation Generation
+        │
+        ▼
+Portability
         │
         ▼
 Connector Framework

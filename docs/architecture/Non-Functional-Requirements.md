@@ -192,6 +192,16 @@ The architecture shall support efficient retrieval of Release Pack information.
 
 Generated documentation shall be reproducible from the Canonical Model.
 
+Regenerating an unchanged Release Pack shall produce byte-identical output.
+
+---
+
+## NFR-031
+
+Environment and Release Pack views shall return within one second at the ninety-fifth percentile, with fifty Environments and two hundred Release Packs.
+
+This gives the Vision's promise of answers "within seconds" a figure that can be tested rather than asserted.
+
 ---
 
 # Security

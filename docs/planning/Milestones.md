@@ -88,7 +88,9 @@ Developers no longer maintain deployment information manually.
 
 ## Goal
 
-Generate release documentation entirely from the Canonical Model.
+Extend generated documentation with templates and additional output formats.
+
+Generation from the Canonical Model itself is delivered in Milestone 1 (Backlog Epic 4, FR-024 to FR-030). Milestone 3 covers what Milestone 1 deliberately left out: customisable templates and formats beyond Markdown (OQ-009, OQ-010).
 
 ## Scope
 
@@ -109,6 +111,8 @@ Release documentation is reproducible and requires minimal manual editing.
 ## Goal
 
 Provide insight into deployment history.
+
+Snapshots arrive here. Event-Model.md ends its synchronization flow in Snapshot Created, which should be read as the eventual shape of that flow rather than a Milestone 1 obligation: until Milestone 4, Observations are retained individually and Environment state is derived from them directly.
 
 ## Scope
 

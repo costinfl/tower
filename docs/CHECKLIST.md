@@ -41,6 +41,13 @@ This checklist tracks the architectural documentation required before implementa
 - [x] Backlog.md
 - [x] Milestones.md
 
+## Post-Planning
+
+- [x] Consistency-Report.md
+- [x] Implementation-Plan.md
+- [x] ADR-005 to ADR-010
+- [x] Documentation reconciliation (issue #7)
+
 ---
 
-Current Phase: **Ready for Implementation Planning**
+Current Phase: **Milestone 1 delivered — Epics 1, 2, 3, 4 and 8**

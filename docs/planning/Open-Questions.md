@@ -24,7 +24,7 @@ Can a Promotion Path be modified after Release Packs already reference it?
 
 Status
 
-Deferred
+Answered by ADR-007. Yes: editing publishes a new immutable version, and a Release Pack keeps referencing the version it was assigned.
 
 ---
 
@@ -44,7 +44,7 @@ Should Release Packs support explicit lifecycle states in addition to derived ob
 
 Status
 
-Deferred
+Answered by ADR-008. Archived is an explicit lifecycle flag owned by developers, kept separate from the state derived from Observations.
 
 ---
 
@@ -151,7 +151,7 @@ Future Milestone
 
 ---
 
-## Integration
+# Integration
 
 ## OQ-013
 

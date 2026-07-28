@@ -4,6 +4,10 @@ This roadmap describes the intended evolution of Tower.
 
 It is directional rather than a fixed implementation plan.
 
+**Superseded for milestone definitions.** ../planning/Milestones.md replaces the milestone content below and is authoritative. This document is retained for the intent it records, not for its sequencing.
+
+Note in particular that "Environment observations" under Milestone 1 is satisfied by manual entry (ADR-006); automated Connectors arrive in Milestone 2.
+
 ---
 
 # Milestone 1

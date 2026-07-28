@@ -22,6 +22,58 @@ The requirements intentionally avoid implementation details.
 
 ---
 
+# Environment Management
+
+## FR-041
+
+The system shall allow users to define Environments.
+
+---
+
+## FR-042
+
+The system shall allow users to modify an Environment's name and Stage.
+
+---
+
+## FR-043
+
+The system shall require every Environment to carry a Stage classification.
+
+---
+
+## FR-044
+
+The system shall refuse to delete an Environment referenced by any Promotion Path version.
+
+---
+
+# Application Registry
+
+## FR-045
+
+The system shall allow users to register Applications.
+
+---
+
+## FR-046
+
+The system shall allow users to register Application Versions against an Application.
+
+---
+
+## FR-047
+
+The system shall not permit an Application Version to be modified after registration.
+
+---
+
+## FR-048
+
+The system shall refuse to delete an Application Version contained in any Release Pack.
+
+---
+
 # Release Pack Management
 
 ## FR-001
@@ -60,6 +112,24 @@ The system shall maintain Handover information for every Release Pack.
 
 ---
 
+## FR-049
+
+The system shall allow users to delete a Release Pack that carries no validation history.
+
+---
+
+## FR-050
+
+The system shall allow users to create, update and remove validation Iterations against a Release Pack.
+
+---
+
+## FR-051
+
+The system shall allow a Release Pack to be archived and restored, independently of where it has been observed.
+
+---
+
 # Promotion Paths
 
 ## FR-007
@@ -77,6 +147,18 @@ The system shall allow Promotion Paths to contain an ordered sequence of Environ
 ## FR-009
 
 The system shall present Promotion Paths visually as Lanes.
+
+---
+
+## FR-052
+
+The system shall allow a Promotion Path to be edited, publishing a new version rather than altering an existing one.
+
+---
+
+## FR-053
+
+The system shall allow a Promotion Path to be archived, and shall refuse to delete one that any Release Pack references.
 
 ---
 
@@ -275,6 +357,18 @@ Every Connector shall operate in read-only mode.
 ## FR-040
 
 The system shall preserve segregation of duties by limiting itself to observation, correlation and documentation.
+
+---
+
+# Deferred
+
+## FR-054
+
+IA-02 requires User-Owned Information to be versioned by Tower.
+
+Milestone 1 versions Promotion Paths (ADR-007) and preserves Observation history, but does not version Release Pack metadata or Handover information.
+
+Full coverage of IA-02 is deferred to a later milestone and recorded here so the gap is visible rather than assumed closed.
 
 ---
 

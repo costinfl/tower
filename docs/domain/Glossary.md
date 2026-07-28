@@ -26,7 +26,9 @@ This document is the authoritative source for business terminology.
 
 # Observation
 
-An immutable fact collected from an external system at a specific point in time.
+An immutable fact collected from an identified source at a specific point in time.
+
+An identified source is either an External System, reached through a Connector, or manual entry by a person.
 
 An Observation represents what Tower has seen.
 
@@ -101,6 +103,18 @@ Typical Environments include:
 - Hotfix
 
 An Environment contains the currently observed Deployment Units.
+
+---
+
+# Stage
+
+The delivery stage an Environment represents, independent of its name.
+
+The values are DEVELOPMENT, VALIDATION, PRE_PRODUCTION and PRODUCTION.
+
+Environments named SIT1, UAT and QA may all classify as VALIDATION.
+
+Stage exists so that Release Pack state can be derived for any user-defined Promotion Path without depending on Environment naming conventions.
 
 ---
 
@@ -211,13 +225,29 @@ Examples include:
 
 ---
 
+# Connector
+
+A Tower component responsible for communicating with one category of External System and retrieving information from it.
+
+Connectors are read-only.
+
+A Connector never modifies the system it reads.
+
+Vendor-specific concepts terminate at the Connector boundary.
+
+---
+
 # Collector
 
-A Tower component responsible for retrieving information from external systems.
+A Tower component responsible for turning information retrieved by a Connector into Observations.
+
+Collectors validate retrieved information, preserve timestamps and source references, and forward normalized Observations to the Canonical Model.
 
 Collectors observe.
 
 Collectors never modify external systems.
+
+Manual entry is itself a Collector, whose source is a person rather than a system.
 
 ---
 

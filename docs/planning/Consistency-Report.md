@@ -26,9 +26,9 @@ Findings are classified into three categories.
 - Editorial inconsistencies requiring documentation corrections.
 - Coverage gaps requiring additional requirements.
 
-No existing document has been modified as a result of this review.
+When this review was written, no existing document had yet been modified: contradictions were raised as proposed Architectural Decision Records rather than resolved by silent edits.
 
-Contradictions are resolved through proposed Architectural Decision Records rather than silent edits.
+Those records have since been accepted and the corrections applied. See Resolution Status below for what changed and where.
 
 ---
 
@@ -310,6 +310,31 @@ The Vision states that developers should obtain answers within seconds.
 NFR-023 and NFR-024 describe efficient retrieval without a target.
 
 A soft budget is recommended.
+
+---
+
+# Resolution Status
+
+All findings in this report have been addressed.
+
+| Finding | Resolution |
+| --- | --- |
+| C1 to C5 | ADR-005 to ADR-008, all Accepted |
+| C6 | Milestones.md states that generation is Milestone 1 and templates and formats are Milestone 3 |
+| C7 | Milestones.md states that Snapshot Created describes the eventual flow, not a Milestone 1 obligation |
+| C8 | Glossary.md gains a Connector entry and narrows Collector to normalization |
+| E1 | Context.md information flow now includes Connectors |
+| E2, E3 | Roadmap.md marked superseded by Milestones.md for milestone definitions |
+| E4 | Open-Questions.md Integration heading level corrected |
+| E5 | Checklist reconciled to the delivered ADR filenames |
+| E6 | Guidance only; Deployment Unit remains an Application Version for Milestone 1 |
+| G1 to G4 | FR-041 to FR-053 added |
+| G5 | FR-054 records the deferral of full IA-02 coverage explicitly |
+| G6 | NFR-031 gives the Vision's "within seconds" a testable figure |
+
+OQ-001 and OQ-003 are answered by ADR-007 and ADR-008 and are marked as such.
+
+Backlog.md gains Epic 8, introduced by ADR-010 after the Backlog was written.
 
 ---
 

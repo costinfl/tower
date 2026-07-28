@@ -109,6 +109,9 @@ Each External System remains authoritative for its own domain.
 External Systems
         │
         ▼
+Connectors
+        │
+        ▼
 Collectors
         │
         ▼
