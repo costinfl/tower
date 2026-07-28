@@ -11,6 +11,7 @@ import dev.tower.application.port.out.ApplicationVersionRepository;
 import dev.tower.application.port.out.PromotionPathRepository;
 import dev.tower.application.port.out.ManualObservationCollector;
 import dev.tower.application.port.out.ObservationRepository;
+import dev.tower.application.port.out.PromotionPathRepository;
 import dev.tower.application.port.out.ReleasePackRepository;
 import dev.tower.application.service.ApplicationService;
 import dev.tower.application.service.EnvironmentService;
@@ -19,6 +20,8 @@ import dev.tower.application.service.ObservationService;
 import dev.tower.application.service.ReleasePackService;
 import dev.tower.docgen.MarkdownReleaseDocumentRenderer;
 import dev.tower.docgen.ReleaseDocumentAssembler;
+import dev.tower.portability.ExportService;
+import dev.tower.portability.ImportService;
 
 /**
  * Wires the framework-free application layer into Spring.
@@ -88,5 +91,27 @@ public class ApplicationServicesConfiguration {
     @Bean
     public MarkdownReleaseDocumentRenderer markdownReleaseDocumentRenderer() {
         return new MarkdownReleaseDocumentRenderer();
+    }
+
+    @Bean
+    public ExportService exportService(
+            EnvironmentRepository environmentRepository, ApplicationRepository applicationRepository,
+            ApplicationVersionRepository applicationVersionRepository,
+            PromotionPathRepository promotionPathRepository, ReleasePackRepository releasePackRepository,
+            ObservationRepository observationRepository, Clock clock) {
+        return new ExportService(environmentRepository, applicationRepository,
+                applicationVersionRepository, promotionPathRepository, releasePackRepository,
+                observationRepository, clock);
+    }
+
+    @Bean
+    public ImportService importService(
+            EnvironmentRepository environmentRepository, ApplicationRepository applicationRepository,
+            ApplicationVersionRepository applicationVersionRepository,
+            PromotionPathRepository promotionPathRepository, ReleasePackRepository releasePackRepository,
+            ObservationRepository observationRepository) {
+        return new ImportService(environmentRepository, applicationRepository,
+                applicationVersionRepository, promotionPathRepository, releasePackRepository,
+                observationRepository);
     }
 }

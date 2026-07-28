@@ -86,7 +86,6 @@
       <groupId>dev.tower</groupId>
       <artifactId>tower-portability</artifactId>
       <version>${project.version}</version>
-      <scope>runtime</scope>
     </dependency>
     <dependency>
       <groupId>dev.tower</groupId>

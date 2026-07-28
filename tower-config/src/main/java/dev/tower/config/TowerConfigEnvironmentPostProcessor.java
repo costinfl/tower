@@ -72,6 +72,13 @@ public class TowerConfigEnvironmentPostProcessor implements EnvironmentPostProce
         // config.yml must not win either: the directory has already been resolved and read by the
         // time that file is parsed, so letting it redefine tower.home would report a location
         // nothing actually used.
-        propertySources.addFirst(new MapPropertySource("towerHome", Map.of("tower.home", home.toString())));
+        // The instance name is resolved here, after config.yml has been read, so a
+        // configured name wins over the host name. ADR-010 needs it to stamp
+        // exported Observations with the instance that first observed them.
+        String instanceName = new TowerInstance(environment.getProperty("tower.instance-name")).name();
+
+        propertySources.addFirst(new MapPropertySource("towerHome", Map.of(
+                "tower.home", home.toString(),
+                "tower.instance-name", instanceName)));
     }
 }
