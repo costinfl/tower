@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { getHealth } from "./api/client";
 import ApplicationsPage from "./pages/ApplicationsPage";
 import EnvironmentsPage from "./pages/EnvironmentsPage";
+import PortabilityPage from "./pages/PortabilityPage";
 import PromotionPathsPage from "./pages/PromotionPathsPage";
 import ReleasePacksPage from "./pages/ReleasePacksPage";
 
@@ -12,7 +13,7 @@ type ConnectionState =
 
 // Release Packs leads the nav — it is Tower's central business concept
 // (ADR-004) and every other screen exists to support it.
-type Tab = "releasePacks" | "applications" | "paths" | "environments";
+type Tab = "releasePacks" | "applications" | "paths" | "environments" | "portability";
 
 export default function App() {
   const [connection, setConnection] = useState<ConnectionState>({ kind: "loading" });
@@ -72,6 +73,17 @@ export default function App() {
           >
             Environments
           </button>
+          {/*
+            Last in the order: sharing is something you do once the release
+            information itself exists, not the first thing you reach for.
+          */}
+          <button
+            type="button"
+            className={tab === "portability" ? "app-nav__tab app-nav__tab--active" : "app-nav__tab"}
+            onClick={() => setTab("portability")}
+          >
+            Export &amp; Import
+          </button>
         </nav>
         <p className="backend-status" data-state={connection.kind}>
           {connection.kind === "loading" && "Checking backend connectivity…"}
@@ -84,6 +96,7 @@ export default function App() {
         {tab === "applications" && <ApplicationsPage />}
         {tab === "paths" && <PromotionPathsPage />}
         {tab === "environments" && <EnvironmentsPage />}
+        {tab === "portability" && <PortabilityPage />}
       </main>
     </div>
   );

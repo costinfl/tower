@@ -605,3 +605,61 @@ export function getReleaseDocumentMarkdown(releasePackId: string): Promise<strin
 export function releaseDocumentDownloadUrl(releasePackId: string): string {
   return `/api/release-packs/${encodeURIComponent(releasePackId)}/documentation/markdown/download`;
 }
+
+// --- Portability (Epic 8, ADR-010) ------------------------------------------
+
+export type ConflictStrategy = "SKIP" | "REPLACE" | "DUPLICATE";
+
+export type ImportOutcome = "CREATED" | "REPLACED" | "SKIPPED" | "DUPLICATED" | "UNCHANGED";
+
+export interface ImportReportEntry {
+  type: string;
+  id: string;
+  name: string;
+  outcome: ImportOutcome;
+  detail: string | null;
+}
+
+export interface ImportReport {
+  applied: boolean;
+  sourceInstance: string;
+  schemaVersion: number;
+  entries: ImportReportEntry[];
+}
+
+// Only the fields the Viewer displays are typed. The rest of the file is passed
+// back to the server untouched, so the client never becomes a second place that
+// has to understand the export format.
+export interface TowerExportFile {
+  schemaVersion: number;
+  exportedFrom: string;
+  exportedAt: string;
+  environments: unknown[];
+  applications: unknown[];
+  applicationVersions: unknown[];
+  promotionPaths: unknown[];
+  releasePacks: unknown[];
+  observations: unknown[];
+}
+
+export interface TowerInstanceView {
+  name: string;
+}
+
+export function getTowerInstance(): Promise<TowerInstanceView> {
+  return getJson<TowerInstanceView>("/api/portability/instance");
+}
+
+// A plain link so the browser keeps the filename the server derives from the
+// instance name.
+export function towerExportDownloadUrl(includeObservations: boolean): string {
+  return `/api/portability/export/download?includeObservations=${includeObservations}`;
+}
+
+export function previewImport(file: TowerExportFile, strategy: ConflictStrategy): Promise<ImportReport> {
+  return postJson<ImportReport>(`/api/portability/import/preview?strategy=${strategy}`, file);
+}
+
+export function applyImport(file: TowerExportFile, strategy: ConflictStrategy): Promise<ImportReport> {
+  return postJson<ImportReport>(`/api/portability/import?strategy=${strategy}`, file);
+}
