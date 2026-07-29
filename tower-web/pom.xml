@@ -32,6 +32,26 @@
       <plugin>
         <groupId>com.github.eirslett</groupId>
         <artifactId>frontend-maven-plugin</artifactId>
+        <!--
+          The downloaded Node lives under target/ rather than beside the sources,
+          because it is a build artifact and not part of the project.
+
+          That placement is also what makes a Node version bump safe. The plugin
+          upgrades an existing installation in place - it swaps the node binary
+          and re-extracts npm over whatever is already there - and the result is
+          a node and an npm that do not match, which fails with "Class extends
+          value undefined is not a constructor or null". Nothing in that message
+          suggests a stale toolchain, and the build that produced it had passed
+          on the machine where the directory happened to be fresh.
+
+          Under target/ the toolchain is disposable: `mvn clean` removes it, CI
+          starts without it, and anyone whose checkout predates a version bump
+          gets a correct install rather than an upgraded one. Raising
+          node.version can no longer break a build that a clean would fix.
+        -->
+        <configuration>
+          <installDirectory>${project.build.directory}</installDirectory>
+        </configuration>
         <executions>
           <execution>
             <id>install-node-and-npm</id>

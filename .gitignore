@@ -3,8 +3,10 @@ target/
 dist/
 node_modules/
 
-# frontend-maven-plugin installs a project-local Node/npm here during the
-# Maven build. It is a downloaded toolchain, not source.
+# frontend-maven-plugin used to install its Node/npm here. It now installs into
+# tower-web/target/, which target/ above already covers, so this path is only
+# ever an orphan left in a checkout that predates that change. Kept ignored so
+# nobody commits one; safe to delete by hand.
 /tower-web/node/
 
 # Application data lives in ~/.tower and must never enter the repository.

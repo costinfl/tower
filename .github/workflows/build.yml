@@ -43,15 +43,25 @@ jobs:
 
       # The frontend is built by frontend-maven-plugin inside the Maven
       # reactor, so a single `mvn verify` covers backend and Viewer alike.
-      # Node itself is downloaded by that plugin; caching it keeps the run fast.
-      - name: Cache frontend toolchain
+      #
+      # Only npm's own download cache is cached, and deliberately so. Caching
+      # the installed toolchain is what broke this build once already: with a
+      # loose restore-key, a Node version bump missed the exact key, restored an
+      # installation from before the bump, and left the plugin upgrading Node in
+      # place - which produces a node and an npm that do not match. Every run
+      # after the bump failed on a cache entry rather than on the commit.
+      #
+      # node_modules was cached alongside it and never earned anything: `npm ci`
+      # deletes node_modules before installing, by definition. ~/.npm is the
+      # directory that actually saves the downloads, it is content-addressed, and
+      # a partial restore can only mean fewer packages fetched - never a
+      # mismatched toolchain. Node itself is a sub-second download.
+      - name: Cache the npm download cache
         uses: actions/cache@v4
         with:
-          path: |
-            tower-web/node
-            tower-web/node_modules
-          key: ${{ runner.os }}-frontend-${{ hashFiles('tower-web/package-lock.json') }}
-          restore-keys: ${{ runner.os }}-frontend-
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-${{ hashFiles('tower-web/package-lock.json') }}
+          restore-keys: ${{ runner.os }}-npm-
 
       - name: Build, test and verify architecture
         run: mvn -B --no-transfer-progress verify
