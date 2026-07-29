@@ -294,6 +294,21 @@ class DeploymentCollectorTest {
         }
 
         @Test
+        void records_the_connector_message_verbatim_without_repeating_the_locator() {
+            // A ConnectorException already names the locator it failed on.
+            // Prefixing it again produced a line that said the cluster and
+            // namespace twice, which a user reads as noise.
+            bindEnvironment();
+            connector.failsFor(NAMESPACE,
+                    "Could not read " + CLUSTER + "/" + NAMESPACE + ": forbidden");
+
+            SyncRun run = collector.collect();
+
+            assertThat(run.failures()).singleElement().asString()
+                    .isEqualTo("Could not read " + CLUSTER + "/" + NAMESPACE + ": forbidden");
+        }
+
+        @Test
         void leaves_earlier_observations_valid() {
             bindEnvironment();
             bindApplication(null);

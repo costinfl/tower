@@ -1,6 +1,7 @@
 package dev.tower.api.config;
 
 import java.time.Clock;
+import java.util.List;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -14,10 +15,13 @@ import dev.tower.application.port.out.ObservationRepository;
 import dev.tower.application.port.out.PromotionPathRepository;
 import dev.tower.application.port.out.ReleasePackRepository;
 import dev.tower.application.service.ApplicationService;
+import dev.tower.application.port.out.DeploymentObservationCollector;
 import dev.tower.application.port.out.ExternalBindingRepository;
+import dev.tower.application.port.out.SyncRunRepository;
 import dev.tower.application.service.EnvironmentService;
 import dev.tower.application.service.ExternalBindingService;
 import dev.tower.application.service.PromotionPathService;
+import dev.tower.application.service.SynchronizationService;
 import dev.tower.application.service.ObservationService;
 import dev.tower.application.service.ReleasePackService;
 import dev.tower.docgen.MarkdownReleaseDocumentRenderer;
@@ -69,6 +73,17 @@ public class ApplicationServicesConfiguration {
             ApplicationRepository applicationRepository) {
         return new ExternalBindingService(
                 externalBindingRepository, environmentRepository, applicationRepository);
+    }
+
+    /**
+     * Takes every Collector on the classpath, so adding a Source Control Collector
+     * later needs no change here. Spring injects an empty list when none is present,
+     * which is the correct behaviour for a build without connector modules.
+     */
+    @Bean
+    public SynchronizationService synchronizationService(
+            List<DeploymentObservationCollector> collectors, SyncRunRepository syncRunRepository) {
+        return new SynchronizationService(collectors, syncRunRepository);
     }
 
     @Bean

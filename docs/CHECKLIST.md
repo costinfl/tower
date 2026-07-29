@@ -58,7 +58,9 @@ This checklist tracks the architectural documentation required before implementa
 - [x] External Bindings
 - [x] Kubernetes Deployment Platform Connector
 - [x] Deployment Collector with change detection
-- [ ] Sync Run recording and reporting
+- [x] Sync Run recording and reporting
+- [x] Synchronize-now use case and API
+- [ ] Connectors screen and read-only connection test
 
 ---
 

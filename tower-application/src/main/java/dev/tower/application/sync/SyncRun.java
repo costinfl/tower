@@ -21,6 +21,7 @@ import java.util.List;
  * type by accident — {@code domain_depends_only_on_the_jdk} makes that
  * structural.
  *
+ * @param id                     identity, so a run can be listed and referred to
  * @param connectorId            which Connector ran
  * @param startedAt              when the run began
  * @param finishedAt             when it ended
@@ -31,6 +32,7 @@ import java.util.List;
  * @param failures               what went wrong, per scope, in words fit to show a user
  */
 public record SyncRun(
+        SyncRunId id,
         String connectorId,
         Instant startedAt,
         Instant finishedAt,
@@ -64,5 +66,16 @@ public record SyncRun(
     /** True when nothing changed — the ordinary result once a system is stable. */
     public boolean foundNoChange() {
         return outcome != Outcome.FAILED && observationsAppended == 0;
+    }
+
+    /**
+     * Whether this run read every scope it was asked to.
+     *
+     * <p>Only such a run licenses the statement "confirmed present as of". A
+     * partial run says nothing about the scopes it could not read, and pairing
+     * an Observation with it would overstate what Tower knows.
+     */
+    public boolean confirmsLiveness() {
+        return outcome == Outcome.SUCCEEDED;
     }
 }

@@ -22,6 +22,7 @@ import dev.tower.application.port.out.DeploymentObservationCollector;
 import dev.tower.application.port.out.ExternalBindingRepository;
 import dev.tower.application.port.out.ObservationRepository;
 import dev.tower.application.sync.SyncRun;
+import dev.tower.application.sync.SyncRunId;
 import dev.tower.application.sync.UnrecognizedWorkload;
 import dev.tower.connector.api.ConnectorCredential;
 import dev.tower.connector.api.ConnectorException;
@@ -100,7 +101,7 @@ public class DeploymentCollector implements DeploymentObservationCollector {
             collectScope(binding, byImage, run);
         }
 
-        return new SyncRun(connectorId, startedAt, clock.instant(),
+        return new SyncRun(SyncRunId.newId(), connectorId, startedAt, clock.instant(),
                 outcomeOf(environmentBindings.size(), run.failures.size()),
                 run.workloadsRead, run.observationsAppended, run.unrecognized, run.failures);
     }
@@ -116,7 +117,11 @@ public class DeploymentCollector implements DeploymentObservationCollector {
         } catch (ConnectorException e) {
             // Recorded, not thrown. The scopes already read keep their
             // Observations (Connector-Model.md, Failure Handling).
-            run.failures.add(locator + ": " + e.getMessage());
+            //
+            // The message is taken as-is: a ConnectorException already names the
+            // locator it failed on, and prefixing it again produced text that
+            // said the cluster and namespace twice in one line.
+            run.failures.add(e.getMessage());
         } finally {
             credential.clear();
         }

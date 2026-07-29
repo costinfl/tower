@@ -118,6 +118,46 @@ curl -s -o /tmp/_m2 "$B/api/bindings/version-preview?versionPattern=%5Erelease-(
 check "preview reports a non-match without inventing a version" "$(jsonf "['matched']")" False
 
 echo
+echo "=============================================================="
+echo " SYNCHRONIZATION (#50, #51) — ADR-011"
+echo "=============================================================="
+
+# No cluster is reachable from here, so the bound Environment above fails to
+# read. That is the point: a run that cannot reach its platform must still be
+# recorded, and must not corrupt anything (Connector-Model.md, Failure Handling).
+SYNC=$(curl -s -o /tmp/_m2 -w '%{http_code}' -X POST $B/api/sync -H "$J")
+check "synchronize now" "$SYNC" 200
+
+RUNS=$(python3 -c "import json;print(len(json.load(open('/tmp/_m2'))))")
+check "one run per configured Collector" "$RUNS" 1
+check "the run names its Connector" "$(jsonf "[0]['connectorId']")" kubernetes
+check "an unreachable platform is recorded as failed" "$(jsonf "[0]['outcome']")" FAILED
+check "a failed run appends no Observation" "$(jsonf "[0]['observationsAppended']")" 0
+check "a failed run does not claim liveness" "$(jsonf "[0]['confirmsLiveness']")" False
+
+FAILCOUNT=$(python3 -c "import json;print(len(json.load(open('/tmp/_m2'))[0]['failures']))")
+if [ "$FAILCOUNT" -ge 1 ]; then ok "the failure is reported, not swallowed"; else bad "no failure recorded"; fi
+
+echo
+echo "--- the run is persisted, not just returned (#50) ---"
+
+HIST=$(curl -s -o /tmp/_m2 -w '%{http_code}' "$B/api/sync/runs?limit=5")
+check "read run history" "$HIST" 200
+HISTCOUNT=$(python3 -c "import json;print(len(json.load(open('/tmp/_m2'))))")
+if [ "$HISTCOUNT" -ge 1 ]; then ok "history survived the request that created it"; else bad "history empty"; fi
+
+curl -s -o /tmp/_m2 -X POST $B/api/sync -H "$J" >/dev/null
+curl -s -o /tmp/_m2 "$B/api/sync/runs?limit=10"
+AFTER=$(python3 -c "import json;print(len(json.load(open('/tmp/_m2'))))")
+if [ "$AFTER" -gt "$HISTCOUNT" ]; then ok "a second run is recorded too"; else bad "second run not recorded"; fi
+
+echo
+echo "--- liveness is only claimed when earned (ADR-011) ---"
+
+CONF=$(curl -s -o /dev/null -w '%{http_code}' "$B/api/sync/last-confirmation?connectorId=kubernetes")
+check "no confirmation exists after only failed runs" "$CONF" 404
+
+echo
 echo "--- cleanup ---"
 check "unbind the Environment" \
   "$(curl -s -o /dev/null -w '%{http_code}' -X DELETE "$B/api/bindings/environments/$ENV?connectorId=kubernetes")" 204
