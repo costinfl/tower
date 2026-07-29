@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { getHealth } from "./api/client";
 import ApplicationsPage from "./pages/ApplicationsPage";
 import ConnectorsPage from "./pages/ConnectorsPage";
+import DocumentTemplatesPage from "./pages/DocumentTemplatesPage";
 import EnvironmentsPage from "./pages/EnvironmentsPage";
 import PortabilityPage from "./pages/PortabilityPage";
 import DemoBanner from "./components/DemoBanner";
@@ -16,7 +17,14 @@ type ConnectionState =
 
 // Release Packs leads the nav — it is Tower's central business concept
 // (ADR-004) and every other screen exists to support it.
-type Tab = "releasePacks" | "applications" | "paths" | "environments" | "connectors" | "portability";
+type Tab =
+  | "releasePacks"
+  | "applications"
+  | "paths"
+  | "environments"
+  | "connectors"
+  | "templates"
+  | "portability";
 
 export default function App() {
   const [connection, setConnection] = useState<ConnectionState>({ kind: "loading" });
@@ -89,6 +97,17 @@ export default function App() {
             Connectors
           </button>
           {/*
+            Configuration for the documents Release Packs produce, so it sits
+            after the screens that produce them rather than beside them.
+          */}
+          <button
+            type="button"
+            className={tab === "templates" ? "app-nav__tab app-nav__tab--active" : "app-nav__tab"}
+            onClick={() => setTab("templates")}
+          >
+            Doc templates
+          </button>
+          {/*
             Last in the order: sharing is something you do once the release
             information itself exists, not the first thing you reach for.
           */}
@@ -113,6 +132,7 @@ export default function App() {
         {tab === "paths" && <PromotionPathsPage />}
         {tab === "environments" && <EnvironmentsPage />}
         {tab === "connectors" && <ConnectorsPage />}
+        {tab === "templates" && <DocumentTemplatesPage />}
         {tab === "portability" && <PortabilityPage />}
       </main>
     </div>

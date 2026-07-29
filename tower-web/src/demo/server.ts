@@ -62,11 +62,37 @@ interface RunRec {
   failures: string[];
 }
 
+// Milestone 3, OQ-010. A Document Template chooses which sections a release
+// document contains and in what order; it holds no markup, which is why this is
+// a list of section names rather than a body. Mirrors ADR-013.
+interface TemplateRec { id: string; name: string; sections: string[] }
+
+// Kept in the same order as DocumentSection, which is the order the complete
+// document uses.
+const DOCUMENT_SECTIONS: { name: string; heading: string; description: string }[] = [
+  { name: "STATUS", heading: "Status",
+    description: "Observed state and lifecycle, with the note that keeps the two apart." },
+  { name: "PROMOTION_PATH", heading: "Promotion Path",
+    description: "The path this release follows, at the version it was pinned to." },
+  { name: "CONTENTS", heading: "Contents",
+    description: "The Application Versions the release contains." },
+  { name: "HANDOVER", heading: "Handover",
+    description: "Deployment instructions, commands, migrations, rollback and notes." },
+  { name: "ITERATIONS", heading: "Validation Iterations",
+    description: "The validation cycles recorded against the release." },
+  { name: "SIGHTINGS", heading: "Where this release has been observed",
+    description: "Every Environment the release has been seen in, each citing its Observation." },
+];
+
+const COMPLETE_TEMPLATE_ID = "00000000-0000-0000-0000-000000000001";
+const COMPLETE_TEMPLATE_NAME = "Complete document";
+
 const state: {
   environments: Env[]; applications: App[]; versions: Ver[];
   paths: PathRec[]; packs: PackRec[]; observations: Obs[];
   environmentBindings: EnvBinding[]; applicationBindings: AppBinding[];
   credentials: Record<string, string>; runs: RunRec[];
+  documentTemplates: TemplateRec[];
 } = {
   environments: seed.environments.map((e) => ({ ...e })),
   applications: seed.applications.map((a) => ({ ...a })),
@@ -87,6 +113,7 @@ const state: {
     unrecognized: r.unrecognized.map((u) => ({ ...u })),
     failures: [...r.failures],
   })),
+  documentTemplates: seed.documentTemplates.map((t) => ({ ...t, sections: [...t.sections] })),
 };
 
 let sequence = 0;
@@ -257,16 +284,28 @@ function packStateView(packId: string) {
 }
 
 // --- release documentation ---------------------------------------------------
-// Mirrors MarkdownReleaseDocumentRenderer. Deterministic for the same reason:
-// no generation timestamp, stable ordering, absences stated rather than
-// omitted. `scripts/verify-demo-docgen.sh` checks this against the real
-// renderer, so drift is caught rather than discovered.
+// Mirrors MarkdownReleaseDocumentRenderer, including its Document Template
+// handling (OQ-010, ADR-013). Deterministic for the same reason: no generation
+// timestamp, stable ordering, absences stated rather than omitted — and a
+// template that leaves a section out says so in the closing note rather than
+// letting the section simply not be there.
+//
+// This is a second implementation of a renderer whose output must match the
+// real one, so it is checked by hand against tower-docgen when either changes.
 
 const dash = (v: string | null | undefined) => (v == null || v === "" ? "—" : v);
 const oneLine = (v: string) =>
   !v || !v.trim() ? "—" : v.replace(/\|/g, "\\|").replace(/\s*\r?\n\s*/g, " ").trim();
 
-function releaseMarkdown(packId: string): string {
+// "A", "A and B", "A, B and C" — matching DocumentProvenance.
+function sectionList(names: string[]): string {
+  const headings = names.map((n) => DOCUMENT_SECTIONS.find((s) => s.name === n)?.heading ?? n);
+  return headings
+    .map((h, i) => (i === 0 ? h : (i === headings.length - 1 ? " and " : ", ") + h))
+    .join("");
+}
+
+function releaseMarkdown(packId: string, template: TemplateRec | null): string {
   const p = pack(packId);
   if (!p) throw notFound(`Release Pack ${packId} does not exist.`);
   const view = packView(p);
@@ -275,88 +314,188 @@ function releaseMarkdown(packId: string): string {
 
   out.push(`# Release Pack: ${p.name}\n`);
   if (p.description.trim()) out.push(`${p.description}\n`);
+
+  // Driven by the template's own order, not by the declaration order of
+  // DOCUMENT_SECTIONS. A template that puts Handover first is a template that
+  // renders Handover first, here as in tower-docgen.
+  const chosen = template ? template.sections : DOCUMENT_SECTIONS.map((s) => s.name);
+  for (const section of chosen) {
+    if (section === "STATUS") status(out, p, derived);
+    else if (section === "PROMOTION_PATH") promotionPath(out, view);
+    else if (section === "CONTENTS") contents(out, view);
+    else if (section === "HANDOVER") handover(out, p);
+    else if (section === "ITERATIONS") iterations(out, p);
+    else if (section === "SIGHTINGS") sightings(out, derived);
+  }
+
+  out.push("---\n");
+  out.push(`_${provenance(template)}`);
+  out.push("This document is a view of that model, not a source of truth (BR-07), "
+    + "and can be regenerated at any time._");
+  return out.join("\n") + "\n";
+}
+
+// Mirrors DocumentProvenance: the template is named, and what it leaves out is
+// named with it. Without that a reader cannot tell "no Iterations have been
+// recorded" from "Iterations were not included in this document".
+function provenance(template: TemplateRec | null): string {
+  if (!template) return "Generated by Tower from the Canonical Model.";
+  const omitted = DOCUMENT_SECTIONS.map((s) => s.name).filter((n) => !template.sections.includes(n));
+  const origin = `Generated by Tower from the Canonical Model using the "${template.name}" template`;
+  return omitted.length ? `${origin}, which does not include ${sectionList(omitted)}.` : `${origin}.`;
+}
+
+function status(out: string[], p: PackRec, derived: { state: string }) {
   out.push("| | |\n|---|---|");
   out.push(`| Observed state | ${derived.state} |`);
   out.push(`| Lifecycle | ${p.archived ? "Archived" : "Active"} |\n`);
   out.push("> Observed state is derived from Observations and records where this release has been");
   out.push("> seen. Lifecycle is a decision by the team and says nothing about deployment.\n");
+}
 
+function promotionPath(out: string[], view: ReturnType<typeof packView>) {
   out.push("## Promotion Path\n");
   if (!view.promotionPath) {
     out.push("_No Promotion Path has been assigned to this Release Pack._\n");
-  } else {
-    out.push(`**${view.promotionPath.pathName}** — version ${view.promotionPath.versionNumber}\n`);
-    out.push(`${view.promotionPath.environments.map((e) => (e as Env).name).join(" → ")}\n`);
-    out.push(`_This release follows version ${view.promotionPath.versionNumber} of the path. Later versions may define a different sequence; this is the`);
-    out.push("topology the release was planned against (ADR-007)._\n");
+    return;
   }
+  out.push(`**${view.promotionPath.pathName}** \u2014 version ${view.promotionPath.versionNumber}\n`);
+  out.push(`${view.promotionPath.environments.map((e) => (e as Env).name).join(" \u2192 ")}\n`);
+  out.push(`_This release follows version ${view.promotionPath.versionNumber} of the path. Later versions may define a different sequence; this is the`);
+  out.push("topology the release was planned against (ADR-007)._\n");
+}
 
+function contents(out: string[], view: ReturnType<typeof packView>) {
   out.push("## Contents\n");
   if (!view.contents.length) {
     out.push("_No Application Versions have been added to this Release Pack._\n");
-  } else {
-    out.push("| Application | Version | Branch | Tag | Commit | Build |");
-    out.push("|---|---|---|---|---|---|");
-    [...view.contents]
-      .sort((a, b) => a.applicationName.localeCompare(b.applicationName) || a.version.localeCompare(b.version))
-      .forEach((c) => out.push(
-        `| ${c.applicationName} | ${c.version} | ${dash(c.branch)} | ${dash(c.tag)} | ${dash(c.commit)} | ${dash(c.buildIdentifier)} |`));
-    out.push("");
+    return;
   }
+  out.push("| Application | Version | Branch | Tag | Commit | Build |");
+  out.push("|---|---|---|---|---|---|");
+  [...view.contents]
+    .sort((a, b) => a.applicationName.localeCompare(b.applicationName) || a.version.localeCompare(b.version))
+    .forEach((c) => out.push(
+      `| ${c.applicationName} | ${c.version} | ${dash(c.branch)} | ${dash(c.tag)} | ${dash(c.commit)} | ${dash(c.buildIdentifier)} |`));
+  out.push("");
+}
 
+function handover(out: string[], p: PackRec) {
   out.push("## Handover\n");
   const h = p.handover;
   const prepared = Object.values(h).some((x) => (x ?? "").trim() !== "");
   if (!prepared) {
     out.push("_No Handover information has been prepared for this Release Pack._\n");
-  } else {
-    ([
-      ["Deployment instructions", h.deploymentInstructions],
-      ["Shell commands", h.shellCommands],
-      ["Database migrations", h.databaseMigrations],
-      ["Rollback procedure", h.rollbackProcedure],
-      ["Validation notes", h.validationNotes],
-      ["Operational notes", h.operationalNotes],
-    ] as const).forEach(([heading, body]) => {
-      out.push(`### ${heading}\n`);
-      out.push(`${(body ?? "").trim() ? body : "_Not prepared._"}\n`);
-    });
+    return;
   }
+  ([
+    ["Deployment instructions", h.deploymentInstructions],
+    ["Shell commands", h.shellCommands],
+    ["Database migrations", h.databaseMigrations],
+    ["Rollback procedure", h.rollbackProcedure],
+    ["Validation notes", h.validationNotes],
+    ["Operational notes", h.operationalNotes],
+  ] as const).forEach(([heading, body]) => {
+    out.push(`### ${heading}\n`);
+    out.push(`${(body ?? "").trim() ? body : "_Not prepared._"}\n`);
+  });
+}
 
+function iterations(out: string[], p: PackRec) {
   out.push("## Validation Iterations\n");
   if (!p.iterations.length) {
     out.push("_No validation Iterations have been recorded against this Release Pack._\n");
-  } else {
-    out.push("| Iteration | Started | Completed | Notes |\n|---|---|---|---|");
-    [...p.iterations]
-      .sort((a, b) => a.startedAt.localeCompare(b.startedAt) || a.name.localeCompare(b.name))
-      .forEach((i) => out.push(
-        `| ${i.name} | ${i.startedAt} | ${i.completedAt ?? "_in progress_"} | ${oneLine(i.notes)} |`));
-    out.push("");
+    return;
   }
+  out.push("| Iteration | Started | Completed | Notes |\n|---|---|---|---|");
+  [...p.iterations]
+    .sort((a, b) => a.startedAt.localeCompare(b.startedAt) || a.name.localeCompare(b.name))
+    .forEach((i) => out.push(
+      `| ${i.name} | ${i.startedAt} | ${i.completedAt ?? "_in progress_"} | ${oneLine(i.notes)} |`));
+  out.push("");
+}
 
+function sightings(out: string[], derived: ReturnType<typeof packStateView>) {
   out.push("## Where this release has been observed\n");
   if (!derived.sightings.length) {
     out.push("_This release has not been observed in any Environment._\n");
-  } else {
-    out.push("| Environment | Application | Version | Observed | Source | Observation |");
-    out.push("|---|---|---|---|---|---|");
-    derived.sightings.forEach((s) => {
-      const o = state.observations.find(
-        (x) => x.environmentId === (s.environment as Env).id
-          && x.applicationVersionId === (s.applicationVersion as { id: string }).id
-          && x.observedAt === s.observedAt);
-      const src = o ? (o.source.actor ? `${o.source.collector} (${o.source.actor})` : o.source.collector) : "—";
-      out.push(`| ${(s.environment as Env).name} | ${(s.application as { name: string }).name} | `
-        + `${(s.applicationVersion as { version: string }).version} | ${s.observedAt} | ${src} | ${o?.id ?? "—"} |`);
-    });
-    out.push("");
+    return;
+  }
+  out.push("| Environment | Application | Version | Observed | Source | Observation |");
+  out.push("|---|---|---|---|---|---|");
+  derived.sightings.forEach((s) => {
+    const o = state.observations.find(
+      (x) => x.environmentId === (s.environment as Env).id
+        && x.applicationVersionId === (s.applicationVersion as { id: string }).id
+        && x.observedAt === s.observedAt);
+    const src = o ? (o.source.actor ? `${o.source.collector} (${o.source.actor})` : o.source.collector) : "\u2014";
+    out.push(`| ${(s.environment as Env).name} | ${(s.application as { name: string }).name} | `
+      + `${(s.applicationVersion as { version: string }).version} | ${s.observedAt} | ${src} | ${o?.id ?? "\u2014"} |`);
+  });
+  out.push("");
+}
+
+// --- document templates -------------------------------------------------------
+
+// The complete document is defined here rather than stored, exactly as the real
+// service defines it in code: it is what Tower generates when nobody has
+// expressed a preference, so it cannot be edited, renamed or deleted.
+const completeTemplate = () => ({
+  id: COMPLETE_TEMPLATE_ID,
+  name: COMPLETE_TEMPLATE_NAME,
+  sections: DOCUMENT_SECTIONS.map((s) => s.name),
+  omitted: [] as string[],
+  builtIn: true,
+});
+
+const templateView = (t: TemplateRec) => ({
+  id: t.id,
+  name: t.name,
+  sections: [...t.sections],
+  omitted: DOCUMENT_SECTIONS.map((s) => s.name).filter((n) => !t.sections.includes(n)),
+  builtIn: false,
+});
+
+const builtInRefusal = (verb: string) =>
+  `The complete document cannot be ${verb}. It is what Tower generates when no template is chosen;`
+  + " define a template of your own instead.";
+
+// An id that names nothing is an error rather than a reason to fall back: a
+// fallback would hand someone the sections they had deliberately removed, with
+// nothing on the page to say so.
+function resolveTemplate(id: string | null): TemplateRec | null {
+  if (!id || id === COMPLETE_TEMPLATE_ID) return null;
+  const found = state.documentTemplates.find((t) => t.id === id);
+  if (!found) throw notFound(`Document Template ${id} does not exist.`);
+  return found;
+}
+
+function validTemplate(body: Json | null, beingUpdated: string | null): { name: string; sections: string[] } {
+  const name = String(body?.name ?? "").trim();
+  if (!name) throw badRequest("A Document Template must have a name.");
+  if (name.toLowerCase() === COMPLETE_TEMPLATE_NAME.toLowerCase()) {
+    throw badRequest(`"${COMPLETE_TEMPLATE_NAME}" names the built-in document that includes every`
+      + " section. Choose another name.");
+  }
+  if (state.documentTemplates.some((t) => t.name.toLowerCase() === name.toLowerCase() && t.id !== beingUpdated)) {
+    throw conflict(`A Document Template named "${name}" already exists.`);
   }
 
-  out.push("---\n");
-  out.push("_Generated by Tower from the Canonical Model. This document is a view of that model,");
-  out.push("not a source of truth (BR-07), and can be regenerated at any time._");
-  return out.join("\n") + "\n";
+  const sections = Array.isArray(body?.sections) ? (body.sections as unknown[]).map(String) : [];
+  if (!sections.length) {
+    throw badRequest("A Document Template must include at least one section. A document with none"
+      + " would be a title and a footer, which is a mistake rather than a preference.");
+  }
+  for (const s of sections) {
+    if (!DOCUMENT_SECTIONS.some((known) => known.name === s)) {
+      throw badRequest(`"${s}" is not a document section. Ask GET /api/document-templates/sections`
+        + " for the ones this version of Tower offers.");
+    }
+  }
+  if (new Set(sections).size !== sections.length) {
+    throw badRequest("A Document Template may include each section at most once.");
+  }
+  return { name, sections };
 }
 
 // --- routing ----------------------------------------------------------------
@@ -425,6 +564,41 @@ export function handle(pathname: string, method: string, body: Json | null): unk
         throw badRequest("The version pattern is not a valid regular expression.");
       }
       return { imageTag, versionPattern, matched, version };
+    }
+  }
+
+  // OQ-010, ADR-013. Templates choose sections; they carry no markup, so there
+  // is no document body to accept here either.
+  if (area === "document-templates") {
+    if (a === "sections") return DOCUMENT_SECTIONS;
+
+    if (!a && method === "GET") {
+      return [completeTemplate(), ...state.documentTemplates.map(templateView)];
+    }
+    if (!a && method === "POST") {
+      const created = { id: newId("template"), ...validTemplate(body, null) };
+      state.documentTemplates.push(created);
+      return templateView(created);
+    }
+    if (a && method === "GET") {
+      if (a === COMPLETE_TEMPLATE_ID) return completeTemplate();
+      const found = state.documentTemplates.find((t) => t.id === a);
+      if (!found) throw notFound(`Document Template ${a} does not exist.`);
+      return templateView(found);
+    }
+    if (a && method === "PUT") {
+      if (a === COMPLETE_TEMPLATE_ID) throw badRequest(builtInRefusal("changed"));
+      const found = state.documentTemplates.find((t) => t.id === a);
+      if (!found) throw notFound(`Document Template ${a} does not exist.`);
+      const { name, sections } = validTemplate(body, a);
+      found.name = name;
+      found.sections = sections;
+      return templateView(found);
+    }
+    if (a && method === "DELETE") {
+      if (a === COMPLETE_TEMPLATE_ID) throw badRequest(builtInRefusal("deleted"));
+      state.documentTemplates = state.documentTemplates.filter((t) => t.id !== a);
+      return null;
     }
   }
 
@@ -634,7 +808,10 @@ export function handle(pathname: string, method: string, body: Json | null): unk
 
     if (b === "state") return packStateView(p.id);
     if (b === "documentation") {
-      if (c === "markdown") return releaseMarkdown(p.id);
+      if (c === "markdown") {
+        const requested = new URLSearchParams(pathname.split("?")[1] ?? "").get("template");
+        return releaseMarkdown(p.id, resolveTemplate(requested));
+      }
       return { packName: p.name };
     }
     if (b === "versions" && c) {

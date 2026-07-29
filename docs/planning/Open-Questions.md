@@ -113,9 +113,18 @@ Examples
 - PDF
 - DOCX
 
+Answer so far
+
+Markdown (Milestone 1) and HTML (Milestone 3). Both are rendered by Tower's own code from the assembled
+document, with no template engine and no generation timestamp, so both satisfy NFR-025.
+
+PDF and DOCX remain open. Each would introduce a rendering library, and the question that must be answered
+before either is added is whether that library produces byte-identical output for identical input — most do
+not, because they embed a creation date.
+
 Status
 
-Future Milestone
+Partly answered — PDF and DOCX still open
 
 ---
 
@@ -123,9 +132,23 @@ Future Milestone
 
 Should documentation templates be customizable?
 
+Answer
+
+Yes, by selecting sections rather than by authoring markup.
+
+A Document Template chooses which sections a release document contains and in what order. It carries no
+markup, no expressions and no user-authored text beyond its own name, so every byte of a rendered document
+is still written by Tower — which is what keeps NFR-025 true. A template that leaves a section out is named
+in the document, together with what it does not include.
+
+The complete document remains available and cannot be edited or deleted, so there is always one template
+that tells the whole truth about a release.
+
+Recorded in ADR-013. Implemented in Milestone 3 (FR-062 to FR-065).
+
 Status
 
-Deferred
+Answered
 
 ---
 

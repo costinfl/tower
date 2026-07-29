@@ -281,6 +281,11 @@ Generates documentation from the Canonical Model.
 
 Reads through the application layer only.
 
+Renders Markdown and HTML by string assembly, with no template engine and no generation timestamp, so that
+regenerating an unchanged Release Pack produces byte-identical output (NFR-025). Document Templates select
+sections and their order; they carry no markup, which is what keeps that guarantee inside Tower's own code
+(ADR-013).
+
 ---
 
 ## tower-portability

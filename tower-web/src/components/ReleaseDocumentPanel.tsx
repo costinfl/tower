@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
+  DocumentTemplate,
   getReleaseDocumentMarkdown,
+  listDocumentTemplates,
   releaseDocumentDownloadUrl,
   releaseDocumentHtmlDownloadUrl,
   releaseDocumentHtmlUrl,
@@ -27,12 +29,28 @@ export default function ReleaseDocumentPanel({ releasePackId, packName }: Releas
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [copied, setCopied] = useState(false);
+  const [templates, setTemplates] = useState<DocumentTemplate[]>([]);
+  const [templateId, setTemplateId] = useState("");
+
+  // Loaded once. A failure here is deliberately not surfaced as an error: the
+  // picker is an option on top of a document that generates perfectly well
+  // without one, so a list that will not load must not stop someone generating.
+  useEffect(() => {
+    listDocumentTemplates()
+      .then((all) => setTemplates(all.filter((t) => !t.builtIn)))
+      .catch(() => setTemplates([]));
+  }, []);
+
+  // Empty means no template, which is the complete document — the same request
+  // Tower answered before templates existed (OQ-010).
+  const chosen = templateId === "" ? undefined : templateId;
+  const chosenTemplate = templates.find((t) => t.id === templateId);
 
   function generate() {
     setBusy(true);
     setError(null);
     setCopied(false);
-    getReleaseDocumentMarkdown(releasePackId)
+    getReleaseDocumentMarkdown(releasePackId, chosen)
       .then(setMarkdown)
       .catch((e: unknown) => setError(e))
       .finally(() => setBusy(false));
@@ -46,6 +64,15 @@ export default function ReleaseDocumentPanel({ releasePackId, packName }: Releas
       .catch((e: unknown) => setError(e));
   }
 
+  // Changing the template invalidates what is on screen. Clearing the preview
+  // is more honest than leaving one that no longer matches the picker beside
+  // it — the reader would have no way to tell.
+  function chooseTemplate(id: string) {
+    setTemplateId(id);
+    setMarkdown(null);
+    setCopied(false);
+  }
+
   return (
     <section className="panel">
       <h4>Release documentation</h4>
@@ -56,6 +83,22 @@ export default function ReleaseDocumentPanel({ releasePackId, packName }: Releas
       </p>
 
       <div className="inline-form">
+        {/*
+          A template chooses which sections the document contains and in what
+          order (OQ-010, ADR-013). It supplies no markup: rendering stays in
+          Tower's own code, which is what keeps a regenerated document
+          byte-identical.
+        */}
+        <label htmlFor="document-template">Template</label>
+        <select id="document-template" value={templateId} onChange={(e) => chooseTemplate(e.target.value)}>
+          <option value="">Complete document</option>
+          {templates.map((template) => (
+            <option key={template.id} value={template.id}>
+              {template.name}
+            </option>
+          ))}
+        </select>
+
         <button type="button" onClick={generate} disabled={busy}>
           {busy ? "Generating…" : markdown === null ? "Generate" : "Regenerate"}
         </button>
@@ -69,19 +112,19 @@ export default function ReleaseDocumentPanel({ releasePackId, packName }: Releas
         */}
         {!DEMO_MODE && (
           <>
-            <a className="button-link" href={releaseDocumentDownloadUrl(releasePackId)} download>
+            <a className="button-link" href={releaseDocumentDownloadUrl(releasePackId, chosen)} download>
               Download Markdown
             </a>
             {/* noopener on a new tab, kept as a habit even for our own origin. */}
             <a
               className="button-link"
-              href={releaseDocumentHtmlUrl(releasePackId)}
+              href={releaseDocumentHtmlUrl(releasePackId, chosen)}
               target="_blank"
               rel="noopener noreferrer"
             >
               View HTML
             </a>
-            <a className="button-link" href={releaseDocumentHtmlDownloadUrl(releasePackId)} download>
+            <a className="button-link" href={releaseDocumentHtmlDownloadUrl(releasePackId, chosen)} download>
               Download HTML
             </a>
           </>
@@ -93,6 +136,18 @@ export default function ReleaseDocumentPanel({ releasePackId, packName }: Releas
           </button>
         )}
       </div>
+
+      {/*
+        Said here as well as in the document itself. Someone choosing a template
+        should see what it costs before they generate, not only afterwards in
+        the closing note.
+      */}
+      {chosenTemplate !== undefined && chosenTemplate.omitted.length > 0 && (
+        <p className="hint">
+          <code>{chosenTemplate.name}</code> leaves out {chosenTemplate.omitted.length} of the document&apos;s
+          sections. The document names them, so a reader can tell an empty section from an excluded one.
+        </p>
+      )}
 
       {DEMO_MODE && (
         <p className="hint">

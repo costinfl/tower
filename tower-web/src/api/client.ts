@@ -600,8 +600,10 @@ export function getReleasePackState(id: string): Promise<ReleasePackStateView> {
 // Generated from the Canonical Model on every request. Nothing is stored, and
 // the same model always yields the same bytes, so a document is disposable and
 // reproducible (IA-03) rather than an artifact to keep in step with reality.
-export function getReleaseDocumentMarkdown(releasePackId: string): Promise<string> {
-  return getText(`/api/release-packs/${encodeURIComponent(releasePackId)}/documentation/markdown`);
+export function getReleaseDocumentMarkdown(releasePackId: string, templateId?: string): Promise<string> {
+  return getText(
+    `/api/release-packs/${encodeURIComponent(releasePackId)}/documentation/markdown${templateQuery(templateId)}`,
+  );
 }
 
 // A plain link, not a fetch: letting the browser follow it preserves the
@@ -609,16 +611,69 @@ export function getReleaseDocumentMarkdown(releasePackId: string): Promise<strin
 // HTML is served inline so the browser renders it, and separately as a
 // download (Milestone 3, OQ-009). Both are plain links rather than fetches:
 // the point of the HTML format is that a browser opens it.
-export function releaseDocumentHtmlUrl(releasePackId: string): string {
-  return `/api/release-packs/${encodeURIComponent(releasePackId)}/documentation/html`;
+export function releaseDocumentHtmlUrl(releasePackId: string, templateId?: string): string {
+  return `/api/release-packs/${encodeURIComponent(releasePackId)}/documentation/html${templateQuery(templateId)}`;
 }
 
-export function releaseDocumentHtmlDownloadUrl(releasePackId: string): string {
-  return `/api/release-packs/${encodeURIComponent(releasePackId)}/documentation/html/download`;
+export function releaseDocumentHtmlDownloadUrl(releasePackId: string, templateId?: string): string {
+  return `/api/release-packs/${encodeURIComponent(releasePackId)}/documentation/html/download${templateQuery(templateId)}`;
 }
 
-export function releaseDocumentDownloadUrl(releasePackId: string): string {
-  return `/api/release-packs/${encodeURIComponent(releasePackId)}/documentation/markdown/download`;
+export function releaseDocumentDownloadUrl(releasePackId: string, templateId?: string): string {
+  return `/api/release-packs/${encodeURIComponent(releasePackId)}/documentation/markdown/download${templateQuery(templateId)}`;
+}
+
+// --- Document Templates (OQ-010, ADR-013) -----------------------------------
+
+// A template chooses which sections a release document contains and in what
+// order. It holds no markup: rendering stays in Tower's own code, which is what
+// keeps a regenerated document byte-identical (NFR-025).
+export interface DocumentTemplate {
+  id: string;
+  name: string;
+  sections: string[];
+  omitted: string[];
+  builtIn: boolean;
+}
+
+export interface DocumentSectionInfo {
+  name: string;
+  heading: string;
+  description: string;
+}
+
+export interface DocumentTemplateInput {
+  name: string;
+  sections: string[];
+}
+
+// Omitted entirely rather than sent empty, so the request a caller makes with
+// no template chosen is the same request Tower answered before templates
+// existed.
+function templateQuery(templateId?: string): string {
+  return templateId ? `?template=${encodeURIComponent(templateId)}` : "";
+}
+
+export function listDocumentTemplates(): Promise<DocumentTemplate[]> {
+  return getJson<DocumentTemplate[]>("/api/document-templates");
+}
+
+// Served rather than hardcoded here, so adding a section to a release document
+// does not need the Viewer changed to know about it.
+export function listDocumentSections(): Promise<DocumentSectionInfo[]> {
+  return getJson<DocumentSectionInfo[]>("/api/document-templates/sections");
+}
+
+export function createDocumentTemplate(input: DocumentTemplateInput): Promise<DocumentTemplate> {
+  return postJson<DocumentTemplate>("/api/document-templates", input);
+}
+
+export function updateDocumentTemplate(id: string, input: DocumentTemplateInput): Promise<DocumentTemplate> {
+  return putJson<DocumentTemplate>(`/api/document-templates/${encodeURIComponent(id)}`, input);
+}
+
+export function deleteDocumentTemplate(id: string): Promise<void> {
+  return deleteRequest(`/api/document-templates/${encodeURIComponent(id)}`);
 }
 
 // --- Portability (Epic 8, ADR-010) ------------------------------------------

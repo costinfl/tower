@@ -16,8 +16,10 @@ import dev.tower.application.port.out.PromotionPathRepository;
 import dev.tower.application.port.out.ReleasePackRepository;
 import dev.tower.application.service.ApplicationService;
 import dev.tower.application.port.out.DeploymentObservationCollector;
+import dev.tower.application.port.out.DocumentTemplateRepository;
 import dev.tower.application.port.out.ExternalBindingRepository;
 import dev.tower.application.port.out.SyncRunRepository;
+import dev.tower.application.service.DocumentTemplateService;
 import dev.tower.application.service.EnvironmentService;
 import dev.tower.application.service.ExternalBindingService;
 import dev.tower.application.service.PromotionPathService;
@@ -122,6 +124,11 @@ public class ApplicationServicesConfiguration {
     @Bean
     public HtmlReleaseDocumentRenderer htmlReleaseDocumentRenderer() {
         return new HtmlReleaseDocumentRenderer();
+    }
+
+    @Bean
+    public DocumentTemplateService documentTemplateService(DocumentTemplateRepository documentTemplateRepository) {
+        return new DocumentTemplateService(documentTemplateRepository);
     }
 
     @Bean

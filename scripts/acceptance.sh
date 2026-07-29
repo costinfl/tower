@@ -141,6 +141,60 @@ grep -qE 'manual \(' /tmp/doc_a.md && ok "each sighting names its source" || bad
 
 echo
 echo "=============================================================="
+echo " DOCUMENT TEMPLATES — OQ-010, ADR-013"
+echo "=============================================================="
+# Names are unique, so a rerun against the same instance needs its own.
+TSTAMP=$(date +%s)
+SECTIONS=$(curl -s "$B/api/document-templates/sections" | python3 -c 'import json,sys;print(len(json.load(sys.stdin)))')
+check "the sections a template may choose from are served" "$SECTIONS" "6"
+
+BUILTIN=$(curl -s "$B/api/document-templates" | python3 -c 'import json,sys;d=json.load(sys.stdin);print(d[0]["builtIn"])')
+check "the complete document heads the list" "$BUILTIN" "True"
+
+TPL=$(mk POST $B/api/document-templates "{\"name\":\"Handover only $TSTAMP\",\"sections\":[\"STATUS\",\"HANDOVER\"]}" 201 "define a template")
+REV=$(mk POST $B/api/document-templates "{\"name\":\"Reversed $TSTAMP\",\"sections\":[\"HANDOVER\",\"CONTENTS\"]}" 201 "define a reordered template")
+
+curl -s "$B/api/release-packs/$PACK/documentation/markdown?template=$TPL" > /tmp/doc_t.md
+grep -qF "## Handover" /tmp/doc_t.md && ok "the chosen section is present" || bad "the chosen section is missing"
+grep -qF "## Contents" /tmp/doc_t.md && bad "an unchosen section was rendered" || ok "unchosen sections are absent"
+grep -qF "not a source of truth" /tmp/doc_t.md && ok "the provenance note survives a template" || bad "the provenance note was dropped"
+grep -qF "Release 2026.08" /tmp/doc_t.md && ok "the title survives a template" || bad "the title was dropped"
+grep -qF "which does not include" /tmp/doc_t.md && ok "the document names what the template leaves out" || bad "omissions are silent"
+
+# Ordering, which is the property a set-shaped design would lose.
+curl -s "$B/api/release-packs/$PACK/documentation/markdown?template=$REV" > /tmp/doc_r.md
+HPOS=$(grep -n "^## Handover" /tmp/doc_r.md | cut -d: -f1)
+CPOS=$(grep -n "^## Contents" /tmp/doc_r.md | cut -d: -f1)
+[ "$HPOS" -lt "$CPOS" ] && ok "sections render in the template's order" || bad "the template's order was not followed"
+
+# NFR-025 for a templated document, not only a complete one.
+sleep 1
+curl -s "$B/api/release-packs/$PACK/documentation/markdown?template=$TPL" > /tmp/doc_t2.md
+if diff -q /tmp/doc_t.md /tmp/doc_t2.md >/dev/null; then
+  ok "a templated document regenerates byte-identically (sha $(sha256sum /tmp/doc_t.md | cut -c1-12))"
+else
+  bad "a templated document differs between generations"
+fi
+
+NAME=$(curl -sI "$B/api/release-packs/$PACK/documentation/html/download?template=$TPL" | grep -io 'filename="[^"]*"')
+case "$NAME" in *handover-only*) ok "a templated download is named apart from the complete one" ;;
+  *) bad "download filename does not distinguish the template ($NAME)" ;; esac
+
+UNKNOWN=$(curl -s -o /dev/null -w '%{http_code}' "$B/api/release-packs/$PACK/documentation/markdown?template=99999999-9999-9999-9999-999999999999")
+check "an unknown template is refused rather than substituted" "$UNKNOWN" "404"
+DUP=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$B/api/document-templates" -H "$J" -d "{\"name\":\"Handover only $TSTAMP\",\"sections\":[\"CONTENTS\"]}")
+check "a duplicate template name is refused" "$DUP" "409"
+BADSEC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$B/api/document-templates" -H "$J" -d '{"name":"Odd","sections":["APPENDIX"]}')
+check "an unknown section is refused rather than dropped" "$BADSEC" "400"
+EMPTY=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$B/api/document-templates" -H "$J" -d '{"name":"Empty","sections":[]}')
+check "a template with no sections is refused" "$EMPTY" "400"
+RESERVED=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$B/api/document-templates" -H "$J" -d '{"name":"complete document","sections":["CONTENTS"]}')
+check "the built-in name cannot be taken" "$RESERVED" "400"
+DELBUILT=$(curl -s -o /dev/null -w '%{http_code}' -X DELETE "$B/api/document-templates/00000000-0000-0000-0000-000000000001")
+check "the complete document cannot be deleted" "$DELBUILT" "400"
+
+echo
+echo "=============================================================="
 echo " READ-ONLY — Tower observes and never acts (ADR-001)"
 echo "=============================================================="
 ACTION=$(curl -s "$B/api/release-packs" | grep -icE '"(promote|deploy|trigger|execute|rollback)"' || true)

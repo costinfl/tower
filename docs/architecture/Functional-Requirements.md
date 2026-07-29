@@ -16,7 +16,7 @@
 
 This document defines the functional capabilities required for Milestone 1.
 
-FR-055 to FR-061 extend it to Milestone 2 and are grouped under their own heading.
+FR-055 to FR-061 extend it to Milestone 2, and FR-062 to FR-065 to Milestone 3; each group is under its own heading.
 
 Each requirement is atomic, uniquely identified and traceable.
 
@@ -414,6 +414,34 @@ The system shall verify Connector connectivity without modifying the External Sy
 
 ---
 
+# Milestone 3 — Documentation Formats
+
+## FR-062
+
+The system shall allow a user to define a Document Template that selects which sections a release document contains and in what order.
+
+A Document Template shall carry no markup and no user-authored text beyond its name (ADR-013).
+
+---
+
+## FR-063
+
+The system shall provide a complete document containing every section, which shall be produced when no Document Template is chosen and which shall not be editable or deletable.
+
+---
+
+## FR-064
+
+A release document produced from a Document Template shall name that template and the sections it does not include.
+
+---
+
+## FR-065
+
+The system shall report the sections a Document Template may select from, so that no client depends on a list of its own.
+
+---
+
 # Deferred
 
 ## FR-054
@@ -431,5 +459,7 @@ Full coverage of IA-02 is deferred to a later milestone and recorded here so the
 FR-001 to FR-054 define the functional scope of Milestone 1.
 
 FR-055 to FR-061 define what Milestone 2 adds.
+
+FR-062 to FR-065 define what Milestone 3 adds.
 
 Capabilities beyond these requirements shall be evaluated in future milestones.

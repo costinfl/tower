@@ -1198,3 +1198,38 @@ select {
   padding-left: 1.25rem;
   color: var(--text-muted);
 }
+
+/* --- Documentation templates (OQ-010) ---------------------------------- */
+
+.section-picker {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.75rem 1rem;
+  margin: 0.75rem 0;
+}
+
+.checkbox-row {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  padding: 0.35rem 0;
+}
+
+.checkbox-row input {
+  margin-top: 0.2rem;
+}
+
+/* The order is the template, so it is shown as an ordered list rather than
+   inferred from the ticks above it. */
+.ordered-sections {
+  margin: 0.25rem 0 0.75rem 1.25rem;
+}
+
+.ordered-sections li {
+  padding: 0.2rem 0;
+}
+
+.ordered-sections button {
+  margin-left: 0.4rem;
+  padding: 0.1rem 0.45rem;
+}

@@ -300,3 +300,17 @@ export const syncRuns = [
     failures: [`Could not read ${CLUSTER}/customer-prod: forbidden`],
   },
 ];
+
+// --- Document Templates (Milestone 3, OQ-010) --------------------------------
+
+// One stored template beside the built-in complete document, so a visitor can
+// see what choosing one does without having to define it first. "Handover only"
+// is the case teams ask for: the page an operator needs at the moment of a
+// deployment, without the planning material around it.
+export const documentTemplates = [
+  {
+    id: id("template-handover"),
+    name: "Handover only",
+    sections: ["STATUS", "HANDOVER"],
+  },
+];

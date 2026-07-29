@@ -65,7 +65,10 @@ This checklist tracks the architectural documentation required before implementa
 ## Milestone 3 - Documentation formats
 
 - [x] HTML release document renderer (OQ-009)
-- [ ] Customisable templates (OQ-010, still deferred)
+- [x] ADR-013-Documentation-Templates-Select-Sections-Not-Markup.md
+- [x] FR-062 to FR-065
+- [x] Document Templates: section selection and ordering (OQ-010)
+- [x] Documentation templates screen and template picker
 
 ---
 
