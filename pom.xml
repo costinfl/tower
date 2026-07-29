@@ -42,6 +42,9 @@
     <spring-boot.version>3.4.1</spring-boot.version>
     <archunit.version>1.3.0</archunit.version>
     <jasypt.version>3.0.5</jasypt.version>
+    <!-- openshift-client is a superset of kubernetes-client: it reads plain Kubernetes
+         resources and OpenShift's own DeploymentConfig from one dependency. -->
+    <fabric8.version>6.13.4</fabric8.version>
     <frontend-plugin.version>1.15.1</frontend-plugin.version>
     <node.version>v22.11.0</node.version>
   </properties>

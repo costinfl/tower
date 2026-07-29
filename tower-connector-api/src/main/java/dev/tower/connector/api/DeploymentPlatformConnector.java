@@ -42,10 +42,13 @@ public interface DeploymentPlatformConnector {
      * nothing would be indistinguishable from an empty Environment and would
      * make Tower report that a deployment had disappeared.
      *
+     * <p>The credential is supplied by the caller rather than fetched here, so a
+     * Connector never learns where secrets live. See {@link ConnectorCredential}.
+     *
      * @throws ConnectorException when the platform cannot be reached or refuses
      *                            the request
      */
-    List<RunningWorkload> readWorkloads(DeploymentLocator locator);
+    List<RunningWorkload> readWorkloads(DeploymentLocator locator, ConnectorCredential credential);
 
     /**
      * Confirms the platform is reachable and the credentials are accepted,
@@ -58,5 +61,5 @@ public interface DeploymentPlatformConnector {
      * @throws ConnectorException when the platform is unreachable or rejects the
      *                            credentials, carrying a message fit to show a user
      */
-    void checkConnection(DeploymentLocator locator);
+    void checkConnection(DeploymentLocator locator, ConnectorCredential credential);
 }

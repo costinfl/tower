@@ -52,11 +52,11 @@ This checklist tracks the architectural documentation required before implementa
 
 - [x] ADR-011-Synchronization-Records-Change-Not-Repetition.md
 - [x] ADR-012-External-Bindings-Map-Tower-Concepts-To-Vendor-Locators.md
-- [ ] FR-055 to FR-061
-- [ ] Connector service provider interface
-- [ ] Encrypted credential storage
-- [ ] External Bindings
-- [ ] Kubernetes Deployment Platform Connector
+- [x] FR-055 to FR-061
+- [x] Connector service provider interface
+- [x] Encrypted credential storage
+- [x] External Bindings
+- [x] Kubernetes Deployment Platform Connector
 - [ ] Deployment Collector with change detection
 - [ ] Sync Run recording and reporting
 

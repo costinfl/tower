@@ -59,6 +59,12 @@
     </dependency>
     <dependency>
       <groupId>dev.tower</groupId>
+      <artifactId>tower-connector-k8s</artifactId>
+      <version>${project.version}</version>
+      <scope>runtime</scope>
+    </dependency>
+    <dependency>
+      <groupId>dev.tower</groupId>
       <artifactId>tower-persistence</artifactId>
       <version>${project.version}</version>
       <scope>runtime</scope>

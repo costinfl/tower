@@ -233,6 +233,14 @@ Only the Deployment Platform Connector ends manual maintenance of deployment inf
 
 Each module is the only place its vendor client types may appear, as tower-persistence is for H2.
 
+That confinement is enforced by Maven scope before it is enforced by an architecture test.
+
+A connector module is a runtime-scope dependency of tower-api, so its vendor client is absent from every other compile classpath and a violation elsewhere fails to compile.
+
+The Deployment Platform Connector uses the fabric8 OpenShift client, which is a superset of the Kubernetes client and reads both Deployment and OpenShift DeploymentConfig from one dependency.
+
+Reading both matters: a namespace using only DeploymentConfig would otherwise report as empty, and under ADR-011 an empty report is indistinguishable from nothing being deployed.
+
 ---
 
 ## tower-persistence

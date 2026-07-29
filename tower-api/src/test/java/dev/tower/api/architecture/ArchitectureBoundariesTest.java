@@ -119,9 +119,33 @@ class ArchitectureBoundariesTest {
                     .because("export files must never contain credentials or configuration (ADR-010)");
 
     /**
+     * CM-05, FR-037, ADR-012: a vendor client terminates at its own Connector
+     * module, exactly as H2 terminates at tower-persistence. Adding a second
+     * Deployment Platform must not require a change anywhere else, and it cannot
+     * if no other module can name a Kubernetes type.
+     *
+     * <p>Honest about what enforces what. The primary guard is Maven scope, not
+     * this rule: tower-connector-k8s is a runtime-scope dependency of tower-api,
+     * so fabric8 is absent from every compile classpath but its own module and a
+     * violation in tower-api fails to compile before ArchUnit runs. Verified by
+     * writing one — the compiler rejected it, and this rule never got the chance.
+     *
+     * <p>The rule earns its place as a backstop for the case scope cannot cover:
+     * someone adding fabric8 as a compile dependency to another module. It is
+     * kept for that, not because it is doing the work today.
+     */
+    @ArchTest
+    static final ArchRule kubernetes_types_are_confined_to_their_connector_module =
+            noClasses().that().resideOutsideOfPackage("dev.tower.connector.k8s..")
+                    .should().dependOnClassesThat().resideInAnyPackage("io.fabric8..")
+                    .because("a vendor client terminates at its Connector (CM-05, FR-037, ADR-012)");
+
+    /**
      * ADR-001, CM-01, FR-036: Connectors observe and never modify. This is a
-     * naming heuristic rather than a proof, but it catches the obvious case
-     * where someone adds a write operation to a Connector.
+     * naming heuristic rather than a proof — it does not catch a write issued
+     * through a method named for something else, such as scale. The Kubernetes
+     * Connector's own tests assert the HTTP verbs actually put on the wire,
+     * which is stronger, and the cluster's audit log is stronger still.
      */
     @ArchTest
     static final ArchRule connectors_expose_no_write_operation =
