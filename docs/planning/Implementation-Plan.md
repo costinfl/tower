@@ -89,9 +89,23 @@ The following rules apply.
 
 Configuration is stored in the .tower directory and never in src/main/resources.
 
-Connector credentials are encrypted at rest using Jasypt, with the master key supplied through an environment variable.
+Connector credentials are encrypted at rest using Jasypt.
 
-The configuration file is written with owner-only permissions.
+The master key is taken from the TOWER_MASTER_KEY environment variable when it is set.
+
+When it is not set, Tower generates a key once and stores it in the .tower directory with owner-only permissions.
+
+That second arrangement is weaker and is recorded as such rather than left to be inferred.
+
+A key held beside the ciphertext it protects defends against a stray backup, a synchronized folder or a shared disk image.
+
+It does not defend against anyone who can already read the data directory.
+
+It is the default because ADR-009 requires Tower to run on a developer's machine without ceremony, and the environment variable remains available to anyone who wants the stronger arrangement.
+
+Credentials are stored in their own file rather than in the configuration file, which is read while the application environment is being built.
+
+The configuration file and the credentials file are both written with owner-only permissions.
 
 Credentials are write-only through the API.
 
@@ -243,9 +257,9 @@ Reads configuration from the config file in the .tower directory.
 
 Configuration is never placed in src/main/resources.
 
-Connector credentials are encrypted at rest using Jasypt, with the master key supplied through an environment variable.
+Connector credentials are encrypted at rest using Jasypt, with the master key resolved as described under Credential Handling.
 
-The configuration file is written with owner-only permissions.
+Credentials are held in their own file, separate from the configuration file, and both are written with owner-only permissions.
 
 This module implements the credentials outbound port, so connector modules never touch storage and never learn where secrets live.
 
@@ -302,8 +316,14 @@ The following rules are enforced by automated architecture tests rather than by 
 | tower-portability never exports credentials or configuration | ADR-010 |
 | No module outside tower-persistence references H2 types | ADR-009 |
 | No module outside tower-connector-k8s references Kubernetes client types | CM-05, FR-037, ADR-012 |
-| No vendor locator appears on a domain type | CM-03, CM-05, ADR-012 |
-| The Sync Run never enters tower-domain | ADR-011 |
+
+Two further boundaries were listed here in an earlier revision and have been removed.
+
+That no vendor locator appears on a domain type, and that the Sync Run never enters tower-domain, are both consequences of the first rule in this table rather than separate checks.
+
+A domain type may depend only on the Java standard library, so it cannot reference an External Binding or a Sync Run whatever anyone intends.
+
+Restating an existing guarantee as a new rule would suggest the build checks more than it does.
 
 Every domain type and use case carries a comment referencing the requirement it satisfies.
 

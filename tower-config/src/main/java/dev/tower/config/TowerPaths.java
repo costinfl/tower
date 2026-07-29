@@ -31,4 +31,29 @@ public class TowerPaths {
     public Path databaseDirectory() {
         return home.resolve("db");
     }
+
+    /**
+     * Encrypted Connector credentials.
+     *
+     * <p>Deliberately separate from {@link #configFile()}. That file is read by
+     * {@link TowerConfigEnvironmentPostProcessor} while Spring's environment is being built;
+     * rewriting it at runtime to save a token would mean editing the file the application boots
+     * from, which is a hazard for no benefit. Credentials get their own file, written and read
+     * only by the credential store.
+     */
+    public Path credentialsFile() {
+        return home.resolve("credentials.properties");
+    }
+
+    /**
+     * The key that encrypts {@link #credentialsFile()}, when it is not supplied through the
+     * environment.
+     *
+     * <p>Implementation-Plan.md / Credential Handling records the trade-off: a key file beside
+     * the ciphertext protects a stray backup or a synced folder, not someone who can already read
+     * this directory.
+     */
+    public Path masterKeyFile() {
+        return home.resolve("master.key");
+    }
 }
