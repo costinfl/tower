@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import dev.tower.application.port.in.SynchronizationUseCases;
+import dev.tower.application.sync.ConnectionTest;
 
 /**
  * Issue #51: REST API for synchronization (FR-057, FR-059, FR-060).
@@ -38,6 +39,24 @@ public class SyncController {
     public List<SyncRunResponse> history(
             @RequestParam(name = "limit", required = false, defaultValue = "0") int limit) {
         return synchronization.history(limit).stream().map(SyncRunResponse::from).toList();
+    }
+
+    /**
+     * Issue #53: checks a binding without modifying the External System.
+     *
+     * <p>GET rather than POST, deliberately. FR-061, FR-036 and CM-01 all say
+     * this operation changes nothing, and the method should say the same. A POST
+     * here would suggest otherwise to anyone reading the API before the code.
+     *
+     * <p>Answers 200 whether or not the platform was reachable: unreachable is
+     * the result the caller asked for, and the body carries the reason.
+     */
+    @GetMapping("/connection-test")
+    public ConnectionTest testConnection(
+            @RequestParam("connectorId") String connectorId,
+            @RequestParam("target") String target,
+            @RequestParam("scope") String scope) {
+        return synchronization.testConnection(connectorId, target, scope);
     }
 
     /**

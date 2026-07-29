@@ -158,6 +158,20 @@ CONF=$(curl -s -o /dev/null -w '%{http_code}' "$B/api/sync/last-confirmation?con
 check "no confirmation exists after only failed runs" "$CONF" 404
 
 echo
+echo "--- connection test (#53) — reads, never writes ---"
+
+TESTURL="$B/api/sync/connection-test?connectorId=kubernetes&target=$(python3 -c "import urllib.parse;print(urllib.parse.quote('$CLUSTER'))")&scope=customer-uat"
+CT=$(curl -s -o /tmp/_m2 -w '%{http_code}' "$TESTURL")
+check "connection test answers even when unreachable" "$CT" 200
+check "and reports that it is not reachable" "$(jsonf "['reachable']")" False
+if [ -n "$(jsonf "['message']")" ]; then ok "the reason is given, not just a boolean"; else bad "no reason"; fi
+
+check "reject a test naming no connector" \
+  "$(curl -s -o /dev/null -w '%{http_code}' "$B/api/sync/connection-test?connectorId=&target=x&scope=y")" 400
+check "reject a test for a Connector that is not configured" \
+  "$(curl -s -o /dev/null -w '%{http_code}' "$B/api/sync/connection-test?connectorId=nosuch&target=x&scope=y")" 404
+
+echo
 echo "--- cleanup ---"
 check "unbind the Environment" \
   "$(curl -s -o /dev/null -w '%{http_code}' -X DELETE "$B/api/bindings/environments/$ENV?connectorId=kubernetes")" 204

@@ -48,9 +48,25 @@ const STAGE_RANK: Record<Stage, number> = {
   DEVELOPMENT: 1, VALIDATION: 2, PRE_PRODUCTION: 3, PRODUCTION: 4,
 };
 
+// Milestone 2 additions. Bindings, credentials and Sync Runs are fabricated
+// like everything else here; the demo never reaches a cluster, so a
+// "Synchronize now" simply reports that it could not.
+interface EnvBinding { environmentId: string; connectorId: string; target: string; scope: string }
+interface AppBinding { applicationId: string; connectorId: string; image: string; versionPattern: string }
+interface RunRec {
+  id: string; connectorId: string; startedAt: string; finishedAt: string;
+  outcome: "SUCCEEDED" | "PARTIALLY_SUCCEEDED" | "FAILED";
+  workloadsRead: number; observationsAppended: number;
+  foundNoChange: boolean; confirmsLiveness: boolean;
+  unrecognized: { scope: string; name: string; imageReference: string; reason: string }[];
+  failures: string[];
+}
+
 const state: {
   environments: Env[]; applications: App[]; versions: Ver[];
   paths: PathRec[]; packs: PackRec[]; observations: Obs[];
+  environmentBindings: EnvBinding[]; applicationBindings: AppBinding[];
+  credentials: Record<string, string>; runs: RunRec[];
 } = {
   environments: seed.environments.map((e) => ({ ...e })),
   applications: seed.applications.map((a) => ({ ...a })),
@@ -63,6 +79,14 @@ const state: {
     iterations: p.iterations.map((i) => ({ ...i })),
   })),
   observations: seed.observations.map((o) => ({ ...o, source: { ...o.source } })),
+  environmentBindings: seed.environmentBindings.map((b) => ({ ...b })),
+  applicationBindings: seed.applicationBindings.map((b) => ({ ...b })),
+  credentials: { ...seed.credentials },
+  runs: seed.syncRuns.map((r) => ({
+    ...r,
+    unrecognized: r.unrecognized.map((u) => ({ ...u })),
+    failures: [...r.failures],
+  })),
 };
 
 let sequence = 0;
@@ -77,6 +101,7 @@ class ApiFailure extends Error {
 }
 const conflict = (m: string) => new ApiFailure(409, m);
 const notFound = (m: string) => new ApiFailure(404, m);
+const badRequest = (m: string) => new ApiFailure(400, m);
 
 // --- lookups ----------------------------------------------------------------
 
@@ -344,6 +369,116 @@ export function handle(pathname: string, method: string, body: Json | null): unk
   const [, area, a, b, c, d] = s;
 
   if (area === "health") return { status: "UP", version: "demo" };
+
+  if (area === "bindings") {
+    if (a === "environments") {
+      if (method === "GET") return state.environmentBindings;
+      if (method === "PUT") {
+        const incoming = body as unknown as EnvBinding;
+        state.environmentBindings = state.environmentBindings.filter(
+          (x) => !(x.environmentId === incoming.environmentId && x.connectorId === incoming.connectorId));
+        state.environmentBindings.push(incoming);
+        return incoming;
+      }
+      if (method === "DELETE") {
+        state.environmentBindings = state.environmentBindings.filter((x) => x.environmentId !== b);
+        return null;
+      }
+    }
+    if (a === "applications") {
+      if (method === "GET") return state.applicationBindings;
+      if (method === "PUT") {
+        const incoming = body as unknown as AppBinding;
+        const pattern = incoming.versionPattern?.trim() || "^(.+)$";
+        try {
+          const compiled = new RegExp(pattern);
+          if (new RegExp(compiled.source + "|").exec("")!.length - 1 < 1) {
+            throw badRequest("The version pattern must contain a capturing group marking the version,"
+              + " for example ^release-(.+)$. Use ^(.+)$ to treat the whole tag as the version.");
+          }
+        } catch (e) {
+          if (e instanceof ApiFailure) throw e;
+          throw badRequest("The version pattern is not a valid regular expression.");
+        }
+        const saved = { ...incoming, versionPattern: pattern };
+        state.applicationBindings = state.applicationBindings.filter(
+          (x) => !(x.applicationId === saved.applicationId && x.connectorId === saved.connectorId));
+        state.applicationBindings.push(saved);
+        return saved;
+      }
+      if (method === "DELETE") {
+        state.applicationBindings = state.applicationBindings.filter((x) => x.applicationId !== b);
+        return null;
+      }
+    }
+    if (a === "version-preview") {
+      const params = new URLSearchParams(pathname.split("?")[1] ?? "");
+      const imageTag = params.get("imageTag") ?? "";
+      const versionPattern = params.get("versionPattern")?.trim() || "^(.+)$";
+      let matched = false;
+      let version: string | null = null;
+      try {
+        const m = new RegExp(versionPattern).exec(imageTag);
+        // Whole-string match only, as the server requires.
+        if (m && m[0] === imageTag && m[1]) { matched = true; version = m[1]; }
+      } catch {
+        throw badRequest("The version pattern is not a valid regular expression.");
+      }
+      return { imageTag, versionPattern, matched, version };
+    }
+  }
+
+  if (area === "credentials") {
+    const params = new URLSearchParams(pathname.split("?")[1] ?? "");
+    const key = `${params.get("connectorId")}@${params.get("target")}`;
+    if (method === "GET") {
+      const at = state.credentials[key];
+      return {
+        connectorId: params.get("connectorId"), target: params.get("target"),
+        configured: at !== undefined, updatedAt: at ?? null,
+      };
+    }
+    if (method === "PUT") {
+      const incoming = body as unknown as { connectorId: string; target: string; secret: string };
+      if (!incoming?.secret) throw badRequest("secret is required");
+      // The demo stores only the time it was saved. There is nowhere here for a
+      // token to be read back from, which is the property the real API has too.
+      state.credentials[`${incoming.connectorId}@${incoming.target}`] = new Date().toISOString();
+      return null;
+    }
+    if (method === "DELETE") {
+      delete state.credentials[key];
+      return null;
+    }
+  }
+
+  if (area === "sync") {
+    if (a === "runs") return state.runs.slice(0, 10);
+    if (a === "connection-test") {
+      const params = new URLSearchParams(pathname.split("?")[1] ?? "");
+      return {
+        connectorId: params.get("connectorId"), target: params.get("target"), scope: params.get("scope"),
+        reachable: false,
+        message: "This is the demonstration. No cluster is contacted, so no connection can be made.",
+      };
+    }
+    if (a === "last-confirmation") {
+      const latest = state.runs.find((r) => r.confirmsLiveness);
+      if (!latest) throw notFound("No successful run.");
+      return latest;
+    }
+    if (method === "POST") {
+      const run: RunRec = {
+        id: newId("run"), connectorId: "kubernetes",
+        startedAt: new Date().toISOString(), finishedAt: new Date().toISOString(),
+        outcome: "FAILED", workloadsRead: 0, observationsAppended: 0,
+        foundNoChange: false, confirmsLiveness: false, unrecognized: [],
+        failures: ["This is the demonstration. Nothing was contacted and nothing was recorded."],
+      };
+      state.runs.unshift(run);
+      return [run];
+    }
+  }
 
   if (area === "portability") {
     if (a === "instance") return { name: seed.DEMO_INSTANCE };

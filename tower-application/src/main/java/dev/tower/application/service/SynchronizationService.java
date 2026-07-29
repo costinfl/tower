@@ -8,6 +8,7 @@ import java.util.Optional;
 import dev.tower.application.port.in.SynchronizationUseCases;
 import dev.tower.application.port.out.DeploymentObservationCollector;
 import dev.tower.application.port.out.SyncRunRepository;
+import dev.tower.application.sync.ConnectionTest;
 import dev.tower.application.sync.SyncRun;
 
 /**
@@ -54,6 +55,23 @@ public class SynchronizationService implements SynchronizationUseCases {
     @Override
     public List<SyncRun> history(int limit) {
         return runs.findRecent(limit <= 0 ? DEFAULT_HISTORY_LIMIT : limit);
+    }
+
+    @Override
+    public ConnectionTest testConnection(String connectorId, String target, String scope) {
+        InvalidRequestException.require(connectorId != null && !connectorId.isBlank(),
+                "Name the Connector to test.");
+        InvalidRequestException.require(target != null && !target.isBlank(),
+                "Name the target to connect to.");
+        InvalidRequestException.require(scope != null && !scope.isBlank(),
+                "Name the scope within that target.");
+
+        return collectors.stream()
+                .filter(collector -> collector.connectorId().equals(connectorId))
+                .findFirst()
+                .map(collector -> collector.checkConnection(target, scope))
+                .orElseThrow(() -> new NotFoundException(
+                        "No Connector named " + connectorId + " is configured."));
     }
 
     @Override

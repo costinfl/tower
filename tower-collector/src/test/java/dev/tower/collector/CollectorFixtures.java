@@ -86,6 +86,8 @@ final class CollectorFixtures {
 
         @Override
         public void checkConnection(DeploymentLocator locator, ConnectorCredential credential) {
+            credentialsSeen.add(credential);
+            credentialPresentAtCall.add(credential.isPresent());
             String failure = failures.get(locator.scope());
             if (failure != null) {
                 throw new ConnectorException(failure);

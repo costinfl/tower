@@ -232,3 +232,71 @@ export const observations = [
     applicationVersionId: id("v-orders-141rc"), observedAt: `${T("24")}T16:45:00Z`,
     source: { collector: "manual", actor: "tomas", originInstance: null, manual: true } },
 ];
+
+// --- Connectors (Milestone 2, issues #46 to #53) ----------------------------
+//
+// Fabricated like everything else here. The demonstration reaches no cluster,
+// so the runs below are invented and "Synchronize now" reports that nothing was
+// contacted rather than pretending to have read something.
+
+const CLUSTER = "https://api.cluster.example:6443";
+
+export const environmentBindings = [
+  { environmentId: id("env-uat"), connectorId: "kubernetes", target: CLUSTER, scope: "customer-uat" },
+  { environmentId: id("env-prod"), connectorId: "kubernetes", target: CLUSTER, scope: "customer-prod" },
+];
+
+export const applicationBindings = [
+  // The whole tag is the version — the common case.
+  { applicationId: id("app-customer"), connectorId: "kubernetes",
+    image: "registry.example/acme/customer-api", versionPattern: "^(.+)$" },
+  // A team that prefixes its tags, showing why the pattern is configurable.
+  { applicationId: id("app-orders"), connectorId: "kubernetes",
+    image: "registry.example/acme/orders-api", versionPattern: "^release-(.+)$" },
+];
+
+/** Only the time it was saved. There is nowhere here a token could be read from. */
+export const credentials: Record<string, string> = {
+  [`kubernetes@${CLUSTER}`]: "2026-08-03T08:12:00Z",
+};
+
+export const syncRuns = [
+  // Newest first. Nothing changed, which is the ordinary steady state under
+  // ADR-011 and the case that would fill the store with noise if every run
+  // appended an Observation.
+  {
+    id: id("run-3"), connectorId: "kubernetes",
+    startedAt: "2026-08-05T09:30:00Z", finishedAt: "2026-08-05T09:30:04Z",
+    outcome: "SUCCEEDED" as const, workloadsRead: 6, observationsAppended: 0,
+    foundNoChange: true, confirmsLiveness: true,
+    unrecognized: [
+      // Something is running that nobody has bound. Tower says so rather than
+      // guessing which Application it is (ADR-012, FR-060).
+      { scope: "customer-prod", name: "legacy-batch/app",
+        imageReference: "registry.example/acme/legacy-batch:4.1.0",
+        reason: "No Application is bound to this image." },
+      // The OpenShift case: an ImageStream trigger resolved the tag away.
+      { scope: "customer-uat", name: "web-frontend/app",
+        imageReference: "image-registry.openshift-image-registry.svc:5000/acme/web@sha256:9f2c1a",
+        reason: "The image is pinned to a digest, so it carries no version." },
+    ],
+    failures: [],
+  },
+  {
+    id: id("run-2"), connectorId: "kubernetes",
+    startedAt: "2026-08-04T16:02:00Z", finishedAt: "2026-08-04T16:02:05Z",
+    outcome: "SUCCEEDED" as const, workloadsRead: 6, observationsAppended: 1,
+    foundNoChange: false, confirmsLiveness: true,
+    unrecognized: [], failures: [],
+  },
+  // A partial run: one namespace was readable and one was not. The Observations
+  // from the readable one stand.
+  {
+    id: id("run-1"), connectorId: "kubernetes",
+    startedAt: "2026-08-04T11:15:00Z", finishedAt: "2026-08-04T11:15:07Z",
+    outcome: "PARTIALLY_SUCCEEDED" as const, workloadsRead: 3, observationsAppended: 2,
+    foundNoChange: false, confirmsLiveness: false,
+    unrecognized: [],
+    failures: [`Could not read ${CLUSTER}/customer-prod: forbidden`],
+  },
+];

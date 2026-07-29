@@ -60,7 +60,7 @@ This checklist tracks the architectural documentation required before implementa
 - [x] Deployment Collector with change detection
 - [x] Sync Run recording and reporting
 - [x] Synchronize-now use case and API
-- [ ] Connectors screen and read-only connection test
+- [x] Connectors screen and read-only connection test
 
 ---
 

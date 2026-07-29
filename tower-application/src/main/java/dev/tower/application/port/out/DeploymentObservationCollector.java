@@ -1,5 +1,6 @@
 package dev.tower.application.port.out;
 
+import dev.tower.application.sync.ConnectionTest;
 import dev.tower.application.sync.SyncRun;
 
 /**
@@ -30,4 +31,17 @@ public interface DeploymentObservationCollector {
      * scopes that succeeded keep their Observations.
      */
     SyncRun collect();
+
+    /**
+     * Checks that the platform is reachable and the credential accepted, without
+     * modifying it (FR-061, FR-036, CM-01).
+     *
+     * <p>Separate from {@link #collect()} so a binding can be verified before any
+     * Observation depends on it, and so "cannot connect" is distinguishable from
+     * "connected and found nothing" — which under ADR-011 look identical in a run.
+     *
+     * <p>Returns rather than throws: unreachable is the answer, not a failure of
+     * the question.
+     */
+    ConnectionTest checkConnection(String target, String scope);
 }

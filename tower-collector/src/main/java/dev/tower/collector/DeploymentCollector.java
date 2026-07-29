@@ -21,6 +21,7 @@ import dev.tower.application.port.out.ConnectorCredentialsPort;
 import dev.tower.application.port.out.DeploymentObservationCollector;
 import dev.tower.application.port.out.ExternalBindingRepository;
 import dev.tower.application.port.out.ObservationRepository;
+import dev.tower.application.sync.ConnectionTest;
 import dev.tower.application.sync.SyncRun;
 import dev.tower.application.sync.SyncRunId;
 import dev.tower.application.sync.UnrecognizedWorkload;
@@ -104,6 +105,20 @@ public class DeploymentCollector implements DeploymentObservationCollector {
         return new SyncRun(SyncRunId.newId(), connectorId, startedAt, clock.instant(),
                 outcomeOf(environmentBindings.size(), run.failures.size()),
                 run.workloadsRead, run.observationsAppended, run.unrecognized, run.failures);
+    }
+
+    @Override
+    public ConnectionTest checkConnection(String target, String scope) {
+        String connectorId = connector.connectorId();
+        ConnectorCredential credential = credentialFor(connectorId, target);
+        try {
+            connector.checkConnection(new DeploymentLocator(target, scope), credential);
+            return ConnectionTest.reachable(connectorId, target, scope);
+        } catch (ConnectorException e) {
+            return ConnectionTest.unreachable(connectorId, target, scope, e.getMessage());
+        } finally {
+            credential.clear();
+        }
     }
 
     private void collectScope(EnvironmentBinding binding, Map<String, ApplicationBinding> byImage, RunTally run) {

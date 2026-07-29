@@ -1,0 +1,578 @@
+import { useCallback, useEffect, useState } from "react";
+import {
+  ApplicationBinding,
+  Application,
+  ConnectionTest,
+  CredentialStatus,
+  Environment,
+  EnvironmentBinding,
+  SyncRun,
+  bindApplication,
+  bindEnvironment,
+  forgetCredential,
+  getApplications,
+  getCredentialStatus,
+  getEnvironments,
+  listApplicationBindings,
+  listEnvironmentBindings,
+  listSyncRuns,
+  previewVersion,
+  storeCredential,
+  synchronizeNow,
+  testConnection,
+  unbindApplication,
+  unbindEnvironment,
+} from "../api/client";
+import ErrorNote, { describeError } from "../components/ErrorNote";
+
+// Milestone 2 has one Connector. Naming the constant rather than scattering
+// the string keeps the day a second one arrives to this file.
+const CONNECTOR_ID = "kubernetes";
+
+export default function ConnectorsPage() {
+  const [environments, setEnvironments] = useState<Environment[]>([]);
+  const [applications, setApplications] = useState<Application[]>([]);
+  const [environmentBindings, setEnvironmentBindings] = useState<EnvironmentBinding[]>([]);
+  const [applicationBindings, setApplicationBindings] = useState<ApplicationBinding[]>([]);
+  const [runs, setRuns] = useState<SyncRun[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  const reload = useCallback(async () => {
+    try {
+      const [envs, apps, envBindings, appBindings, history] = await Promise.all([
+        getEnvironments(),
+        getApplications(),
+        listEnvironmentBindings(),
+        listApplicationBindings(),
+        listSyncRuns(10),
+      ]);
+      setEnvironments(envs);
+      setApplications(apps);
+      setEnvironmentBindings(envBindings);
+      setApplicationBindings(appBindings);
+      setRuns(history);
+      setError(null);
+    } catch (caught: unknown) {
+      setError(describeError(caught));
+    }
+  }, []);
+
+  useEffect(() => {
+    void reload();
+  }, [reload]);
+
+  return (
+    <section className="page">
+      <h2>Connectors</h2>
+      <p className="page__intro">
+        Tower reads Deployment Platforms so nobody has to type in what is deployed. It never writes
+        to them: every Connector operation is a read, and a Connector that named a method for
+        mutation would fail the build.
+      </p>
+
+      {error !== null && <ErrorNote error={error} />}
+
+      <SynchronizePanel runs={runs} onDone={reload} onError={setError} />
+
+      <EnvironmentBindingsPanel
+        environments={environments}
+        bindings={environmentBindings}
+        onChanged={reload}
+        onError={setError}
+      />
+
+      <ApplicationBindingsPanel
+        applications={applications}
+        bindings={applicationBindings}
+        onChanged={reload}
+        onError={setError}
+      />
+    </section>
+  );
+}
+
+// --- Synchronization -------------------------------------------------------
+
+function SynchronizePanel({
+  runs,
+  onDone,
+  onError,
+}: {
+  runs: SyncRun[];
+  onDone: () => Promise<void>;
+  onError: (message: string) => void;
+}) {
+  const [running, setRunning] = useState(false);
+  const latest = runs[0];
+
+  async function run() {
+    setRunning(true);
+    try {
+      await synchronizeNow();
+      await onDone();
+    } catch (caught: unknown) {
+      onError(describeError(caught));
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  return (
+    <div className="panel">
+      <div className="panel__header">
+        <h3>Synchronization</h3>
+        <button type="button" onClick={() => void run()} disabled={running}>
+          {running ? "Synchronizing…" : "Synchronize now"}
+        </button>
+      </div>
+
+      <p className="hint">
+        On demand only. Scheduling is deliberately deferred until the image-to-version mapping is
+        trusted, because a wrong pattern running unattended records facts that cannot be edited
+        afterwards.
+      </p>
+
+      {!latest && <p className="hint">Tower has not synchronized yet.</p>}
+
+      {latest && (
+        <>
+          <p data-outcome={latest.outcome} className="sync-outcome">
+            <strong>{latest.outcome.replace("_", " ").toLowerCase()}</strong> — read{" "}
+            {latest.workloadsRead} workload{latest.workloadsRead === 1 ? "" : "s"}, recorded{" "}
+            {latest.observationsAppended} new observation
+            {latest.observationsAppended === 1 ? "" : "s"} at{" "}
+            {new Date(latest.finishedAt).toLocaleString()}.
+          </p>
+
+          {/*
+            The pairing ADR-011 promised. An Observation says when a version last
+            changed; this says when Tower last looked and found it unchanged.
+            Only a wholly successful run may say it.
+          */}
+          {latest.confirmsLiveness && latest.foundNoChange && (
+            <p className="hint">
+              Nothing had changed. Everything Tower already knew was confirmed still present at this
+              time.
+            </p>
+          )}
+
+          {latest.failures.length > 0 && (
+            <div className="sync-failures">
+              <h4>Could not be read</h4>
+              <ul>
+                {latest.failures.map((failure) => (
+                  <li key={failure}>{failure}</li>
+                ))}
+              </ul>
+              <p className="hint">
+                Observations recorded before this run remain valid. A scope Tower could not read
+                simply produced no new facts.
+              </p>
+            </div>
+          )}
+
+          {latest.unrecognized.length > 0 && (
+            <div className="sync-unrecognized">
+              <h4>Running, but not recognized</h4>
+              <p className="hint">
+                Tower will not guess which Application these belong to. Bind the image below and
+                they will be observed on the next run.
+              </p>
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Scope</th>
+                    <th>Workload</th>
+                    <th>Image</th>
+                    <th>Why</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {latest.unrecognized.map((workload) => (
+                    <tr key={`${workload.scope}/${workload.name}/${workload.imageReference}`}>
+                      <td>{workload.scope}</td>
+                      <td>{workload.name}</td>
+                      <td className="mono">{workload.imageReference}</td>
+                      <td>{workload.reason}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
+
+      {runs.length > 1 && (
+        <details>
+          <summary>Earlier runs ({runs.length - 1})</summary>
+          <ul className="run-history">
+            {runs.slice(1).map((run) => (
+              <li key={run.id}>
+                {new Date(run.startedAt).toLocaleString()} — {run.outcome.replace("_", " ").toLowerCase()},{" "}
+                {run.observationsAppended} new
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </div>
+  );
+}
+
+// --- Environment bindings --------------------------------------------------
+
+function EnvironmentBindingsPanel({
+  environments,
+  bindings,
+  onChanged,
+  onError,
+}: {
+  environments: Environment[];
+  bindings: EnvironmentBinding[];
+  onChanged: () => Promise<void>;
+  onError: (message: string) => void;
+}) {
+  const [environmentId, setEnvironmentId] = useState("");
+  const [target, setTarget] = useState("");
+  const [scope, setScope] = useState("");
+
+  async function save(event: React.FormEvent) {
+    event.preventDefault();
+    try {
+      await bindEnvironment({ environmentId, connectorId: CONNECTOR_ID, target, scope });
+      setScope("");
+      await onChanged();
+    } catch (caught: unknown) {
+      onError(describeError(caught));
+    }
+  }
+
+  async function remove(binding: EnvironmentBinding) {
+    try {
+      await unbindEnvironment(binding.environmentId, binding.connectorId);
+      await onChanged();
+    } catch (caught: unknown) {
+      onError(describeError(caught));
+    }
+  }
+
+  const nameOf = (id: string) => environments.find((e) => e.id === id)?.name ?? id;
+
+  return (
+    <div className="panel">
+      <h3>Environments</h3>
+      <p className="hint">
+        Which namespace holds each Environment. An Environment is a business concept, not a
+        namespace, so the correspondence is recorded here rather than on the Environment itself.
+      </p>
+
+      {bindings.length === 0 && <p className="hint">No Environment is bound yet.</p>}
+
+      {bindings.map((binding) => (
+        <EnvironmentBindingRow
+          key={`${binding.environmentId}-${binding.connectorId}`}
+          binding={binding}
+          environmentName={nameOf(binding.environmentId)}
+          onRemove={() => void remove(binding)}
+          onError={onError}
+        />
+      ))}
+
+      <form className="inline-form" onSubmit={(event) => void save(event)}>
+        <label>
+          Environment
+          <select value={environmentId} onChange={(event) => setEnvironmentId(event.target.value)} required>
+            <option value="">Choose…</option>
+            {environments.map((environment) => (
+              <option key={environment.id} value={environment.id}>
+                {environment.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          API server
+          <input
+            value={target}
+            onChange={(event) => setTarget(event.target.value)}
+            placeholder="https://api.cluster.example:6443"
+            required
+          />
+        </label>
+        <label>
+          Namespace
+          <input
+            value={scope}
+            onChange={(event) => setScope(event.target.value)}
+            placeholder="customer-uat"
+            required
+          />
+        </label>
+        <button type="submit">Bind</button>
+      </form>
+    </div>
+  );
+}
+
+function EnvironmentBindingRow({
+  binding,
+  environmentName,
+  onRemove,
+  onError,
+}: {
+  binding: EnvironmentBinding;
+  environmentName: string;
+  onRemove: () => void;
+  onError: (message: string) => void;
+}) {
+  const [credential, setCredential] = useState<CredentialStatus | null>(null);
+  const [secret, setSecret] = useState("");
+  const [test, setTest] = useState<ConnectionTest | null>(null);
+  const [testing, setTesting] = useState(false);
+
+  const refreshCredential = useCallback(async () => {
+    try {
+      setCredential(await getCredentialStatus(binding.connectorId, binding.target));
+    } catch (caught: unknown) {
+      onError(describeError(caught));
+    }
+  }, [binding.connectorId, binding.target, onError]);
+
+  useEffect(() => {
+    void refreshCredential();
+  }, [refreshCredential]);
+
+  async function saveSecret(event: React.FormEvent) {
+    event.preventDefault();
+    try {
+      await storeCredential(binding.connectorId, binding.target, secret);
+      // Cleared immediately: the token has been sent and the field holding it
+      // should not outlive that. Nothing ever reads it back.
+      setSecret("");
+      await refreshCredential();
+    } catch (caught: unknown) {
+      onError(describeError(caught));
+    }
+  }
+
+  async function forget() {
+    try {
+      await forgetCredential(binding.connectorId, binding.target);
+      await refreshCredential();
+    } catch (caught: unknown) {
+      onError(describeError(caught));
+    }
+  }
+
+  async function check() {
+    setTesting(true);
+    try {
+      setTest(await testConnection(binding.connectorId, binding.target, binding.scope));
+    } catch (caught: unknown) {
+      onError(describeError(caught));
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  return (
+    <div className="binding">
+      <div className="binding__header">
+        <strong>{environmentName}</strong>
+        <span className="mono">
+          {binding.target}/{binding.scope}
+        </span>
+        <button type="button" onClick={() => void check()} disabled={testing}>
+          {testing ? "Testing…" : "Test connection"}
+        </button>
+        <button type="button" className="button-link" onClick={onRemove}>
+          Unbind
+        </button>
+      </div>
+
+      {test && (
+        <p className="connection-test" data-reachable={test.reachable}>
+          {test.reachable ? "✓ " : "✗ "}
+          {test.message}
+        </p>
+      )}
+
+      <form className="inline-form" onSubmit={(event) => void saveSecret(event)}>
+        <label>
+          Token
+          <input
+            type="password"
+            value={secret}
+            onChange={(event) => setSecret(event.target.value)}
+            placeholder={credential?.configured ? "A token is stored" : "Paste the login token"}
+            autoComplete="off"
+            required
+          />
+        </label>
+        <button type="submit">{credential?.configured ? "Replace" : "Save"}</button>
+        {credential?.configured && (
+          <button type="button" className="button-link" onClick={() => void forget()}>
+            Forget
+          </button>
+        )}
+      </form>
+
+      <p className="hint">
+        {credential?.configured
+          ? `A token is stored for this API server${
+              credential.updatedAt ? `, saved ${new Date(credential.updatedAt).toLocaleString()}` : ""
+            }. It is encrypted at rest and is never shown again — replace it rather than reading it back.`
+          : "No token is stored for this API server yet."}
+      </p>
+    </div>
+  );
+}
+
+// --- Application bindings --------------------------------------------------
+
+function ApplicationBindingsPanel({
+  applications,
+  bindings,
+  onChanged,
+  onError,
+}: {
+  applications: Application[];
+  bindings: ApplicationBinding[];
+  onChanged: () => Promise<void>;
+  onError: (message: string) => void;
+}) {
+  const [applicationId, setApplicationId] = useState("");
+  const [image, setImage] = useState("");
+  const [versionPattern, setVersionPattern] = useState("");
+  const [sampleTag, setSampleTag] = useState("");
+  const [preview, setPreview] = useState<string | null>(null);
+
+  async function save(event: React.FormEvent) {
+    event.preventDefault();
+    try {
+      await bindApplication({ applicationId, connectorId: CONNECTOR_ID, image, versionPattern });
+      setImage("");
+      await onChanged();
+    } catch (caught: unknown) {
+      onError(describeError(caught));
+    }
+  }
+
+  async function tryPattern() {
+    try {
+      const result = await previewVersion(versionPattern, sampleTag);
+      setPreview(
+        result.matched
+          ? `“${result.imageTag}” would be recorded as version ${result.version}.`
+          : `“${result.imageTag}” does not match. That workload would be reported as unrecognized rather than guessed.`,
+      );
+    } catch (caught: unknown) {
+      setPreview(null);
+      onError(describeError(caught));
+    }
+  }
+
+  async function remove(binding: ApplicationBinding) {
+    try {
+      await unbindApplication(binding.applicationId, binding.connectorId);
+      await onChanged();
+    } catch (caught: unknown) {
+      onError(describeError(caught));
+    }
+  }
+
+  const nameOf = (id: string) => applications.find((a) => a.id === id)?.name ?? id;
+
+  return (
+    <div className="panel">
+      <h3>Applications</h3>
+      <p className="hint">
+        Which image is which Application, and how to read a version from its tag. Tower will not
+        guess: an image nobody has bound is reported rather than attributed, because an Observation
+        recorded against the wrong Application cannot be corrected afterwards.
+      </p>
+
+      {bindings.length === 0 && <p className="hint">No Application is bound yet.</p>}
+
+      {bindings.length > 0 && (
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>Application</th>
+              <th>Image</th>
+              <th>Version pattern</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {bindings.map((binding) => (
+              <tr key={`${binding.applicationId}-${binding.connectorId}`}>
+                <td>{nameOf(binding.applicationId)}</td>
+                <td className="mono">{binding.image}</td>
+                <td className="mono">{binding.versionPattern}</td>
+                <td>
+                  <button type="button" className="button-link" onClick={() => void remove(binding)}>
+                    Unbind
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      <form className="inline-form" onSubmit={(event) => void save(event)}>
+        <label>
+          Application
+          <select value={applicationId} onChange={(event) => setApplicationId(event.target.value)} required>
+            <option value="">Choose…</option>
+            {applications.map((application) => (
+              <option key={application.id} value={application.id}>
+                {application.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Image
+          <input
+            value={image}
+            onChange={(event) => setImage(event.target.value)}
+            placeholder="registry.example/acme/customer-api"
+            required
+          />
+        </label>
+        <label>
+          Version pattern
+          <input
+            value={versionPattern}
+            onChange={(event) => setVersionPattern(event.target.value)}
+            placeholder="^(.+)$ — the whole tag"
+          />
+        </label>
+        <button type="submit">Bind</button>
+      </form>
+
+      {/*
+        Not decoration. A wrong pattern produces wrong Application Versions, and
+        because Observations are immutable those survive the correction — this is
+        the one mistake here that cannot be undone.
+      */}
+      <div className="inline-form">
+        <label>
+          Try it against a real tag
+          <input
+            value={sampleTag}
+            onChange={(event) => setSampleTag(event.target.value)}
+            placeholder="release-2026.08.1"
+          />
+        </label>
+        <button type="button" onClick={() => void tryPattern()} disabled={!sampleTag}>
+          Preview
+        </button>
+      </div>
+      {preview && <p className="hint">{preview}</p>}
+    </div>
+  );
+}

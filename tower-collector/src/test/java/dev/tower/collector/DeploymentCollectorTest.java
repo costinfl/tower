@@ -454,6 +454,54 @@ class DeploymentCollectorTest {
         assertThat(collector.connectorId()).isEqualTo(CONNECTOR);
     }
 
+    @Nested
+    @DisplayName("checks a connection without reading anything into the model")
+    class ConnectionCheck {
+
+        @Test
+        void reports_a_reachable_target() {
+            var result = collector.checkConnection(CLUSTER, NAMESPACE);
+
+            assertThat(result.reachable()).isTrue();
+            assertThat(result.connectorId()).isEqualTo(CONNECTOR);
+            assertThat(result.scope()).isEqualTo(NAMESPACE);
+        }
+
+        @Test
+        void reports_an_unreachable_target_with_the_reason_rather_than_throwing() {
+            // Unreachable is the answer the user asked for, not a failure of the
+            // asking — a screen showing why needs it as a value.
+            connector.failsFor(NAMESPACE, "forbidden");
+
+            var result = collector.checkConnection(CLUSTER, NAMESPACE);
+
+            assertThat(result.reachable()).isFalse();
+            assertThat(result.message()).contains("forbidden");
+        }
+
+        @Test
+        void appends_no_observation_whatever_the_answer() {
+            bindApplication(null);
+            connector.running(NAMESPACE, workload("2026.08.1"));
+
+            collector.checkConnection(CLUSTER, NAMESPACE);
+
+            assertThat(observations.appended).isEmpty();
+        }
+
+        @Test
+        void presents_the_stored_credential_and_clears_it_afterwards() {
+            // Testing a connection is exactly how a user finds out whether the
+            // token they pasted works, so it must present the stored one.
+            credentials.store(CONNECTOR, CLUSTER, "sha256~a-token".toCharArray());
+
+            collector.checkConnection(CLUSTER, NAMESPACE);
+
+            assertThat(connector.credentialPresentAtCall).containsExactly(true);
+            assertThat(connector.credentialsSeen.get(0).isPresent()).isFalse();
+        }
+    }
+
     @Test
     @DisplayName("a superseded version is a new fact, and the old one survives")
     void keeps_the_superseded_observation() {

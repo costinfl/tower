@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 
 import dev.tower.application.port.out.DeploymentObservationCollector;
 import dev.tower.application.port.out.SyncRunRepository;
+import dev.tower.application.sync.ConnectionTest;
 import dev.tower.application.sync.SyncRun;
 import dev.tower.application.sync.SyncRunId;
 
@@ -137,6 +138,54 @@ class SynchronizationServiceTest {
         }
     }
 
+    @Nested
+    @DisplayName("connection test — issue #53")
+    class TestConnection {
+
+        @Test
+        void asks_the_collector_named_by_the_caller() {
+            var service = new SynchronizationService(List.of(
+                    new FixedCollector("kubernetes", aRun("kubernetes", T0, SyncRun.Outcome.SUCCEEDED)),
+                    new FixedCollector("git", aRun("git", T0, SyncRun.Outcome.SUCCEEDED))), runs);
+
+            var result = service.testConnection("git", "https://git.example", "acme/tower");
+
+            assertThat(result.connectorId()).isEqualTo("git");
+            assertThat(result.reachable()).isTrue();
+        }
+
+        @Test
+        void reports_a_connector_that_is_not_configured_rather_than_silently_doing_nothing() {
+            var service = new SynchronizationService(List.of(), runs);
+
+            assertThatThrownBy(() -> service.testConnection("nosuch", "https://x", "y"))
+                    .isInstanceOf(NotFoundException.class);
+        }
+
+        @Test
+        void requires_a_target_and_a_scope() {
+            var service = new SynchronizationService(List.of(
+                    new FixedCollector("kubernetes", aRun("kubernetes", T0, SyncRun.Outcome.SUCCEEDED))), runs);
+
+            assertThatThrownBy(() -> service.testConnection("kubernetes", " ", "ns"))
+                    .isInstanceOf(InvalidRequestException.class);
+            assertThatThrownBy(() -> service.testConnection("kubernetes", "https://x", " "))
+                    .isInstanceOf(InvalidRequestException.class);
+        }
+
+        @Test
+        void records_no_run_because_a_test_observes_nothing() {
+            var service = new SynchronizationService(List.of(
+                    new FixedCollector("kubernetes", aRun("kubernetes", T0, SyncRun.Outcome.SUCCEEDED))), runs);
+
+            service.testConnection("kubernetes", "https://x", "ns");
+
+            // A connection test appends no Observation, so putting it in the
+            // history would add an entry that observed nothing.
+            assertThat(runs.stored).isEmpty();
+        }
+    }
+
     /** A Collector that has already decided what its run produced. */
     private record FixedCollector(String connectorId, SyncRun run)
             implements DeploymentObservationCollector {
@@ -144,6 +193,11 @@ class SynchronizationServiceTest {
         @Override
         public SyncRun collect() {
             return run;
+        }
+
+        @Override
+        public ConnectionTest checkConnection(String target, String scope) {
+            return ConnectionTest.reachable(connectorId, target, scope);
         }
     }
 

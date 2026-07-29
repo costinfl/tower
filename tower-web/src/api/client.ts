@@ -667,3 +667,135 @@ export function previewImport(file: TowerExportFile, strategy: ConflictStrategy)
 export function applyImport(file: TowerExportFile, strategy: ConflictStrategy): Promise<ImportReport> {
   return postJson<ImportReport>(`/api/portability/import?strategy=${strategy}`, file);
 }
+
+// --- Connectors: bindings, credentials, synchronization ---------------------
+// Milestone 2 (issues #46 to #53). ADR-012 keeps the correspondence between
+// Tower's concepts and a vendor's locators out of the Domain Model, so these
+// are their own resources rather than fields on Environment or Application.
+
+export interface EnvironmentBinding {
+  environmentId: string;
+  connectorId: string;
+  target: string;
+  scope: string;
+}
+
+export interface ApplicationBinding {
+  applicationId: string;
+  connectorId: string;
+  image: string;
+  versionPattern: string;
+}
+
+export interface VersionPreview {
+  imageTag: string;
+  versionPattern: string;
+  matched: boolean;
+  version: string | null;
+}
+
+// No field here can carry the secret. Credentials are write-only through the
+// API (Implementation-Plan.md, Credential Handling), so the Viewer can render
+// "configured" without any code path that returns a token.
+export interface CredentialStatus {
+  connectorId: string;
+  target: string;
+  configured: boolean;
+  updatedAt: string | null;
+}
+
+export interface UnrecognizedWorkload {
+  scope: string;
+  name: string;
+  imageReference: string;
+  reason: string;
+}
+
+export interface SyncRun {
+  id: string;
+  connectorId: string;
+  startedAt: string;
+  finishedAt: string;
+  outcome: "SUCCEEDED" | "PARTIALLY_SUCCEEDED" | "FAILED";
+  workloadsRead: number;
+  observationsAppended: number;
+  foundNoChange: boolean;
+  // Only a wholly successful run licenses "confirmed present as of" (ADR-011).
+  confirmsLiveness: boolean;
+  unrecognized: UnrecognizedWorkload[];
+  failures: string[];
+}
+
+export interface ConnectionTest {
+  connectorId: string;
+  target: string;
+  scope: string;
+  reachable: boolean;
+  message: string;
+}
+
+export function listEnvironmentBindings(): Promise<EnvironmentBinding[]> {
+  return getJson<EnvironmentBinding[]>("/api/bindings/environments");
+}
+
+export function bindEnvironment(binding: EnvironmentBinding): Promise<EnvironmentBinding> {
+  return putJson<EnvironmentBinding>("/api/bindings/environments", binding);
+}
+
+export function unbindEnvironment(environmentId: string, connectorId: string): Promise<void> {
+  return deleteRequest(
+    `/api/bindings/environments/${encodeURIComponent(environmentId)}?connectorId=${encodeURIComponent(connectorId)}`,
+  );
+}
+
+export function listApplicationBindings(): Promise<ApplicationBinding[]> {
+  return getJson<ApplicationBinding[]>("/api/bindings/applications");
+}
+
+export function bindApplication(binding: ApplicationBinding): Promise<ApplicationBinding> {
+  return putJson<ApplicationBinding>("/api/bindings/applications", binding);
+}
+
+export function unbindApplication(applicationId: string, connectorId: string): Promise<void> {
+  return deleteRequest(
+    `/api/bindings/applications/${encodeURIComponent(applicationId)}?connectorId=${encodeURIComponent(connectorId)}`,
+  );
+}
+
+export function previewVersion(versionPattern: string, imageTag: string): Promise<VersionPreview> {
+  const pattern = versionPattern ? `versionPattern=${encodeURIComponent(versionPattern)}&` : "";
+  return getJson<VersionPreview>(`/api/bindings/version-preview?${pattern}imageTag=${encodeURIComponent(imageTag)}`);
+}
+
+export function getCredentialStatus(connectorId: string, target: string): Promise<CredentialStatus> {
+  return getJson<CredentialStatus>(
+    `/api/credentials?connectorId=${encodeURIComponent(connectorId)}&target=${encodeURIComponent(target)}`,
+  );
+}
+
+// request() already maps 204 to undefined, so putJson<void> is the right shape
+// for an endpoint that deliberately returns nothing.
+export function storeCredential(connectorId: string, target: string, secret: string): Promise<void> {
+  return putJson<void>("/api/credentials", { connectorId, target, secret });
+}
+
+export function forgetCredential(connectorId: string, target: string): Promise<void> {
+  return deleteRequest(
+    `/api/credentials?connectorId=${encodeURIComponent(connectorId)}&target=${encodeURIComponent(target)}`,
+  );
+}
+
+export function synchronizeNow(): Promise<SyncRun[]> {
+  return postJson<SyncRun[]>("/api/sync", undefined);
+}
+
+export function listSyncRuns(limit: number): Promise<SyncRun[]> {
+  return getJson<SyncRun[]>(`/api/sync/runs?limit=${limit}`);
+}
+
+export function testConnection(connectorId: string, target: string, scope: string): Promise<ConnectionTest> {
+  return getJson<ConnectionTest>(
+    `/api/sync/connection-test?connectorId=${encodeURIComponent(connectorId)}` +
+      `&target=${encodeURIComponent(target)}&scope=${encodeURIComponent(scope)}`,
+  );
+}

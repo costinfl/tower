@@ -3,6 +3,7 @@ package dev.tower.application.port.in;
 import java.util.List;
 import java.util.Optional;
 
+import dev.tower.application.sync.ConnectionTest;
 import dev.tower.application.sync.SyncRun;
 
 /**
@@ -36,4 +37,13 @@ public interface SynchronizationUseCases {
      * so rather than imply the Observation is current.
      */
     Optional<SyncRun> lastConfirmation(String connectorId);
+
+    /**
+     * Checks a binding's target and scope without modifying anything (FR-061).
+     *
+     * <p>Lets a user confirm a cluster URL, namespace and token together before
+     * any Observation depends on them — the configuration mistakes that would
+     * otherwise surface as a failed run, or worse as an empty one.
+     */
+    ConnectionTest testConnection(String connectorId, String target, String scope);
 }
