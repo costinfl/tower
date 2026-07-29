@@ -606,6 +606,17 @@ export function getReleaseDocumentMarkdown(releasePackId: string): Promise<strin
 
 // A plain link, not a fetch: letting the browser follow it preserves the
 // Content-Disposition filename the server derives from the pack name.
+// HTML is served inline so the browser renders it, and separately as a
+// download (Milestone 3, OQ-009). Both are plain links rather than fetches:
+// the point of the HTML format is that a browser opens it.
+export function releaseDocumentHtmlUrl(releasePackId: string): string {
+  return `/api/release-packs/${encodeURIComponent(releasePackId)}/documentation/html`;
+}
+
+export function releaseDocumentHtmlDownloadUrl(releasePackId: string): string {
+  return `/api/release-packs/${encodeURIComponent(releasePackId)}/documentation/html/download`;
+}
+
 export function releaseDocumentDownloadUrl(releasePackId: string): string {
   return `/api/release-packs/${encodeURIComponent(releasePackId)}/documentation/markdown/download`;
 }

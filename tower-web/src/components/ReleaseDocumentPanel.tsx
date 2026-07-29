@@ -1,6 +1,12 @@
 import { useState } from "react";
-import { getReleaseDocumentMarkdown, releaseDocumentDownloadUrl } from "../api/client";
+import {
+  getReleaseDocumentMarkdown,
+  releaseDocumentDownloadUrl,
+  releaseDocumentHtmlDownloadUrl,
+  releaseDocumentHtmlUrl,
+} from "../api/client";
 import ErrorNote from "./ErrorNote";
+import { DEMO_MODE } from "../demo/install";
 
 interface ReleaseDocumentPanelProps {
   releasePackId: string;
@@ -45,22 +51,55 @@ export default function ReleaseDocumentPanel({ releasePackId, packName }: Releas
       <h4>Release documentation</h4>
       <p className="hint">
         Generated from the Canonical Model each time you ask for it. Nothing is stored, so this is always
-        current and never needs keeping in step by hand.
+        current and never needs keeping in step by hand. Markdown is for pasting into a ticket; HTML opens
+        in a browser and prints, and carries its own styles so it still reads correctly from a file share.
       </p>
 
       <div className="inline-form">
         <button type="button" onClick={generate} disabled={busy}>
           {busy ? "Generating…" : markdown === null ? "Generate" : "Regenerate"}
         </button>
-        <a className="button-link" href={releaseDocumentDownloadUrl(releasePackId)} download>
-          Download Markdown
-        </a>
+        {/*
+          Downloads and the HTML view are plain links, so the browser navigates
+          rather than calling fetch — which the demonstration's backend shim
+          cannot intercept. On the published demo they would land on the SPA
+          fallback and look like the app reloading, so they are not offered
+          there. The Markdown preview below still works, because that is a
+          fetch.
+        */}
+        {!DEMO_MODE && (
+          <>
+            <a className="button-link" href={releaseDocumentDownloadUrl(releasePackId)} download>
+              Download Markdown
+            </a>
+            {/* noopener on a new tab, kept as a habit even for our own origin. */}
+            <a
+              className="button-link"
+              href={releaseDocumentHtmlUrl(releasePackId)}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              View HTML
+            </a>
+            <a className="button-link" href={releaseDocumentHtmlDownloadUrl(releasePackId)} download>
+              Download HTML
+            </a>
+          </>
+        )}
+
         {markdown !== null && (
           <button type="button" onClick={copy}>
             {copied ? "Copied" : "Copy"}
           </button>
         )}
       </div>
+
+      {DEMO_MODE && (
+        <p className="hint">
+          Downloading and the HTML view need the backend that generates them, which this
+          demonstration does not have. The Markdown preview below is real.
+        </p>
+      )}
 
       {error !== null && <ErrorNote error={error} />}
 
