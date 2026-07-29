@@ -46,7 +46,7 @@
          resources and OpenShift's own DeploymentConfig from one dependency. -->
     <fabric8.version>6.13.4</fabric8.version>
     <frontend-plugin.version>1.15.1</frontend-plugin.version>
-    <node.version>v22.11.0</node.version>
+    <node.version>v22.23.1</node.version>
   </properties>
 
   <dependencyManagement>
