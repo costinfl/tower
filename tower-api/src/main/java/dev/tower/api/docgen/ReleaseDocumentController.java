@@ -1,5 +1,6 @@
 package dev.tower.api.docgen;
 
+import dev.tower.docgen.HtmlReleaseDocumentRenderer;
 import dev.tower.docgen.MarkdownReleaseDocumentRenderer;
 import dev.tower.docgen.ReleaseDocument;
 import dev.tower.docgen.ReleaseDocumentAssembler;
@@ -29,11 +30,14 @@ public class ReleaseDocumentController {
 
     private final ReleaseDocumentAssembler assembler;
     private final MarkdownReleaseDocumentRenderer renderer;
+    private final HtmlReleaseDocumentRenderer htmlRenderer;
 
     public ReleaseDocumentController(ReleaseDocumentAssembler assembler,
-                                     MarkdownReleaseDocumentRenderer renderer) {
+                                     MarkdownReleaseDocumentRenderer renderer,
+                                     HtmlReleaseDocumentRenderer htmlRenderer) {
         this.assembler = assembler;
         this.renderer = renderer;
+        this.htmlRenderer = htmlRenderer;
     }
 
     /** The assembled document, for a client that wants to render it itself. */
@@ -57,7 +61,33 @@ public class ReleaseDocumentController {
         return ResponseEntity.ok()
                 .contentType(MediaType.TEXT_MARKDOWN)
                 .header(HttpHeaders.CONTENT_DISPOSITION,
-                        "attachment; filename=\"" + fileName(document.packName()) + "\"")
+                        "attachment; filename=\"" + fileName(document.packName(), "md") + "\"")
+                .body(body);
+    }
+
+    /**
+     * The rendered HTML, for viewing in a browser (Milestone 3, OQ-009).
+     *
+     * <p>Served inline rather than as a download so it can be opened directly.
+     * The page is self-contained — styles inlined, no script, no external
+     * request — so it renders the same from a file share or a mail attachment
+     * as it does from here.
+     */
+    @GetMapping(value = "/html", produces = MediaType.TEXT_HTML_VALUE)
+    public String html(@PathVariable String id) {
+        return htmlRenderer.render(assembler.assemble(ReleasePackId.of(id)));
+    }
+
+    /** The rendered HTML as a download. */
+    @GetMapping("/html/download")
+    public ResponseEntity<byte[]> downloadHtml(@PathVariable String id) {
+        ReleaseDocument document = assembler.assemble(ReleasePackId.of(id));
+        byte[] body = htmlRenderer.render(document).getBytes(StandardCharsets.UTF_8);
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.TEXT_HTML)
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"" + fileName(document.packName(), "html") + "\"")
                 .body(body);
     }
 
@@ -67,10 +97,10 @@ public class ReleaseDocumentController {
      * <p>No timestamp: two downloads of an unchanged release produce the same
      * file name and the same bytes, so they are trivially comparable.
      */
-    private String fileName(String packName) {
+    private String fileName(String packName, String extension) {
         String slug = packName.toLowerCase(Locale.ROOT)
                 .replaceAll("[^a-z0-9]+", "-")
                 .replaceAll("(^-|-$)", "");
-        return (slug.isBlank() ? "release-pack" : slug) + ".md";
+        return (slug.isBlank() ? "release-pack" : slug) + "." + extension;
     }
 }

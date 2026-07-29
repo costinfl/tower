@@ -62,6 +62,11 @@ This checklist tracks the architectural documentation required before implementa
 - [x] Synchronize-now use case and API
 - [x] Connectors screen and read-only connection test
 
+## Milestone 3 - Documentation formats
+
+- [x] HTML release document renderer (OQ-009)
+- [ ] Customisable templates (OQ-010, still deferred)
+
 ---
 
-Current Phase: **Milestone 2 — Automated Synchronization**
+Current Phase: **Milestone 3 — Documentation formats**

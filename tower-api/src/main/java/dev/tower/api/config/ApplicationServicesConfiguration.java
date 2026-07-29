@@ -24,6 +24,7 @@ import dev.tower.application.service.PromotionPathService;
 import dev.tower.application.service.SynchronizationService;
 import dev.tower.application.service.ObservationService;
 import dev.tower.application.service.ReleasePackService;
+import dev.tower.docgen.HtmlReleaseDocumentRenderer;
 import dev.tower.docgen.MarkdownReleaseDocumentRenderer;
 import dev.tower.docgen.ReleaseDocumentAssembler;
 import dev.tower.portability.ExportService;
@@ -116,6 +117,11 @@ public class ApplicationServicesConfiguration {
     @Bean
     public MarkdownReleaseDocumentRenderer markdownReleaseDocumentRenderer() {
         return new MarkdownReleaseDocumentRenderer();
+    }
+
+    @Bean
+    public HtmlReleaseDocumentRenderer htmlReleaseDocumentRenderer() {
+        return new HtmlReleaseDocumentRenderer();
     }
 
     @Bean
