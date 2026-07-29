@@ -291,7 +291,10 @@ function packStateView(packId: string) {
 // letting the section simply not be there.
 //
 // This is a second implementation of a renderer whose output must match the
-// real one, so it is checked by hand against tower-docgen when either changes.
+// real one. `scripts/verify-demo-docgen.sh` replays one identical sequence of
+// API calls against both this and a running Tower and diffs the documents, so
+// drift is caught rather than discovered by a visitor. Run it after changing
+// either renderer.
 
 const dash = (v: string | null | undefined) => (v == null || v === "" ? "—" : v);
 const oneLine = (v: string) =>
