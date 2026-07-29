@@ -16,6 +16,7 @@ import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import dev.tower.application.service.ApplicationException;
+import dev.tower.application.service.InvalidRequestException;
 import dev.tower.application.service.NotFoundException;
 import dev.tower.domain.shared.DomainConflictException;
 import dev.tower.domain.shared.DomainException;
@@ -46,6 +47,17 @@ public class ApiExceptionHandler {
     public ResponseEntity<ErrorResponse> handleApplicationException(
             ApplicationException ex, HttpServletRequest request) {
         return build(HttpStatus.CONFLICT, ex.getMessage(), request);
+    }
+
+    /**
+     * Input that is wrong on its own terms rather than in conflict with existing state — an
+     * unparseable version pattern, say. 400 rather than the 409 an {@link ApplicationException}
+     * answers, because resubmitting it unchanged will fail identically.
+     */
+    @ExceptionHandler(InvalidRequestException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidRequest(
+            InvalidRequestException ex, HttpServletRequest request) {
+        return build(HttpStatus.BAD_REQUEST, ex.getMessage(), request);
     }
 
     /**

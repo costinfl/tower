@@ -14,6 +14,7 @@ import java.util.Properties;
 import org.jasypt.encryption.pbe.StandardPBEStringEncryptor;
 import org.jasypt.exceptions.EncryptionOperationNotPossibleException;
 import org.jasypt.iv.RandomIvGenerator;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import dev.tower.application.port.out.ConnectorCredentialsPort;
@@ -47,6 +48,13 @@ public class EncryptedCredentialStore implements ConnectorCredentialsPort {
     private final Path credentialsFile;
     private final StandardPBEStringEncryptor encryptor;
 
+    /**
+     * Annotated because the class declares a second, package-private constructor
+     * for tests. With more than one declared constructor and none marked, Spring
+     * cannot choose and falls back to a no-argument constructor that does not
+     * exist — a failure that appears only when the context starts.
+     */
+    @Autowired
     public EncryptedCredentialStore(TowerPaths paths) throws IOException {
         this(paths.credentialsFile(), MasterKey.resolve(paths.masterKeyFile()));
     }
@@ -160,8 +168,10 @@ public class EncryptedCredentialStore implements ConnectorCredentialsPort {
         try {
             TowerHomeInitializer.ensureCreated(credentialsFile.getParent());
             try (var writer = Files.newBufferedWriter(credentialsFile, StandardCharsets.UTF_8)) {
-                // No comment line: Properties.store writes a timestamp comment,
-                // and a file that changes when nothing changed is noise.
+                // Null suppresses a custom header only; Properties.store always
+                // writes its own date line. Harmless here — this file is read by
+                // Tower rather than compared byte for byte, unlike generated
+                // documentation, where NFR-025 does require determinism.
                 properties.store(writer, null);
             }
             restrictToOwner(credentialsFile);

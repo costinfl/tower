@@ -14,7 +14,9 @@ import dev.tower.application.port.out.ObservationRepository;
 import dev.tower.application.port.out.PromotionPathRepository;
 import dev.tower.application.port.out.ReleasePackRepository;
 import dev.tower.application.service.ApplicationService;
+import dev.tower.application.port.out.ExternalBindingRepository;
 import dev.tower.application.service.EnvironmentService;
+import dev.tower.application.service.ExternalBindingService;
 import dev.tower.application.service.PromotionPathService;
 import dev.tower.application.service.ObservationService;
 import dev.tower.application.service.ReleasePackService;
@@ -59,6 +61,14 @@ public class ApplicationServicesConfiguration {
             ReleasePackRepository releasePackRepository) {
         return new ApplicationService(
                 applicationRepository, applicationVersionRepository, releasePackRepository);
+    }
+
+    @Bean
+    public ExternalBindingService externalBindingService(
+            ExternalBindingRepository externalBindingRepository, EnvironmentRepository environmentRepository,
+            ApplicationRepository applicationRepository) {
+        return new ExternalBindingService(
+                externalBindingRepository, environmentRepository, applicationRepository);
     }
 
     @Bean
