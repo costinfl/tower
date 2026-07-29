@@ -89,6 +89,15 @@ public class ApplicationVersionJdbcRepository implements ApplicationVersionRepos
     }
 
     @Override
+    public Optional<ApplicationVersion> findByApplicationAndVersion(ApplicationId applicationId, String version) {
+        return jdbcClient.sql(SELECT + " WHERE application_id = :applicationId AND version = :version")
+                .param("applicationId", applicationId.value())
+                .param("version", version)
+                .query(ApplicationVersionJdbcRepository::mapRow)
+                .optional();
+    }
+
+    @Override
     public boolean existsByApplicationAndVersion(ApplicationId applicationId, String version) {
         Integer count = jdbcClient.sql("""
                 SELECT COUNT(*) FROM application_version

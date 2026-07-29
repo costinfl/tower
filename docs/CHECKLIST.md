@@ -57,7 +57,7 @@ This checklist tracks the architectural documentation required before implementa
 - [x] Encrypted credential storage
 - [x] External Bindings
 - [x] Kubernetes Deployment Platform Connector
-- [ ] Deployment Collector with change detection
+- [x] Deployment Collector with change detection
 - [ ] Sync Run recording and reporting
 
 ---

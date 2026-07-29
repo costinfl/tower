@@ -27,5 +27,16 @@ public interface ApplicationVersionRepository {
 
     boolean existsByApplicationAndVersion(ApplicationId applicationId, String version);
 
+    /**
+     * The existing Version with this identifier, if Tower already knows it.
+     *
+     * <p>Added for synchronization (issue #49). A Connector reports a version
+     * string; observing the same deployment twice must reuse the Application
+     * Version already recorded rather than create a second one carrying the same
+     * identifier, which would make the two Observations look like different
+     * things.
+     */
+    Optional<ApplicationVersion> findByApplicationAndVersion(ApplicationId applicationId, String version);
+
     void deleteById(ApplicationVersionId id);
 }

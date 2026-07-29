@@ -81,8 +81,12 @@ final class InMemoryRepositories {
             return ids.stream().map(versions::get).filter(java.util.Objects::nonNull).toList();
         }
         public boolean existsByApplicationAndVersion(ApplicationId applicationId, String version) {
+            return findByApplicationAndVersion(applicationId, version).isPresent();
+        }
+        public Optional<ApplicationVersion> findByApplicationAndVersion(ApplicationId applicationId, String version) {
             return versions.values().stream()
-                    .anyMatch(v -> v.applicationId().equals(applicationId) && v.version().equals(version));
+                    .filter(v -> v.applicationId().equals(applicationId) && v.version().equals(version))
+                    .findFirst();
         }
         public void deleteById(ApplicationVersionId id) { versions.remove(id); }
     };

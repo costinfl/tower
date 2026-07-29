@@ -25,6 +25,18 @@
       <version>${project.version}</version>
     </dependency>
     <dependency>
+      <groupId>org.springframework</groupId>
+      <artifactId>spring-context</artifactId>
+    </dependency>
+    <!-- A Collector receives information from a Connector (Connector-Model.md),
+         so it depends on the vendor-neutral SPI. It never depends on a Connector
+         implementation. -->
+    <dependency>
+      <groupId>dev.tower</groupId>
+      <artifactId>tower-connector-api</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter</artifactId>
       <scope>test</scope>

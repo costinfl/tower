@@ -11,6 +11,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import dev.tower.application.port.in.EnvironmentUseCases;
 import dev.tower.application.port.in.ExternalBindingUseCases;
 import dev.tower.application.port.out.ConnectorCredentialsPort;
+import dev.tower.application.port.out.DeploymentObservationCollector;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -64,11 +65,23 @@ class ApplicationContextLoadsTest {
     @Autowired
     private EnvironmentUseCases environments;
 
+    @Autowired
+    private DeploymentObservationCollector deploymentCollector;
+
     @Test
     void starts_with_every_bean_this_milestone_added() {
         assertThat(credentials).isNotNull();
         assertThat(bindings).isNotNull();
         assertThat(environments).isNotNull();
+        assertThat(deploymentCollector).isNotNull();
+    }
+
+    @Test
+    void wires_the_collector_to_the_kubernetes_connector() {
+        // Proves the whole adapter chain resolved: the Collector found a
+        // DeploymentPlatformConnector on the runtime classpath, and both are
+        // reachable only through their ports from here.
+        assertThat(deploymentCollector.connectorId()).isEqualTo("kubernetes");
     }
 
     @Test
