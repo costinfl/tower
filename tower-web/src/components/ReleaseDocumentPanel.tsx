@@ -3,6 +3,7 @@ import {
   DocumentTemplate,
   getReleaseDocumentMarkdown,
   listDocumentTemplates,
+  releaseDocumentDocxDownloadUrl,
   releaseDocumentDownloadUrl,
   releaseDocumentHtmlDownloadUrl,
   releaseDocumentHtmlUrl,
@@ -80,6 +81,7 @@ export default function ReleaseDocumentPanel({ releasePackId, packName }: Releas
         Generated from the Canonical Model each time you ask for it. Nothing is stored, so this is always
         current and never needs keeping in step by hand. Markdown is for pasting into a ticket; HTML opens
         in a browser and prints, and carries its own styles so it still reads correctly from a file share.
+        Word imports into Confluence as an editable page, and converts to PDF from there.
       </p>
 
       <div className="inline-form">
@@ -126,6 +128,9 @@ export default function ReleaseDocumentPanel({ releasePackId, packName }: Releas
             </a>
             <a className="button-link" href={releaseDocumentHtmlDownloadUrl(releasePackId, chosen)} download>
               Download HTML
+            </a>
+            <a className="button-link" href={releaseDocumentDocxDownloadUrl(releasePackId, chosen)} download>
+              Download Word
             </a>
           </>
         )}

@@ -619,6 +619,13 @@ export function releaseDocumentHtmlDownloadUrl(releasePackId: string, templateId
   return `/api/release-packs/${encodeURIComponent(releasePackId)}/documentation/html/download${templateQuery(templateId)}`;
 }
 
+// DOCX has no inline counterpart: a browser cannot render one, so there is a
+// download and nothing else. It is the format that imports into Confluence as an
+// editable page, and converts to PDF from there (ADR-015).
+export function releaseDocumentDocxDownloadUrl(releasePackId: string, templateId?: string): string {
+  return `/api/release-packs/${encodeURIComponent(releasePackId)}/documentation/docx/download${templateQuery(templateId)}`;
+}
+
 export function releaseDocumentDownloadUrl(releasePackId: string, templateId?: string): string {
   return `/api/release-packs/${encodeURIComponent(releasePackId)}/documentation/markdown/download${templateQuery(templateId)}`;
 }

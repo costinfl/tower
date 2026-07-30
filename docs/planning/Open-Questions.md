@@ -113,18 +113,25 @@ Examples
 - PDF
 - DOCX
 
-Answer so far
+Answer
 
-Markdown (Milestone 1) and HTML (Milestone 3). Both are rendered by Tower's own code from the assembled
-document, with no template engine and no generation timestamp, so both satisfy NFR-025.
+Markdown (Milestone 1), HTML and DOCX (Milestone 3). PDF is declined.
 
-PDF and DOCX remain open. Each would introduce a rendering library, and the question that must be answered
-before either is added is whether that library produces byte-identical output for identical input — most do
-not, because they embed a creation date.
+All three are written by Tower's own code from the assembled document, with no template engine, no library
+and no generation timestamp, so all three satisfy NFR-025.
+
+PDF is declined rather than deferred, and the reason is what happens to a document after Tower hands it
+over. Confluence imports a Word document as an editable page and cannot do that with a PDF, while DOCX
+converts to PDF trivially. The relationship is one-way, so DOCX is the format that keeps both options and
+PDF is the one that throws the round trip away. A team that wants a PDF produces it from the DOCX.
+
+Recorded in ADR-015, which also records why the DOCX is written directly rather than through a library: a
+DOCX is a ZIP of XML, ZIP entries carry timestamps and word-processing libraries stamp a created date, so
+the obvious approach would have broken NFR-025 silently.
 
 Status
 
-Partly answered — PDF and DOCX still open
+Answered
 
 ---
 

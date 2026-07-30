@@ -3,6 +3,7 @@ package dev.tower.api.docgen;
 import dev.tower.application.documentation.DocumentTemplate;
 import dev.tower.application.documentation.DocumentTemplateId;
 import dev.tower.application.port.in.DocumentTemplateUseCases;
+import dev.tower.docgen.DocxReleaseDocumentRenderer;
 import dev.tower.docgen.HtmlReleaseDocumentRenderer;
 import dev.tower.docgen.MarkdownReleaseDocumentRenderer;
 import dev.tower.docgen.ReleaseDocument;
@@ -35,15 +36,18 @@ public class ReleaseDocumentController {
     private final ReleaseDocumentAssembler assembler;
     private final MarkdownReleaseDocumentRenderer renderer;
     private final HtmlReleaseDocumentRenderer htmlRenderer;
+    private final DocxReleaseDocumentRenderer docxRenderer;
     private final DocumentTemplateUseCases templates;
 
     public ReleaseDocumentController(ReleaseDocumentAssembler assembler,
                                      MarkdownReleaseDocumentRenderer renderer,
                                      HtmlReleaseDocumentRenderer htmlRenderer,
+                                     DocxReleaseDocumentRenderer docxRenderer,
                                      DocumentTemplateUseCases templates) {
         this.assembler = assembler;
         this.renderer = renderer;
         this.htmlRenderer = htmlRenderer;
+        this.docxRenderer = docxRenderer;
         this.templates = templates;
     }
 
@@ -101,6 +105,28 @@ public class ReleaseDocumentController {
                 .contentType(MediaType.TEXT_HTML)
                 .header(HttpHeaders.CONTENT_DISPOSITION,
                         "attachment; filename=\"" + fileName(document.packName(), chosen, "html") + "\"")
+                .body(body);
+    }
+
+    /**
+     * The rendered Word document (Milestone 3, OQ-009, ADR-015).
+     *
+     * <p>Download only, with no inline counterpart. A browser cannot render a
+     * DOCX, so serving one inline would produce a download with a misleading
+     * disposition rather than a view.
+     */
+    @GetMapping("/docx/download")
+    public ResponseEntity<byte[]> downloadDocx(@PathVariable String id,
+                                               @RequestParam(name = "template", required = false) String template) {
+        ReleaseDocument document = assembler.assemble(ReleasePackId.of(id));
+        DocumentTemplate chosen = resolve(template);
+        byte[] body = docxRenderer.render(document, chosen);
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(
+                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"))
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"" + fileName(document.packName(), chosen, "docx") + "\"")
                 .body(body);
     }
 

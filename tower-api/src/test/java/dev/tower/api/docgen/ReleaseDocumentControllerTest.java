@@ -26,6 +26,7 @@ import dev.tower.application.documentation.DocumentTemplate;
 import dev.tower.application.documentation.DocumentTemplateId;
 import dev.tower.application.port.out.DocumentTemplateRepository;
 import dev.tower.application.service.DocumentTemplateService;
+import dev.tower.docgen.DocxReleaseDocumentRenderer;
 import dev.tower.docgen.HtmlReleaseDocumentRenderer;
 import dev.tower.docgen.MarkdownReleaseDocumentRenderer;
 import dev.tower.docgen.ReleaseDocument;
@@ -57,7 +58,7 @@ class ReleaseDocumentControllerTest {
         repository = new InMemoryTemplates();
         mvc = MockMvcBuilders.standaloneSetup(new ReleaseDocumentController(
                         assembler, new MarkdownReleaseDocumentRenderer(), new HtmlReleaseDocumentRenderer(),
-                        new DocumentTemplateService(repository)))
+                        new DocxReleaseDocumentRenderer(), new DocumentTemplateService(repository)))
                 .setControllerAdvice(new ApiExceptionHandler())
                 .build();
     }
@@ -122,6 +123,23 @@ class ReleaseDocumentControllerTest {
                         .param("template", template.id().toString()))
                 .andExpect(header().string("Content-Disposition",
                         "attachment; filename=\"release-2026-08-handover-only.html\""));
+    }
+
+    @Test
+    void serves_a_word_document_as_a_download_with_its_own_extension() throws Exception {
+        // No inline counterpart: a browser cannot render a DOCX, so serving one
+        // inline would be a download with a misleading disposition.
+        var response = mvc.perform(get("/api/release-packs/{id}/documentation/docx/download", PACK))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Disposition",
+                        "attachment; filename=\"release-2026-08.docx\""))
+                .andReturn().getResponse();
+
+        byte[] body = response.getContentAsByteArray();
+        // "PK" — it is a ZIP, which is what a DOCX is.
+        org.assertj.core.api.Assertions.assertThat(body).startsWith((byte) 0x50, (byte) 0x4B);
+        org.assertj.core.api.Assertions.assertThat(response.getContentType())
+                .contains("wordprocessingml.document");
     }
 
     @Test

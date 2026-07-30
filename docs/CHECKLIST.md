@@ -73,6 +73,8 @@ This checklist tracks the architectural documentation required before implementa
 - [x] FR-062 to FR-065
 - [x] Document Templates: section selection and ordering (OQ-010)
 - [x] Documentation templates screen and template picker
+- [x] ADR-015-DOCX-Is-Written-Directly-For-Reproducibility.md
+- [x] DOCX release document renderer (OQ-009 answered, PDF declined)
 
 ---
 

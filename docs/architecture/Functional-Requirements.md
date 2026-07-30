@@ -16,7 +16,7 @@
 
 This document defines the functional capabilities required for Milestone 1.
 
-FR-055 to FR-061 extend it to Milestone 2, and FR-062 to FR-065 to Milestone 3; each group is under its own heading.
+FR-055 to FR-061 extend it to Milestone 2, and FR-062 to FR-066 to Milestone 3; each group is under its own heading.
 
 Each requirement is atomic, uniquely identified and traceable.
 
@@ -442,6 +442,16 @@ The system shall report the sections a Document Template may select from, so tha
 
 ---
 
+## FR-066
+
+The system shall generate a release document as a Word document, using heading styles that survive import
+into a wiki.
+
+PDF is not generated. ADR-015 records that a Word document imports as editable content and converts to PDF,
+while a PDF does neither in reverse.
+
+---
+
 # Deferred
 
 ## FR-054
@@ -460,6 +470,6 @@ FR-001 to FR-054 define the functional scope of Milestone 1.
 
 FR-055 to FR-061 define what Milestone 2 adds.
 
-FR-062 to FR-065 define what Milestone 3 adds.
+FR-062 to FR-066 define what Milestone 3 adds.
 
 Capabilities beyond these requirements shall be evaluated in future milestones.
