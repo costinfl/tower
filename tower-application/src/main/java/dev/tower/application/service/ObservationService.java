@@ -12,12 +12,14 @@ import dev.tower.domain.environment.Environment;
 import dev.tower.domain.environment.EnvironmentId;
 import dev.tower.domain.observation.EnvironmentState;
 import dev.tower.domain.observation.Observation;
+import dev.tower.domain.observation.StateComparison;
 import dev.tower.domain.releasepack.PackedVersion;
 import dev.tower.domain.releasepack.ReleasePack;
 import dev.tower.domain.releasepack.ReleasePackId;
 import dev.tower.domain.releasepack.ReleasePackState;
 
 import java.time.Clock;
+import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -84,6 +86,26 @@ public class ObservationService implements ObservationUseCases {
     public EnvironmentState environmentState(EnvironmentId environmentId) {
         requireEnvironment(environmentId);
         return EnvironmentState.from(environmentId, observations.findAllInEnvironment(environmentId));
+    }
+
+    @Override
+    public EnvironmentState environmentStateAt(EnvironmentId environmentId, Instant at) {
+        requireEnvironment(environmentId);
+        // Filtered in the fold rather than in the query. The Observation stream
+        // for one Environment is small for the workload ADR-009 describes, and
+        // pushing the bound into the port would add a second way to ask the same
+        // question - two places for the "at or before" rule to live.
+        return EnvironmentState.asOf(
+                environmentId, observations.findAllInEnvironment(environmentId), at);
+    }
+
+    @Override
+    public StateComparison compareStates(
+            EnvironmentId leftEnvironment, Instant leftAt,
+            EnvironmentId rightEnvironment, Instant rightAt) {
+        return StateComparison.between(
+                environmentStateAt(leftEnvironment, leftAt),
+                environmentStateAt(rightEnvironment, rightAt));
     }
 
     @Override

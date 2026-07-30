@@ -39,11 +39,37 @@ public record EnvironmentState(EnvironmentId environmentId, List<DeployedApplica
      * so a caller may pass a broad result set without pre-filtering it.
      */
     public static EnvironmentState from(EnvironmentId environmentId, Collection<Observation> observations) {
+        return asOf(environmentId, observations, null);
+    }
+
+    /**
+     * Derives the state as it stood at a point in time — a Snapshot (ADR-017).
+     *
+     * <p>The same fold as {@link #from}, with an upper bound on {@code observedAt}.
+     * That is the whole of it: the Observation stream is append-only and every
+     * Observation carries the instant it describes, so the history is already
+     * present and a Snapshot is nothing but Observations folded. Nothing is
+     * stored, which is why any instant can be answered and not only the ones
+     * somebody thought to capture.
+     *
+     * <p>An Observation recorded later but describing an earlier instant counts,
+     * because {@code observedAt} is what the Observation is about. If Tower
+     * learns on Tuesday that a version was running on Monday, the honest answer
+     * to "what was running on Monday" changes on Tuesday.
+     *
+     * @param at the instant to reconstruct, or null for current state
+     */
+    public static EnvironmentState asOf(
+            EnvironmentId environmentId, Collection<Observation> observations, Instant at) {
         DomainException.require(environmentId != null, "Environment id is required.");
 
         Map<ApplicationId, Observation> latestPerApplication = new LinkedHashMap<>();
         for (Observation observation : observations) {
             if (observation == null || !environmentId.equals(observation.environmentId())) {
+                continue;
+            }
+            // Observed after the instant asked about, so it had not happened yet.
+            if (at != null && observation.observedAt().isAfter(at)) {
                 continue;
             }
             latestPerApplication.merge(observation.applicationId(), observation,

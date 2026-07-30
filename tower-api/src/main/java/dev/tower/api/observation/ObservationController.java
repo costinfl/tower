@@ -1,5 +1,6 @@
 package dev.tower.api.observation;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -9,6 +10,7 @@ import jakarta.validation.Valid;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -27,6 +29,7 @@ import dev.tower.domain.application.ApplicationVersionId;
 import dev.tower.domain.environment.Environment;
 import dev.tower.domain.environment.EnvironmentId;
 import dev.tower.domain.observation.EnvironmentState;
+import dev.tower.domain.observation.StateComparison;
 import dev.tower.domain.observation.Observation;
 import dev.tower.domain.releasepack.ReleasePackId;
 
@@ -62,11 +65,21 @@ public class ObservationController {
         return toView(observation);
     }
 
+    /**
+     * Current state, or the state at a past instant when {@code at} is given
+     * (Milestone 4, ADR-017).
+     *
+     * <p>One endpoint rather than two, because a Snapshot is not a different
+     * kind of thing from current state — it is the same derivation with an upper
+     * bound, and current state is the case where the bound is now.
+     */
     @GetMapping("/api/environments/{id}/state")
-    public EnvironmentStateView state(@PathVariable("id") String id) {
+    public EnvironmentStateView state(
+            @PathVariable("id") String id,
+            @RequestParam(name = "at", required = false) Instant at) {
         EnvironmentId environmentId = EnvironmentId.of(id);
         Environment environment = environmentUseCases.get(environmentId);
-        EnvironmentState state = observationUseCases.environmentState(environmentId);
+        EnvironmentState state = observationUseCases.environmentStateAt(environmentId, at);
 
         Function<ApplicationId, Application> applications = applicationResolver();
         Function<ApplicationVersionId, ApplicationVersion> versions = versionResolver();
@@ -76,6 +89,104 @@ public class ObservationController {
                 .toList();
 
         return EnvironmentStateView.from(environment, state, deployed);
+    }
+
+    /**
+     * The difference between two derived states (Milestone 4, ADR-017).
+     *
+     * <p>Both sides are an Environment and an instant, either of which may be
+     * omitted, so one endpoint answers "how did UAT change between Monday and
+     * Friday" and "how does UAT differ from Production now". Nothing is stored:
+     * both sides are folded from the Observation stream on request.
+     */
+    @GetMapping("/api/environments/{id}/state/comparison")
+    public StateComparisonView compare(
+            @PathVariable("id") String id,
+            @RequestParam(name = "at", required = false) Instant at,
+            @RequestParam(name = "against", required = false) String against,
+            @RequestParam(name = "againstAt", required = false) Instant againstAt) {
+
+        EnvironmentId left = EnvironmentId.of(id);
+        // Comparing an Environment with itself at two instants is the common
+        // case, so the other side defaults to the same Environment.
+        EnvironmentId right = against == null || against.isBlank() ? left : EnvironmentId.of(against);
+
+        environmentUseCases.get(left);
+        if (!right.equals(left)) {
+            environmentUseCases.get(right);
+        }
+
+        StateComparison comparison = observationUseCases.compareStates(left, at, right, againstAt);
+
+        Function<ApplicationId, Application> applications = applicationResolver();
+        Function<ApplicationVersionId, ApplicationVersion> versions = versionResolver();
+
+        return new StateComparisonView(
+                comparison.isIdentical(),
+                comparison.differences().stream()
+                        .map(d -> DifferenceView.from(d, applications, versions)).toList(),
+                comparison.unchanged().stream()
+                        .map(u -> UnchangedView.from(u, applications, versions)).toList());
+    }
+
+    /**
+     * @param identical whether the two sides agree, stated rather than left to be
+     *                  inferred from an empty list — an empty differences list and
+     *                  a failed comparison would otherwise look the same
+     */
+    public record StateComparisonView(
+            boolean identical, List<DifferenceView> differences, List<UnchangedView> unchanged) {
+    }
+
+    /**
+     * @param kind CHANGED, ARRIVED or GONE — named rather than left for a client
+     *             to work out from which version is null, because that inference
+     *             is exactly where "not deployed" gets confused with "never observed"
+     */
+    public record DifferenceView(
+            String applicationId, String applicationName, String kind,
+            String leftVersion, String rightVersion,
+            String leftObservationId, String rightObservationId) {
+
+        static DifferenceView from(StateComparison.Difference difference,
+                                   Function<ApplicationId, Application> applications,
+                                   Function<ApplicationVersionId, ApplicationVersion> versions) {
+            Application application = applications.apply(difference.applicationId());
+            return new DifferenceView(
+                    difference.applicationId().toString(),
+                    application == null ? null : application.name(),
+                    difference.changed() ? "CHANGED" : difference.onlyOnRight() ? "ARRIVED" : "GONE",
+                    versionLabel(difference.leftVersion(), versions),
+                    versionLabel(difference.rightVersion(), versions),
+                    difference.leftObservationId() == null ? null : difference.leftObservationId().toString(),
+                    difference.rightObservationId() == null ? null : difference.rightObservationId().toString());
+        }
+    }
+
+    public record UnchangedView(
+            String applicationId, String applicationName, String version,
+            String leftObservationId, String rightObservationId) {
+
+        static UnchangedView from(StateComparison.Unchanged unchanged,
+                                  Function<ApplicationId, Application> applications,
+                                  Function<ApplicationVersionId, ApplicationVersion> versions) {
+            Application application = applications.apply(unchanged.applicationId());
+            return new UnchangedView(
+                    unchanged.applicationId().toString(),
+                    application == null ? null : application.name(),
+                    versionLabel(unchanged.applicationVersionId(), versions),
+                    unchanged.leftObservationId().toString(),
+                    unchanged.rightObservationId().toString());
+        }
+    }
+
+    private static String versionLabel(
+            ApplicationVersionId id, Function<ApplicationVersionId, ApplicationVersion> versions) {
+        if (id == null) {
+            return null;
+        }
+        ApplicationVersion version = versions.apply(id);
+        return version == null ? id.toString() : version.version();
     }
 
     @GetMapping("/api/environments/{id}/observations")

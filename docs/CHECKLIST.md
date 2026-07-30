@@ -76,6 +76,15 @@ This checklist tracks the architectural documentation required before implementa
 - [x] ADR-015-DOCX-Is-Written-Directly-For-Reproducibility.md
 - [x] DOCX release document renderer (OQ-009 answered, PDF declined)
 
+## Milestone 4 - Snapshots and historical comparison
+
+- [x] ADR-017-A-Snapshot-Is-Derived-Not-Stored.md
+- [x] OQ-007 answered (nothing is stored, so nothing is retained)
+- [x] FR-068, FR-069
+- [x] Point-in-time Environment state and comparison
+- [ ] Release Pack progression history
+- [ ] Historical comparison in the Viewer
+
 ## Deferred work closed
 
 - [x] ADR-016-Handover-Is-Versioned-Release-Pack-Metadata-Is-Not.md

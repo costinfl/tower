@@ -3,6 +3,7 @@ package dev.tower.application.port.in;
 import dev.tower.domain.application.ApplicationVersionId;
 import dev.tower.domain.environment.EnvironmentId;
 import dev.tower.domain.observation.EnvironmentState;
+import dev.tower.domain.observation.StateComparison;
 import dev.tower.domain.observation.Observation;
 import dev.tower.domain.observation.ObservationId;
 import dev.tower.domain.releasepack.ReleasePackId;
@@ -30,6 +31,28 @@ public interface ObservationUseCases {
 
     /** Current derived state of one Environment (FR-010 to FR-013). */
     EnvironmentState environmentState(EnvironmentId environmentId);
+
+    /**
+     * The state of an Environment as it stood at an instant — a Snapshot
+     * (Milestone 4, ADR-017).
+     *
+     * <p>Derived rather than looked up, so any instant is answerable and not
+     * only the ones somebody captured. That is the point of the decision: the
+     * question is usually asked about the moment an incident began, which is
+     * never a moment anyone snapshotted in advance.
+     */
+    EnvironmentState environmentStateAt(EnvironmentId environmentId, Instant at);
+
+    /**
+     * The difference between two derived states.
+     *
+     * <p>The same operation answers "how did UAT change between Monday and
+     * Friday" and "how does UAT differ from Production now", which is why both
+     * sides are given as an Environment and an instant.
+     */
+    StateComparison compareStates(
+            EnvironmentId leftEnvironment, Instant leftAt,
+            EnvironmentId rightEnvironment, Instant rightAt);
 
     /** Full Observation history for an Environment, newest first. */
     List<Observation> historyOf(EnvironmentId environmentId);

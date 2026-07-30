@@ -84,9 +84,17 @@ Implementation Decision
 
 How long should historical Snapshots be retained?
 
+Answer
+
+The question does not arise. ADR-017 derives a Snapshot from the Observation stream rather than storing one, so
+there is nothing to retain.
+
+Retention of the Observation stream itself is a separate question, and the only one that matters. ADR-011
+left it open and it stays open.
+
 Status
 
-Deferred
+Answered — no Snapshot is stored
 
 ---
 

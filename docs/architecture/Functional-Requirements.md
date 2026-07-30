@@ -460,6 +460,28 @@ while a PDF does neither in reverse.
 
 ---
 
+# Milestone 4 — Snapshots and Historical Comparison
+
+## FR-068
+
+The system shall report the observed state of an Environment as it stood at any instant, derived from
+Observations rather than from stored Snapshots (ADR-017).
+
+An instant nobody captured shall be answerable, because the question is usually asked about the moment an
+incident began.
+
+---
+
+## FR-069
+
+The system shall report the difference between two observed states, whether one Environment at two instants
+or two Environments at one instant.
+
+A difference shall distinguish a version that changed from one that arrived and one that is gone, and shall
+cite the Observation behind each side.
+
+---
+
 # Deferred
 
 ## FR-054
@@ -479,5 +501,7 @@ FR-001 to FR-054 define the functional scope of Milestone 1.
 FR-055 to FR-061 define what Milestone 2 adds.
 
 FR-062 to FR-067 define what Milestone 3 adds.
+
+FR-068 and FR-069 define what Milestone 4 adds.
 
 Capabilities beyond these requirements shall be evaluated in future milestones.
