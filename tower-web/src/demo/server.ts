@@ -53,6 +53,11 @@ const STAGE_RANK: Record<Stage, number> = {
 // "Synchronize now" simply reports that it could not.
 interface EnvBinding { environmentId: string; connectorId: string; target: string; scope: string }
 interface AppBinding { applicationId: string; connectorId: string; image: string; versionPattern: string }
+// Issue #3, ADR-014. Its own Connector ("git"), not the Deployment Platform's.
+interface RepoBinding {
+  applicationId: string; connectorId: string; repositoryUrl: string;
+  refSelection: "TAGS" | "BRANCHES" | "ALL"; versionPattern: string;
+}
 interface RunRec {
   id: string; connectorId: string; startedAt: string; finishedAt: string;
   outcome: "SUCCEEDED" | "PARTIALLY_SUCCEEDED" | "FAILED";
@@ -91,6 +96,7 @@ const state: {
   environments: Env[]; applications: App[]; versions: Ver[];
   paths: PathRec[]; packs: PackRec[]; observations: Obs[];
   environmentBindings: EnvBinding[]; applicationBindings: AppBinding[];
+  repositoryBindings: RepoBinding[];
   credentials: Record<string, string>; runs: RunRec[];
   documentTemplates: TemplateRec[];
 } = {
@@ -107,6 +113,7 @@ const state: {
   observations: seed.observations.map((o) => ({ ...o, source: { ...o.source } })),
   environmentBindings: seed.environmentBindings.map((b) => ({ ...b })),
   applicationBindings: seed.applicationBindings.map((b) => ({ ...b })),
+  repositoryBindings: seed.repositoryBindings.map((b) => ({ ...b })),
   credentials: { ...seed.credentials },
   runs: seed.syncRuns.map((r) => ({
     ...r,
@@ -501,6 +508,58 @@ function validTemplate(body: Json | null, beingUpdated: string | null): { name: 
   return { name, sections };
 }
 
+// --- source control discovery (issue #3, ADR-014) ----------------------------
+
+// Mirrors SourceControlCollector: apply the binding, match the pattern, mark
+// what Tower already holds, and report refs the pattern missed rather than
+// dropping them. Stores nothing, exactly as the real one does not — BR-01 makes
+// an Application Version immutable, so discovery never creates one.
+function discoverVersions(applicationId: string) {
+  const binding = state.repositoryBindings.find((b) => b.applicationId === applicationId);
+  if (!binding) {
+    return {
+      applicationId, repositoryUrl: null, candidates: [], unmatched: [],
+      failure: "No repository is bound to this Application.",
+    };
+  }
+
+  const refs = seed.sourceRefs[applicationId] ?? [];
+  const candidates: {
+    version: string; refName: string; branch: string | null; tag: string | null;
+    commit: string; alreadyRegistered: boolean;
+  }[] = [];
+  const unmatched: string[] = [];
+  const seen = new Set<string>();
+
+  for (const ref of refs) {
+    const wanted = ref.kind === "TAG"
+      ? binding.refSelection === "TAGS" || binding.refSelection === "ALL"
+      : binding.refSelection === "BRANCHES" || binding.refSelection === "ALL";
+    // Filtered by the user's own choice, so not reported as a problem.
+    if (!wanted) continue;
+
+    const match = new RegExp(binding.versionPattern).exec(ref.name);
+    if (!match || match[0] !== ref.name || !match[1]) {
+      unmatched.push(ref.name);
+      continue;
+    }
+    if (seen.has(match[1])) continue;
+    seen.add(match[1]);
+
+    candidates.push({
+      version: match[1],
+      refName: ref.name,
+      branch: ref.kind === "BRANCH" ? ref.name : null,
+      tag: ref.kind === "TAG" ? ref.name : null,
+      commit: ref.commit,
+      alreadyRegistered: state.versions.some(
+        (v) => v.applicationId === applicationId && v.version === match[1]),
+    });
+  }
+
+  return { applicationId, repositoryUrl: binding.repositoryUrl, candidates, unmatched, failure: null };
+}
+
 // --- routing ----------------------------------------------------------------
 
 const seg = (p: string) => p.split("?")[0].split("/").filter(Boolean);
@@ -550,6 +609,32 @@ export function handle(pathname: string, method: string, body: Json | null): unk
       }
       if (method === "DELETE") {
         state.applicationBindings = state.applicationBindings.filter((x) => x.applicationId !== b);
+        return null;
+      }
+    }
+    if (a === "repositories") {
+      if (method === "GET") return state.repositoryBindings;
+      if (method === "PUT") {
+        const incoming = body as unknown as RepoBinding;
+        const pattern = incoming.versionPattern?.trim() || "^(.+)$";
+        try {
+          const compiled = new RegExp(pattern);
+          if (new RegExp(compiled.source + "|").exec("")!.length - 1 < 1) {
+            throw badRequest("The version pattern must contain a capturing group marking the version,"
+              + " for example ^v(.+)$. Use ^(.+)$ to treat the whole ref name as the version.");
+          }
+        } catch (e) {
+          if (e instanceof ApiFailure) throw e;
+          throw badRequest("The version pattern is not a valid regular expression.");
+        }
+        const saved = { ...incoming, versionPattern: pattern, refSelection: incoming.refSelection || "TAGS" };
+        state.repositoryBindings = state.repositoryBindings.filter(
+          (x) => !(x.applicationId === saved.applicationId && x.connectorId === saved.connectorId));
+        state.repositoryBindings.push(saved);
+        return saved;
+      }
+      if (method === "DELETE") {
+        state.repositoryBindings = state.repositoryBindings.filter((x) => x.applicationId !== b);
         return null;
       }
     }
@@ -603,6 +688,20 @@ export function handle(pathname: string, method: string, body: Json | null): unk
       state.documentTemplates = state.documentTemplates.filter((t) => t.id !== a);
       return null;
     }
+  }
+
+  if (area === "source-versions") {
+    if (a === "connection-test") {
+      const params = new URLSearchParams(pathname.split("?")[1] ?? "");
+      const url = params.get("repositoryUrl") ?? "";
+      // The demo reaches no repository, and says so rather than pretending.
+      return {
+        connectorId: "git", target: url, scope: "whole repository", reachable: false,
+        message: "This demonstration has no network access, so no repository can be read."
+          + " Against a real Tower this reports whether the remote answered.",
+      };
+    }
+    if (!a) return state.repositoryBindings.map((b) => discoverVersions(b.applicationId));
   }
 
   if (area === "credentials") {
@@ -723,6 +822,10 @@ export function handle(pathname: string, method: string, body: Json | null): unk
       state.applications.push(x); return x;
     }
     if (a && b === "versions") return state.versions.filter((v) => v.applicationId === a);
+    if (a && b === "source-versions") {
+      if (!app(a)) throw notFound(`Application ${a} does not exist.`);
+      return discoverVersions(a);
+    }
     if (a && method === "PUT") {
       const x = app(a); if (!x) throw notFound(`Application ${a} does not exist.`);
       x.name = String(body?.name ?? x.name); x.description = String(body?.description ?? x.description);

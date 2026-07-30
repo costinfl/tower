@@ -314,3 +314,32 @@ export const documentTemplates = [
     sections: ["STATUS", "HANDOVER"],
   },
 ];
+
+// --- Repository bindings and source refs (issue #3, ADR-014) -----------------
+
+// The demo reaches no repository, so the refs a "discovery" reports are
+// fabricated here just as the Sync Runs are. They are chosen to show the three
+// things the real Collector distinguishes: a version already registered, one
+// that is new, and a ref the pattern does not recognise.
+export const repositoryBindings = [
+  {
+    applicationId: id("app-customer"),
+    connectorId: "git",
+    repositoryUrl: "https://github.com/acme/customer-api.git",
+    refSelection: "TAGS" as const,
+    versionPattern: "^v(.+)$",
+  },
+];
+
+export const sourceRefs: Record<string, { kind: "TAG" | "BRANCH"; name: string; commit: string }[]> = {
+  [id("app-customer")]: [
+    { kind: "TAG", name: "v2.4.0", commit: "9f81c0a7d2b34e5f6a1b8c9d0e1f2a3b4c5d6e7f" },
+    { kind: "TAG", name: "v2.5.0", commit: "1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d" },
+    { kind: "TAG", name: "v2.6.0", commit: "c0ffee1234567890abcdef1234567890abcdef12" },
+    // Deliberately not a version: shown as unrecognised so the demo makes the
+    // point that a pattern which misses something says so.
+    { kind: "TAG", name: "experiment", commit: "dead00beef1234567890abcdef1234567890abcd" },
+    { kind: "BRANCH", name: "release/2.6", commit: "c0ffee1234567890abcdef1234567890abcdef12" },
+    { kind: "BRANCH", name: "main", commit: "c0ffee1234567890abcdef1234567890abcdef12" },
+  ],
+};

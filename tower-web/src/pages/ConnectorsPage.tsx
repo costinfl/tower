@@ -6,8 +6,11 @@ import {
   CredentialStatus,
   Environment,
   EnvironmentBinding,
+  RefSelection,
+  RepositoryBinding,
   SyncRun,
   bindApplication,
+  bindRepository,
   bindEnvironment,
   forgetCredential,
   getApplications,
@@ -20,7 +23,10 @@ import {
   storeCredential,
   synchronizeNow,
   testConnection,
+  listRepositoryBindings,
+  testRepositoryConnection,
   unbindApplication,
+  unbindRepository,
   unbindEnvironment,
 } from "../api/client";
 import ErrorNote, { describeError } from "../components/ErrorNote";
@@ -34,22 +40,25 @@ export default function ConnectorsPage() {
   const [applications, setApplications] = useState<Application[]>([]);
   const [environmentBindings, setEnvironmentBindings] = useState<EnvironmentBinding[]>([]);
   const [applicationBindings, setApplicationBindings] = useState<ApplicationBinding[]>([]);
+  const [repositoryBindings, setRepositoryBindings] = useState<RepositoryBinding[]>([]);
   const [runs, setRuns] = useState<SyncRun[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
     try {
-      const [envs, apps, envBindings, appBindings, history] = await Promise.all([
+      const [envs, apps, envBindings, appBindings, repoBindings, history] = await Promise.all([
         getEnvironments(),
         getApplications(),
         listEnvironmentBindings(),
         listApplicationBindings(),
+        listRepositoryBindings(),
         listSyncRuns(10),
       ]);
       setEnvironments(envs);
       setApplications(apps);
       setEnvironmentBindings(envBindings);
       setApplicationBindings(appBindings);
+      setRepositoryBindings(repoBindings);
       setRuns(history);
       setError(null);
     } catch (caught: unknown) {
@@ -84,6 +93,13 @@ export default function ConnectorsPage() {
       <ApplicationBindingsPanel
         applications={applications}
         bindings={applicationBindings}
+        onChanged={reload}
+        onError={setError}
+      />
+
+      <RepositoryBindingsPanel
+        applications={applications}
+        bindings={repositoryBindings}
         onChanged={reload}
         onError={setError}
       />
@@ -573,6 +589,177 @@ function ApplicationBindingsPanel({
         </button>
       </div>
       {preview && <p className="hint">{preview}</p>}
+    </div>
+  );
+}
+
+// --- Repository bindings ---------------------------------------------------
+
+// Where an Application's code lives (issue #3, ADR-014).
+//
+// Its own Connector, and its own panel, because the git Connector is not the
+// Kubernetes one — CONNECTOR_ID above names the Deployment Platform, and reusing
+// it here would have bound repositories to a Connector that cannot read them.
+const SOURCE_CONNECTOR_ID = "git";
+
+const REF_SELECTIONS: { value: RefSelection; label: string }[] = [
+  { value: "TAGS", label: "Tags" },
+  { value: "BRANCHES", label: "Branches" },
+  { value: "ALL", label: "Tags and branches" },
+];
+
+function RepositoryBindingsPanel({
+  applications,
+  bindings,
+  onChanged,
+  onError,
+}: {
+  applications: Application[];
+  bindings: RepositoryBinding[];
+  onChanged: () => Promise<void>;
+  onError: (message: string) => void;
+}) {
+  const [applicationId, setApplicationId] = useState("");
+  const [repositoryUrl, setRepositoryUrl] = useState("");
+  const [refSelection, setRefSelection] = useState<RefSelection>("TAGS");
+  const [versionPattern, setVersionPattern] = useState("");
+  const [tested, setTested] = useState<string | null>(null);
+
+  async function save(event: React.FormEvent) {
+    event.preventDefault();
+    try {
+      await bindRepository({
+        applicationId,
+        connectorId: SOURCE_CONNECTOR_ID,
+        repositoryUrl,
+        refSelection,
+        versionPattern,
+      });
+      setRepositoryUrl("");
+      await onChanged();
+    } catch (caught: unknown) {
+      onError(describeError(caught));
+    }
+  }
+
+  // Tests the URL before it is saved, so a typo or a missing credential is found
+  // here rather than as an empty candidate list on the Applications page.
+  async function test() {
+    try {
+      const result = await testRepositoryConnection(repositoryUrl);
+      setTested(result.message);
+    } catch (caught: unknown) {
+      setTested(null);
+      onError(describeError(caught));
+    }
+  }
+
+  async function remove(binding: RepositoryBinding) {
+    try {
+      await unbindRepository(binding.applicationId, binding.connectorId);
+      await onChanged();
+    } catch (caught: unknown) {
+      onError(describeError(caught));
+    }
+  }
+
+  const nameOf = (id: string) => applications.find((a) => a.id === id)?.name ?? id;
+  const labelOf = (selection: RefSelection) =>
+    REF_SELECTIONS.find((s) => s.value === selection)?.label ?? selection;
+
+  return (
+    <div className="panel">
+      <h3>Repositories</h3>
+      <p className="hint">
+        Where each Application&apos;s code lives, so versions can be registered from what source
+        control actually holds rather than typed in. Tower reads refs and nothing else: it never
+        pushes, never tags and never opens a pull request.
+      </p>
+      <p className="hint">
+        Any git remote works — GitHub, GitLab, Bitbucket, a self-hosted server or a path on a file
+        share. Tower reads the protocol, not a vendor&apos;s API, so the choice is just a URL.
+      </p>
+
+      {bindings.length === 0 && <p className="hint">No repository is bound yet.</p>}
+
+      {bindings.length > 0 && (
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>Application</th>
+              <th>Repository</th>
+              <th>Reads</th>
+              <th>Version pattern</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {bindings.map((binding) => (
+              <tr key={`${binding.applicationId}-${binding.connectorId}`}>
+                <td>{nameOf(binding.applicationId)}</td>
+                <td className="mono">{binding.repositoryUrl}</td>
+                <td>{labelOf(binding.refSelection)}</td>
+                <td className="mono">{binding.versionPattern}</td>
+                <td>
+                  <button type="button" className="button-link" onClick={() => void remove(binding)}>
+                    Unbind
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      <form className="inline-form" onSubmit={(event) => void save(event)}>
+        <label>
+          Application
+          <select value={applicationId} onChange={(event) => setApplicationId(event.target.value)} required>
+            <option value="">Choose…</option>
+            {applications.map((application) => (
+              <option key={application.id} value={application.id}>
+                {application.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Repository
+          <input
+            value={repositoryUrl}
+            onChange={(event) => setRepositoryUrl(event.target.value)}
+            placeholder="https://github.com/acme/customer-api.git"
+            required
+          />
+        </label>
+        {/*
+          Tags by default: reading branches as well when a team only tags offers
+          every feature branch as a version.
+        */}
+        <label>
+          Reads
+          <select value={refSelection} onChange={(event) => setRefSelection(event.target.value as RefSelection)}>
+            {REF_SELECTIONS.map((selection) => (
+              <option key={selection.value} value={selection.value}>
+                {selection.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Version pattern
+          <input
+            value={versionPattern}
+            onChange={(event) => setVersionPattern(event.target.value)}
+            placeholder="^v(.+)$ — v2.5.0 becomes 2.5.0"
+          />
+        </label>
+        <button type="submit">Bind</button>
+        <button type="button" onClick={() => void test()} disabled={!repositoryUrl}>
+          Test
+        </button>
+      </form>
+      {tested && <p className="hint">{tested}</p>}
     </div>
   );
 }

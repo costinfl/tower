@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   createApplication,
+  discoverSourceVersions,
   createApplicationVersion,
   deleteApplication,
   deleteApplicationVersion,
@@ -9,6 +10,7 @@ import {
   updateApplication,
   type Application,
   type ApplicationVersion,
+  type VersionDiscovery,
 } from "../api/client";
 import ErrorNote, { describeError } from "../components/ErrorNote";
 
@@ -45,6 +47,13 @@ export default function ApplicationsPage() {
   const [versionBusy, setVersionBusy] = useState<Record<string, boolean>>({});
   const [versionErrors, setVersionErrors] = useState<Record<string, unknown>>({});
   const [versionDeleteBusyId, setVersionDeleteBusyId] = useState<string | null>(null);
+
+  // Source control discovery (issue #3, ADR-014). Fetched per Application on
+  // request rather than with the page: it reaches a repository over the network,
+  // and doing that for every Application on every visit would make the page slow
+  // for a result most visits do not need.
+  const [discoveries, setDiscoveries] = useState<Record<string, VersionDiscovery>>({});
+  const [discoverBusy, setDiscoverBusy] = useState<Record<string, boolean>>({});
 
   function load() {
     setLoadError(null);
@@ -155,6 +164,30 @@ export default function ApplicationsPage() {
       .finally(() => setVersionBusy((prev) => ({ ...prev, [applicationId]: false })));
   }
 
+  function discover(applicationId: string) {
+    setDiscoverBusy((current) => ({ ...current, [applicationId]: true }));
+    clearVersionError(applicationId);
+    discoverSourceVersions(applicationId)
+      .then((discovery) => setDiscoveries((current) => ({ ...current, [applicationId]: discovery })))
+      .catch((e: unknown) => setVersionErrors((current) => ({ ...current, [applicationId]: e })))
+      .finally(() => setDiscoverBusy((current) => ({ ...current, [applicationId]: false })));
+  }
+
+  // Fills the form rather than registering directly. The API offers no "import"
+  // endpoint on purpose, so BR-01 lives in one place — and this is the better
+  // interaction anyway: a discovered version is a candidate the user accepts,
+  // and they see exactly what will be recorded before it is.
+  function useCandidate(applicationId: string, candidate: VersionDiscovery["candidates"][number]) {
+    setVersionForm(applicationId, {
+      version: candidate.version,
+      branch: candidate.branch ?? "",
+      tag: candidate.tag ?? "",
+      commit: candidate.commit,
+      // Build identifier left alone: git has none, and ADR-014 keeps it absent
+      // rather than deriving something plausible from a commit.
+    });
+  }
+
   function removeVersion(version: ApplicationVersion) {
     setVersionDeleteBusyId(version.id);
     clearVersionError(version.applicationId);
@@ -200,6 +233,7 @@ export default function ApplicationsPage() {
         {applications?.map((app) => {
           const isEditing = editingId === app.id;
           const appVersions = versionsFor(app.id);
+          const discovery = discoveries[app.id];
           const form = versionFormFor(app.id);
           const busy = versionBusy[app.id] ?? false;
 
@@ -268,6 +302,21 @@ export default function ApplicationsPage() {
                   </ul>
                 )}
 
+                {/*
+                  Source control discovery (issue #3, ADR-014). Sits above the
+                  form it fills, because that is the order the work happens in.
+                */}
+                <div className="discovery">
+                  <button
+                    type="button"
+                    onClick={() => discover(app.id)}
+                    disabled={discoverBusy[app.id] === true}
+                  >
+                    {discoverBusy[app.id] === true ? "Reading repository…" : "Discover from source control"}
+                  </button>
+                  {discovery !== undefined && <DiscoveryResult discovery={discovery} onUse={(c) => useCandidate(app.id, c)} />}
+                </div>
+
                 <form className="inline-form inline-form--compact" onSubmit={(e) => registerVersion(app.id, e)}>
                   <label className="field">
                     <span>Version</span>
@@ -311,5 +360,67 @@ export default function ApplicationsPage() {
         })}
       </div>
     </section>
+  );
+}
+
+// --- Source control discovery ----------------------------------------------
+
+// Shows what a repository holds, and says plainly when it holds nothing or
+// could not be read. Those three outcomes look identical in an empty list and
+// lead to different next steps, which is why the API reports them separately.
+function DiscoveryResult({
+  discovery,
+  onUse,
+}: {
+  discovery: VersionDiscovery;
+  onUse: (candidate: VersionDiscovery["candidates"][number]) => void;
+}) {
+  if (discovery.failure !== null) {
+    return <p className="row-error">{discovery.failure}</p>;
+  }
+
+  return (
+    <>
+      <p className="hint">
+        Read from <code>{discovery.repositoryUrl}</code>. Nothing has been registered — choosing a
+        version fills the form below, and you register it as you always would.
+      </p>
+
+      {discovery.candidates.length === 0 && (
+        <p className="hint">
+          The repository was read and holds nothing this binding recognises. If that is a surprise,
+          the version pattern on the Connectors page is the place to look.
+        </p>
+      )}
+
+      {discovery.candidates.length > 0 && (
+        <ul className="candidate-list">
+          {discovery.candidates.map((candidate) => (
+            <li className="candidate" key={candidate.refName}>
+              <span className="candidate__version">{candidate.version}</span>
+              <span className="candidate__attr">
+                {candidate.tag !== null ? `tag ${candidate.tag}` : `branch ${candidate.branch}`}
+              </span>
+              {/* Shortened for reading; the full hash is what gets registered. */}
+              <span className="candidate__attr">commit {candidate.commit.slice(0, 8)}</span>
+              {candidate.alreadyRegistered ? (
+                <span className="candidate__known">already registered</span>
+              ) : (
+                <button type="button" onClick={() => onUse(candidate)}>
+                  Use
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {discovery.unmatched.length > 0 && (
+        <p className="hint">
+          Not recognised as versions: {discovery.unmatched.join(", ")}. These are reported rather
+          than dropped, so a version pattern that is wrong is visible rather than silent.
+        </p>
+      )}
+    </>
   );
 }

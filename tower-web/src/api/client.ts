@@ -833,6 +833,71 @@ export function previewVersion(versionPattern: string, imageTag: string): Promis
   return getJson<VersionPreview>(`/api/bindings/version-preview?${pattern}imageTag=${encodeURIComponent(imageTag)}`);
 }
 
+// --- Source control (issue #3, ADR-014) -------------------------------------
+
+// Where an Application's code lives. Separate from the deployment binding
+// above: one says which running image is this Application, the other says where
+// its source is, and a team may configure either without the other.
+export type RefSelection = "TAGS" | "BRANCHES" | "ALL";
+
+export interface RepositoryBinding {
+  applicationId: string;
+  connectorId: string;
+  repositoryUrl: string;
+  refSelection: RefSelection;
+  versionPattern: string;
+}
+
+// A candidate, not a version. BR-01 makes an Application Version immutable, so
+// discovery never creates one — `alreadyRegistered` is reported rather than
+// filtered out, because on the second look most candidates are already held and
+// hiding them would read as Tower having lost them.
+export interface DiscoveredVersion {
+  version: string;
+  refName: string;
+  branch: string | null;
+  tag: string | null;
+  commit: string;
+  alreadyRegistered: boolean;
+}
+
+// `failure` is carried beside the candidates rather than folded into an empty
+// list, because "could not look" and "looked and found nothing" lead to
+// opposite next steps.
+export interface VersionDiscovery {
+  applicationId: string;
+  repositoryUrl: string | null;
+  candidates: DiscoveredVersion[];
+  unmatched: string[];
+  failure: string | null;
+}
+
+export function listRepositoryBindings(): Promise<RepositoryBinding[]> {
+  return getJson<RepositoryBinding[]>("/api/bindings/repositories");
+}
+
+export function bindRepository(binding: RepositoryBinding): Promise<RepositoryBinding> {
+  return putJson<RepositoryBinding>("/api/bindings/repositories", binding);
+}
+
+export function unbindRepository(applicationId: string, connectorId: string): Promise<void> {
+  return deleteRequest(
+    `/api/bindings/repositories/${encodeURIComponent(applicationId)}?connectorId=${encodeURIComponent(connectorId)}`,
+  );
+}
+
+export function discoverSourceVersions(applicationId: string): Promise<VersionDiscovery> {
+  return getJson<VersionDiscovery>(
+    `/api/applications/${encodeURIComponent(applicationId)}/source-versions`,
+  );
+}
+
+export function testRepositoryConnection(repositoryUrl: string): Promise<ConnectionTest> {
+  return getJson<ConnectionTest>(
+    `/api/source-versions/connection-test?repositoryUrl=${encodeURIComponent(repositoryUrl)}`,
+  );
+}
+
 export function getCredentialStatus(connectorId: string, target: string): Promise<CredentialStatus> {
   return getJson<CredentialStatus>(
     `/api/credentials?connectorId=${encodeURIComponent(connectorId)}&target=${encodeURIComponent(target)}`,
