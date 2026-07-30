@@ -80,10 +80,10 @@ This checklist tracks the architectural documentation required before implementa
 
 - [x] ADR-017-A-Snapshot-Is-Derived-Not-Stored.md
 - [x] OQ-007 answered (nothing is stored, so nothing is retained)
-- [x] FR-068, FR-069
+- [x] FR-068, FR-069, FR-070
 - [x] Point-in-time Environment state and comparison
-- [ ] Release Pack progression history
-- [ ] Historical comparison in the Viewer
+- [x] Release Pack progression history
+- [x] Historical comparison in the Viewer
 
 ## Deferred work closed
 
@@ -92,4 +92,4 @@ This checklist tracks the architectural documentation required before implementa
 
 ---
 
-Current Phase: **Milestone 3 — Documentation formats**
+Current Phase: **Milestone 4 — Snapshots and historical comparison**

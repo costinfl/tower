@@ -227,12 +227,24 @@ function observationView(o: Obs) {
 
 // Environment state is derived, never stored: latest Observation per
 // Application wins, ties leaving the incumbent in place.
-function environmentStateView(environmentId: string) {
+//
+// `at` bounds the fold rather than selecting a stored snapshot (ADR-017), so
+// past state is the same derivation with an upper bound and current state is
+// the case where the bound is absent. Inclusive of the instant itself:
+// "as of 15 March 10:00" includes what was observed at 15 March 10:00.
+function environmentStateView(environmentId: string, at?: string | null) {
   const e = env(environmentId);
   if (!e) throw notFound(`Environment ${environmentId} does not exist.`);
 
+  // Compared as instants rather than as strings: the seed writes
+  // "…:00:00Z" and a browser writes "…:00:00.000Z" for the same moment, and
+  // those two sort the wrong way round lexically.
+  const bound = at ? Date.parse(at) : null;
+  if (at && Number.isNaN(bound)) throw badRequest(`'${at}' is not a valid instant.`);
+
   const latest = new Map<string, Obs>();
   for (const o of state.observations.filter((x) => x.environmentId === environmentId)) {
+    if (bound !== null && Date.parse(o.observedAt) > bound) continue;
     const held = latest.get(o.applicationId);
     if (!held || o.observedAt > held.observedAt) latest.set(o.applicationId, o);
   }
@@ -262,6 +274,109 @@ function environmentStateView(environmentId: string) {
     lastObservedAt: deployed.length ? deployed[0].observedAt : null,
     deployed,
   };
+}
+
+// Mirrors StateComparison.between. The sides are left and right rather than
+// before and after because the same operation answers "how did UAT change
+// since Monday" and "how does UAT differ from Production".
+function stateComparisonView(
+  left: string, leftAt: string | null, right: string, rightAt: string | null) {
+  const l = environmentStateView(left, leftAt);
+  const r = environmentStateView(right, rightAt);
+
+  // A row whose Application has since been deleted is dropped rather than
+  // reported as an unnamed difference, matching what the real service does
+  // with an Observation it can no longer resolve.
+  const byApp = (s: ReturnType<typeof environmentStateView>) =>
+    new Map(s.deployed.flatMap((d) => (d.application ? [[d.application.id, d] as const] : [])));
+  const li = byApp(l);
+  const ri = byApp(r);
+
+  const differences: unknown[] = [];
+  const unchanged: unknown[] = [];
+  // Union of both sides, left order first, so an Application present on only
+  // one side is still reported rather than silently dropped.
+  const applicationIds = [...new Set([...li.keys(), ...ri.keys()])];
+
+  for (const id of applicationIds) {
+    const a = li.get(id);
+    const b = ri.get(id);
+    const name = (a ?? b)!.application!.name;
+    if (a && b && a.applicationVersion.id === b.applicationVersion.id) {
+      unchanged.push({
+        applicationId: id, applicationName: name, version: a.applicationVersion.version,
+        leftObservationId: a.observationId, rightObservationId: b.observationId,
+      });
+      continue;
+    }
+    // GONE means Tower has an Observation on one side and none on the other.
+    // It is not a claim that anything was undeployed — nobody may have looked.
+    const subject = (b ?? a)!.applicationVersion.id;
+    differences.push({
+      applicationId: id, applicationName: name,
+      kind: a && b ? "CHANGED" : b ? "ARRIVED" : "GONE",
+      leftVersion: a ? a.applicationVersion.version : null,
+      rightVersion: b ? b.applicationVersion.version : null,
+      leftObservationId: a ? a.observationId : null,
+      rightObservationId: b ? b.observationId : null,
+      // Containment, not causation — see the API's DifferenceView.
+      releasePacks: state.packs
+        .filter((p) => p.contents.some((c) => c.applicationVersionId === subject))
+        .map((p) => p.name),
+    });
+  }
+
+  return { identical: differences.length === 0, differences, unchanged };
+}
+
+// Mirrors ReleasePackProgression. Two instants rather than one, because a
+// release arrives in an Environment piecemeal and a single "arrived at" would
+// have to choose between the first piece and the last.
+function packProgressionView(packId: string) {
+  const p = pack(packId);
+  if (!p) throw notFound(`Release Pack ${packId} does not exist.`);
+
+  const packed = p.contents.map((c) => c.applicationVersionId);
+  const firstSeen = new Map<string, Map<string, string>>();
+  for (const o of state.observations) {
+    if (!packed.includes(o.applicationVersionId) || !env(o.environmentId)) continue;
+    const seen = firstSeen.get(o.environmentId) ?? new Map<string, string>();
+    const held = seen.get(o.applicationVersionId);
+    // Earliest sighting: a version re-observed later did not arrive later.
+    if (!held || Date.parse(o.observedAt) < Date.parse(held)) {
+      seen.set(o.applicationVersionId, o.observedAt);
+    }
+    firstSeen.set(o.environmentId, seen);
+  }
+
+  const arrivals = [...firstSeen.entries()].map(([environmentId, seen]) => {
+    const missing = packed.filter((v) => !seen.has(v));
+    const instants = [...seen.values()].sort((x, y) => Date.parse(x) - Date.parse(y));
+    return {
+      environmentId,
+      environmentName: env(environmentId)?.name ?? null,
+      stage: env(environmentId)?.stage ?? null,
+      firstObservedAt: instants[0],
+      // When the last piece landed — the moment the release as a whole was
+      // there — and null while any of it is still outstanding.
+      completeAt: missing.length === 0 ? instants[instants.length - 1] : null,
+      complete: missing.length === 0,
+      observedCount: seen.size,
+      packedCount: packed.length,
+      missing: missing.map((id) => {
+        const v = version(id);
+        return {
+          applicationVersionId: id,
+          applicationName: v ? app(v.applicationId)?.name ?? null : null,
+          version: v?.version ?? null,
+        };
+      }),
+    };
+  });
+
+  // Oldest first: the order the release actually travelled in.
+  arrivals.sort((x, y) => Date.parse(x.firstObservedAt) - Date.parse(y.firstObservedAt));
+  return { observed: arrivals.length > 0, arrivals };
 }
 
 // ADR-008: the highest Stage at which any of the pack's contents was observed.
@@ -798,7 +913,18 @@ export function handle(pathname: string, method: string, body: Json | null): unk
       state.environments.push(e);
       return e;
     }
-    if (a && b === "state") return environmentStateView(a);
+    if (a && b === "state" && c === "comparison") {
+      const params = new URLSearchParams(pathname.split("?")[1] ?? "");
+      const against = params.get("against");
+      // Comparing an Environment with itself at two instants is the common
+      // case, so the other side defaults to the same Environment.
+      return stateComparisonView(
+        a, params.get("at"), against && against !== "" ? against : a, params.get("againstAt"));
+    }
+    if (a && b === "state") {
+      const params = new URLSearchParams(pathname.split("?")[1] ?? "");
+      return environmentStateView(a, params.get("at"));
+    }
     if (a && b === "observations") {
       return state.observations
         .filter((o) => o.environmentId === a)
@@ -918,6 +1044,7 @@ export function handle(pathname: string, method: string, body: Json | null): unk
     if (!p) throw notFound(`No route for ${pathname}`);
 
     if (b === "state") return packStateView(p.id);
+    if (b === "progression") return packProgressionView(p.id);
     if (b === "documentation") {
       if (c === "markdown") {
         const requested = new URLSearchParams(pathname.split("?")[1] ?? "").get("template");

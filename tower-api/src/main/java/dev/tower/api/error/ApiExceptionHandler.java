@@ -12,6 +12,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
@@ -88,6 +89,26 @@ public class ApiExceptionHandler {
                 .map(fieldError -> fieldError.getField() + ": " + fieldError.getDefaultMessage())
                 .collect(Collectors.joining("; "));
         return build(HttpStatus.BAD_REQUEST, message.isBlank() ? "Validation failed." : message, request);
+    }
+
+    /**
+     * A query parameter Spring could not convert to the type the handler declares —
+     * {@code ?at=yesterday} on a point-in-time state request, say (Milestone 4).
+     *
+     * <p>400 rather than the 500 the catch-all would otherwise give: nothing failed
+     * on the server, the request was malformed, and a caller told "an unexpected
+     * error occurred" has no way to know they can fix it themselves.
+     */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ErrorResponse> handleTypeMismatch(
+            MethodArgumentTypeMismatchException ex, HttpServletRequest request) {
+        String message = Instant.class.equals(ex.getRequiredType())
+                // Named concretely, because the ISO-8601 requirement is not
+                // guessable from a rejection alone.
+                ? "'" + ex.getName() + "' must be an instant in ISO-8601 form,"
+                        + " for example 2026-08-04T09:00:00Z."
+                : "'" + ex.getName() + "' is not in a form Tower can read.";
+        return build(HttpStatus.BAD_REQUEST, message, request);
     }
 
     @ExceptionHandler(ResponseStatusException.class)

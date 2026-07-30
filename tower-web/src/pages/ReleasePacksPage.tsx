@@ -19,7 +19,9 @@ import HandoverEditor from "../components/HandoverEditor";
 import IterationsPanel from "../components/IterationsPanel";
 import ReleaseDocumentPanel from "../components/ReleaseDocumentPanel";
 import ReleasePackContents from "../components/ReleasePackContents";
+import ReleasePackProgressionPanel from "../components/ReleasePackProgressionPanel";
 import ReleasePackPromotionPathPanel from "../components/ReleasePackPromotionPathPanel";
+import ReleasePackStatePanel from "../components/ReleasePackStatePanel";
 
 export default function ReleasePacksPage() {
   const [packs, setPacks] = useState<ReleasePackView[] | null>(null);
@@ -310,6 +312,27 @@ export default function ReleasePacksPage() {
                     iterations={selectedPack.iterations}
                     archived={selectedPack.archived}
                     onUpdated={replacePack}
+                  />
+                </section>
+
+                <section className="pack-section">
+                  {/*
+                    Two derived readings of the same Observations, side by
+                    side: how far the release got (ADR-008) and when it got
+                    there (ADR-017). Neither is stored, and both are keyed on
+                    the pack so switching selection refetches rather than
+                    leaving the previous release's history under a new name.
+                  */}
+                  <h4>Where it has got to</h4>
+                  <ReleasePackStatePanel key={`state-${selectedPack.id}`} pack={selectedPack} />
+                </section>
+
+                <section className="pack-section">
+                  <h4>When it got there</h4>
+                  <ReleasePackProgressionPanel
+                    key={`progression-${selectedPack.id}`}
+                    packId={selectedPack.id}
+                    contentCount={selectedPack.contents.length}
                   />
                 </section>
 

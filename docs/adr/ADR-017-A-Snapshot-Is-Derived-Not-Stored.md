@@ -44,6 +44,10 @@ This satisfies Glossary.md as written. A derived Snapshot is an immutable repres
 
 Every derived value shall keep citing the Observation it came from, exactly as current state does (FR-031, FR-032, NFR-011). A historical answer that could not be traced back to the fact behind it would be worse than no answer.
 
+**A Release Pack's progression shall be derived the same way** (FR-070): where the release has been observed, and when. It reports two instants per Environment rather than one, because a release arrives piecemeal — a single "arrived at" would have to choose between the moment the first version turned up and the moment the last one did, and those can be days apart. A release with versions still outstanding is reported as partly arrived, naming them.
+
+Nothing had to be recorded at the time for any of this to be answerable now, which is the same property the point-in-time state has and the reason both belong to this decision rather than to a table.
+
 ---
 
 ## Consequences

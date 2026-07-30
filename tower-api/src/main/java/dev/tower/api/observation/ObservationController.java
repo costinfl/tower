@@ -1,6 +1,8 @@
 package dev.tower.api.observation;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -21,6 +23,7 @@ import dev.tower.application.port.in.ApplicationUseCases;
 import dev.tower.application.port.in.EnvironmentUseCases;
 import dev.tower.application.port.in.ObservationUseCases;
 import dev.tower.application.port.in.ObservationUseCases.PackSighting;
+import dev.tower.application.port.in.ReleasePackUseCases;
 import dev.tower.application.port.in.ObservationUseCases.RecordManualObservation;
 import dev.tower.domain.application.Application;
 import dev.tower.domain.application.ApplicationId;
@@ -29,8 +32,11 @@ import dev.tower.domain.application.ApplicationVersionId;
 import dev.tower.domain.environment.Environment;
 import dev.tower.domain.environment.EnvironmentId;
 import dev.tower.domain.observation.EnvironmentState;
+import dev.tower.domain.observation.ReleasePackProgression;
 import dev.tower.domain.observation.StateComparison;
 import dev.tower.domain.observation.Observation;
+import dev.tower.domain.releasepack.PackedVersion;
+import dev.tower.domain.releasepack.ReleasePack;
 import dev.tower.domain.releasepack.ReleasePackId;
 
 /**
@@ -48,12 +54,15 @@ public class ObservationController {
     private final ObservationUseCases observationUseCases;
     private final EnvironmentUseCases environmentUseCases;
     private final ApplicationUseCases applicationUseCases;
+    private final ReleasePackUseCases releasePackUseCases;
 
     public ObservationController(ObservationUseCases observationUseCases, EnvironmentUseCases environmentUseCases,
-                                 ApplicationUseCases applicationUseCases) {
+                                 ApplicationUseCases applicationUseCases,
+                                 ReleasePackUseCases releasePackUseCases) {
         this.observationUseCases = observationUseCases;
         this.environmentUseCases = environmentUseCases;
         this.applicationUseCases = applicationUseCases;
+        this.releasePackUseCases = releasePackUseCases;
     }
 
     @PostMapping("/api/observations")
@@ -121,10 +130,12 @@ public class ObservationController {
         Function<ApplicationId, Application> applications = applicationResolver();
         Function<ApplicationVersionId, ApplicationVersion> versions = versionResolver();
 
+        Function<ApplicationVersionId, List<String>> packs = packsContainingResolver();
+
         return new StateComparisonView(
                 comparison.isIdentical(),
                 comparison.differences().stream()
-                        .map(d -> DifferenceView.from(d, applications, versions)).toList(),
+                        .map(d -> DifferenceView.from(d, applications, versions, packs)).toList(),
                 comparison.unchanged().stream()
                         .map(u -> UnchangedView.from(u, applications, versions)).toList());
     }
@@ -139,19 +150,29 @@ public class ObservationController {
     }
 
     /**
-     * @param kind CHANGED, ARRIVED or GONE — named rather than left for a client
-     *             to work out from which version is null, because that inference
-     *             is exactly where "not deployed" gets confused with "never observed"
+     * @param kind         CHANGED, ARRIVED or GONE — named rather than left for a client
+     *                     to work out from which version is null, because that inference
+     *                     is exactly where "not deployed" gets confused with "never observed"
+     * @param releasePacks the Release Packs that <em>contain</em> the version this
+     *                     difference is about — the one on the right, or the one on
+     *                     the left when there is no right. Milestone 4 asks which
+     *                     Release Pack introduced a change, and this is as close as
+     *                     Tower can honestly get: containment, not causation. Two
+     *                     packs may hold the same version, and neither deployed it.
      */
     public record DifferenceView(
             String applicationId, String applicationName, String kind,
             String leftVersion, String rightVersion,
-            String leftObservationId, String rightObservationId) {
+            String leftObservationId, String rightObservationId,
+            List<String> releasePacks) {
 
         static DifferenceView from(StateComparison.Difference difference,
                                    Function<ApplicationId, Application> applications,
-                                   Function<ApplicationVersionId, ApplicationVersion> versions) {
+                                   Function<ApplicationVersionId, ApplicationVersion> versions,
+                                   Function<ApplicationVersionId, List<String>> packsContaining) {
             Application application = applications.apply(difference.applicationId());
+            ApplicationVersionId subject = difference.rightVersion() != null
+                    ? difference.rightVersion() : difference.leftVersion();
             return new DifferenceView(
                     difference.applicationId().toString(),
                     application == null ? null : application.name(),
@@ -159,7 +180,8 @@ public class ObservationController {
                     versionLabel(difference.leftVersion(), versions),
                     versionLabel(difference.rightVersion(), versions),
                     difference.leftObservationId() == null ? null : difference.leftObservationId().toString(),
-                    difference.rightObservationId() == null ? null : difference.rightObservationId().toString());
+                    difference.rightObservationId() == null ? null : difference.rightObservationId().toString(),
+                    packsContaining.apply(subject));
         }
     }
 
@@ -215,6 +237,85 @@ public class ObservationController {
         return new ReleasePackStateView(state, sightingViews);
     }
 
+    /**
+     * When this Release Pack reached each Environment (Milestone 4, ADR-017).
+     *
+     * <p>Separate from {@code /state} because it answers a different question.
+     * State says how far the release got; this says when it got there and what
+     * is still outstanding where it has only partly arrived.
+     */
+    @GetMapping("/api/release-packs/{id}/progression")
+    public ReleasePackProgressionView progression(@PathVariable("id") String id) {
+        ReleasePackProgression progression =
+                observationUseCases.progressionOf(ReleasePackId.of(id));
+
+        Function<EnvironmentId, Environment> environments = environmentResolver();
+        Function<ApplicationVersionId, ApplicationVersion> versions = versionResolver();
+        Function<ApplicationId, Application> applications = applicationResolver();
+
+        return new ReleasePackProgressionView(
+                progression.hasBeenObserved(),
+                progression.arrivals().stream()
+                        .map(arrival -> EnvironmentArrivalView.from(
+                                arrival, environments.apply(arrival.environmentId()),
+                                applications, versions))
+                        .toList());
+    }
+
+    /**
+     * @param observed whether the release has been seen anywhere at all, stated
+     *                 rather than inferred from an empty list, because "nowhere
+     *                 yet" and "nobody has looked" read the same otherwise
+     */
+    public record ReleasePackProgressionView(
+            boolean observed, List<EnvironmentArrivalView> arrivals) {
+    }
+
+    /**
+     * @param completeAt null while any of the pack is still missing here
+     * @param missing    named rather than only counted, so a reader knows what
+     *                   they are waiting for
+     */
+    public record EnvironmentArrivalView(
+            String environmentId, String environmentName, String stage,
+            Instant firstObservedAt, Instant completeAt, boolean complete,
+            int observedCount, int packedCount, List<MissingVersionView> missing) {
+
+        static EnvironmentArrivalView from(
+                ReleasePackProgression.EnvironmentArrival arrival, Environment environment,
+                Function<ApplicationId, Application> applications,
+                Function<ApplicationVersionId, ApplicationVersion> versions) {
+            return new EnvironmentArrivalView(
+                    arrival.environmentId().toString(),
+                    environment == null ? null : environment.name(),
+                    environment == null ? null : environment.stage().name(),
+                    arrival.firstObservedAt(),
+                    arrival.completeAt(),
+                    arrival.isComplete(),
+                    arrival.observedCount(),
+                    arrival.packedCount(),
+                    arrival.missing().stream()
+                            .map(versionId -> MissingVersionView.from(versionId, applications, versions))
+                            .toList());
+        }
+    }
+
+    public record MissingVersionView(
+            String applicationVersionId, String applicationName, String version) {
+
+        static MissingVersionView from(
+                ApplicationVersionId versionId,
+                Function<ApplicationId, Application> applications,
+                Function<ApplicationVersionId, ApplicationVersion> versions) {
+            ApplicationVersion version = versions.apply(versionId);
+            Application application = version == null ? null : applications.apply(version.applicationId());
+            return new MissingVersionView(
+                    versionId.toString(),
+                    application == null ? null : application.name(),
+                    versionLabel(versionId, versions));
+        }
+    }
+
     private ObservationView toView(Observation observation) {
         Environment environment = environmentUseCases.get(observation.environmentId());
         Application application = applicationUseCases.get(observation.applicationId());
@@ -244,6 +345,24 @@ public class ObservationController {
         Map<ApplicationId, Application> byId = applicationUseCases.list().stream()
                 .collect(Collectors.toMap(Application::id, Function.identity()));
         return byId::get;
+    }
+
+    /**
+     * Which Release Packs hold a given version, built once per request from the
+     * pack list rather than queried per difference.
+     *
+     * <p>Names, not ids: this exists to let a reader say "that came with Release
+     * 2026.08" without following a link, and a pack a reader cannot name is no
+     * better than no answer.
+     */
+    private Function<ApplicationVersionId, List<String>> packsContainingResolver() {
+        Map<ApplicationVersionId, List<String>> byVersion = new LinkedHashMap<>();
+        for (ReleasePack pack : releasePackUseCases.list()) {
+            for (PackedVersion packed : pack.contents()) {
+                byVersion.computeIfAbsent(packed.versionId(), key -> new ArrayList<>()).add(pack.name());
+            }
+        }
+        return versionId -> versionId == null ? List.of() : byVersion.getOrDefault(versionId, List.of());
     }
 
     private Function<ApplicationVersionId, ApplicationVersion> versionResolver() {

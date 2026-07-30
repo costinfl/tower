@@ -227,6 +227,7 @@ export default function EnvironmentsPage() {
           environment={selectedEnvironment}
           applications={applications}
           versions={versions}
+          environments={environments ?? []}
         />
       )}
     </section>

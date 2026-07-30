@@ -6,6 +6,7 @@ import dev.tower.domain.observation.EnvironmentState;
 import dev.tower.domain.observation.StateComparison;
 import dev.tower.domain.observation.Observation;
 import dev.tower.domain.observation.ObservationId;
+import dev.tower.domain.observation.ReleasePackProgression;
 import dev.tower.domain.releasepack.ReleasePackId;
 import dev.tower.domain.releasepack.ReleasePackState;
 
@@ -67,6 +68,16 @@ public interface ObservationUseCases {
      * Packs are represented here" without the caller re-deriving it.
      */
     List<PackSighting> sightingsOf(ReleasePackId releasePackId);
+
+    /**
+     * When a Release Pack reached each Environment, and whether all of it did
+     * (Milestone 4, ADR-017).
+     *
+     * <p>{@link #stateOf} says how far a release got; this says when, and what
+     * is still outstanding where it has only partly arrived. Both are folds of
+     * the same Observations and neither is stored.
+     */
+    ReleasePackProgression progressionOf(ReleasePackId releasePackId);
 
     record RecordManualObservation(EnvironmentId environmentId,
                                    ApplicationVersionId applicationVersionId,

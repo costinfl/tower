@@ -10,8 +10,13 @@ export function installDemoBackend(): void {
   const real = window.fetch.bind(window);
 
   window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-    const url = typeof input === "string" ? input : input instanceof URL ? input.pathname : input.url;
-    const pathname = url.startsWith("http") ? new URL(url).pathname : url;
+    // Query string kept, not just the path: several endpoints take their
+    // arguments there — ?at= on point-in-time state, ?against= on a comparison —
+    // and dropping it would silently answer a different question.
+    const url = typeof input === "string" ? input
+        : input instanceof URL ? input.pathname + input.search : input.url;
+    const pathname = url.startsWith("http")
+        ? new URL(url).pathname + new URL(url).search : url;
 
     // Anything that is not the Tower API still goes to the network.
     if (!pathname.startsWith("/api/")) return real(input as RequestInfo, init);

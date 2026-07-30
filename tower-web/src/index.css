@@ -1309,3 +1309,49 @@ select {
   border-radius: 999px;
   opacity: 0.8;
 }
+
+/* --- Point-in-time state and comparison (Milestone 4, ADR-017) ---------- */
+
+/* A historical view must never look like the current one at a glance: the
+   whole risk of this feature is somebody reading March's state as today's. */
+.env-state__historical {
+  margin: 0.75rem 0;
+  padding: 0.6rem 0.8rem;
+  /* Deliberately not a Stage colour: those are load-bearing elsewhere and
+     reusing one here would imply a Stage that is not being stated. */
+  border-left: 3px solid var(--border);
+  background: var(--bg-subtle);
+  font-size: 0.9rem;
+}
+
+.state-comparison__caption {
+  margin: 0.75rem 0 0.25rem;
+  font-size: 0.9rem;
+}
+
+.state-comparison__unchanged {
+  margin-top: 0.75rem;
+  font-size: 0.9rem;
+}
+
+.state-comparison__unchanged summary {
+  cursor: pointer;
+  opacity: 0.75;
+}
+
+/* --- Release Pack progression (Milestone 4) ---------------------------- */
+
+/* The Stage chip sits beside the Environment name in the table cell and needs
+   its own breathing room; without it the two run together when they wrap. */
+.pack-progression .stage-chip {
+  margin-left: 0.4rem;
+}
+
+/* What a partly-arrived release is still waiting for, named rather than
+   only counted. */
+.pack-progression__missing {
+  margin: 0.3rem 0 0 1rem;
+  padding: 0;
+  font-size: 0.85rem;
+  opacity: 0.8;
+}

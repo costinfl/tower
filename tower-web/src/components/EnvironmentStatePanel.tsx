@@ -8,14 +8,18 @@ import {
   type EnvironmentStateView,
   type ObservationView,
 } from "../api/client";
+import { toInstant } from "../domain/instant";
 import ErrorNote from "./ErrorNote";
 import ObservationSourceTag from "./ObservationSourceTag";
 import RecordObservationForm from "./RecordObservationForm";
+import StateComparisonPanel from "./StateComparisonPanel";
 
 interface EnvironmentStatePanelProps {
   environment: Environment;
   applications: Application[];
   versions: ApplicationVersion[];
+  /** Every Environment, so state here can be compared against another. */
+  environments: Environment[];
 }
 
 // Shows an Environment's current derived state, lets a developer record a
@@ -27,17 +31,32 @@ interface EnvironmentStatePanelProps {
 // this Environment" — never rendered as an empty-and-therefore-fine table
 // (Scenarios.md Scenario 4): an unobserved Environment and an Environment
 // observed to currently hold nothing are different facts.
-export default function EnvironmentStatePanel({ environment, applications, versions }: EnvironmentStatePanelProps) {
+export default function EnvironmentStatePanel({
+  environment,
+  applications,
+  versions,
+  environments,
+}: EnvironmentStatePanelProps) {
   const [state, setState] = useState<EnvironmentStateView | null>(null);
   const [history, setHistory] = useState<ObservationView[] | null>(null);
   const [loadError, setLoadError] = useState<unknown>(null);
 
-  function load() {
+  // What the picker holds (wall-clock, possibly mid-edit) and what the shown
+  // state was actually derived for (an instant, or "" for now). Kept apart so
+  // the caption above the table describes the table rather than the input.
+  const [picked, setPicked] = useState("");
+  const [shownAt, setShownAt] = useState("");
+
+  function load(at: string) {
     setLoadError(null);
-    Promise.all([getEnvironmentState(environment.id), getEnvironmentObservations(environment.id)])
+    Promise.all([
+      getEnvironmentState(environment.id, at || undefined),
+      getEnvironmentObservations(environment.id),
+    ])
       .then(([s, h]) => {
         setState(s);
         setHistory(h);
+        setShownAt(at);
       })
       .catch((err: unknown) => setLoadError(err));
   }
@@ -45,7 +64,9 @@ export default function EnvironmentStatePanel({ environment, applications, versi
   useEffect(() => {
     setState(null);
     setHistory(null);
-    load();
+    setPicked("");
+    setShownAt("");
+    load("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [environment.id]);
 
@@ -56,13 +77,62 @@ export default function EnvironmentStatePanel({ environment, applications, versi
   // through, so the record stays visibly append-only.
   const currentObservationIds = new Set(state?.deployed.map((d) => d.observationId) ?? []);
 
+  // While a past instant is shown, an Observation made after it has not
+  // "been superseded" — from the viewpoint on screen it has not happened yet.
+  // It is still listed, because the history is the whole record and hiding
+  // part of it would be a different kind of lie, but it is marked for what it
+  // is rather than borrowing a label that means something else.
+  const bound = shownAt === "" ? null : Date.parse(shownAt);
+  const isLater = (observedAt: string) => bound !== null && Date.parse(observedAt) > bound;
+
   return (
     <div className="env-state">
+      {/*
+        A Snapshot is derived, not stored (ADR-017): asking for a past instant
+        replays the same fold with an upper bound, so any moment is
+        answerable — including ones nobody thought to capture at the time,
+        which is usually exactly the moment an incident began.
+      */}
+      <div className="inline-form env-state__as-of">
+        <label className="field">
+          <span>As it stood</span>
+          <input
+            type="datetime-local"
+            value={picked}
+            onChange={(e) => setPicked(e.target.value)}
+            aria-label="Show this Environment as it stood at"
+          />
+          <span className="field-hint">Leave blank for what is deployed now.</span>
+        </label>
+        <button type="button" onClick={() => load(toInstant(picked) ?? "")} disabled={!picked}>
+          Show
+        </button>
+        {shownAt !== "" && (
+          <button
+            type="button"
+            className="link-button"
+            onClick={() => {
+              setPicked("");
+              load("");
+            }}
+          >
+            Back to now
+          </button>
+        )}
+      </div>
+
       {loadError !== null && <ErrorNote error={loadError} />}
       {state === null && loadError === null && <p className="hint">Loading Environment state…</p>}
 
       {state !== null && (
         <>
+          {shownAt !== "" && (
+            <p className="env-state__historical">
+              Showing this Environment as it stood on <strong>{new Date(shownAt).toLocaleString()}</strong>,
+              derived from the Observations recorded at or before then. Anything observed later is excluded.
+            </p>
+          )}
+
           {state.hasBeenObserved ? (
             <p className="env-state__last-observed">
               Last observed{" "}
@@ -70,7 +140,9 @@ export default function EnvironmentStatePanel({ environment, applications, versi
             </p>
           ) : (
             <p className="env-state__never-observed">
-              Tower has not been told anything about this Environment. No Observation has ever been recorded for it.
+              {shownAt === ""
+                ? "Tower has not been told anything about this Environment. No Observation has ever been recorded for it."
+                : "Tower had been told nothing about this Environment by then. No Observation was recorded at or before that instant."}
             </p>
           )}
 
@@ -128,6 +200,11 @@ export default function EnvironmentStatePanel({ environment, applications, versi
       )}
 
       <section className="pack-section">
+        <h4>Compare</h4>
+        <StateComparisonPanel environment={environment} environments={environments} at={shownAt} />
+      </section>
+
+      <section className="pack-section">
         <h4>Record what is deployed</h4>
         <p className="field-hint">
           State that a version was already seen running here. This records a fact — it does not deploy or change
@@ -137,7 +214,7 @@ export default function EnvironmentStatePanel({ environment, applications, versi
           environmentId={environment.id}
           applications={applications}
           versions={versions}
-          onRecorded={load}
+          onRecorded={() => load(shownAt)}
         />
       </section>
 
@@ -150,16 +227,22 @@ export default function EnvironmentStatePanel({ environment, applications, versi
         {history !== null && history.length > 0 && (
           <ul className="observation-list">
             {history.map((obs) => {
-              const superseded = !currentObservationIds.has(obs.id);
+              const later = isLater(obs.observedAt);
+              const superseded = !later && !currentObservationIds.has(obs.id);
               return (
                 <li
-                  className={superseded ? "observation-item observation-item--superseded" : "observation-item"}
+                  className={
+                    superseded || later
+                      ? "observation-item observation-item--superseded"
+                      : "observation-item"
+                  }
                   key={obs.id}
                 >
                   <div className="observation-item__header">
                     <span className="observation-item__app">{obs.application.name}</span>
                     <span className="observation-item__version">{obs.applicationVersion.version}</span>
                     {superseded && <span className="badge badge--muted">Superseded</span>}
+                    {later && <span className="badge badge--muted">After the time shown</span>}
                   </div>
                   <div className="observation-item__meta">
                     <span>{new Date(obs.observedAt).toLocaleString()}</span>

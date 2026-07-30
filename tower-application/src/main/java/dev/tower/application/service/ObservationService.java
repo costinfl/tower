@@ -12,6 +12,7 @@ import dev.tower.domain.environment.Environment;
 import dev.tower.domain.environment.EnvironmentId;
 import dev.tower.domain.observation.EnvironmentState;
 import dev.tower.domain.observation.Observation;
+import dev.tower.domain.observation.ReleasePackProgression;
 import dev.tower.domain.observation.StateComparison;
 import dev.tower.domain.releasepack.PackedVersion;
 import dev.tower.domain.releasepack.ReleasePack;
@@ -172,6 +173,27 @@ public class ObservationService implements ObservationUseCases {
                         observation.source().actor(),
                         observation.id()))
                 .toList();
+    }
+
+    @Override
+    public ReleasePackProgression progressionOf(ReleasePackId releasePackId) {
+        ReleasePack pack = requirePack(releasePackId);
+        Set<ApplicationVersionId> contents = pack.contents().stream()
+                .map(PackedVersion::versionId)
+                .collect(Collectors.toSet());
+
+        if (contents.isEmpty()) {
+            return ReleasePackProgression.from(releasePackId, contents, List.of());
+        }
+
+        // Observations whose Environment has since been deleted are dropped, as
+        // in sightingsOf: an arrival that cannot be named is worse than one that
+        // is not shown.
+        Map<EnvironmentId, Environment> byId = environmentsById();
+        return ReleasePackProgression.from(releasePackId, contents,
+                observations.findAllOfVersions(contents).stream()
+                        .filter(observation -> byId.containsKey(observation.environmentId()))
+                        .toList());
     }
 
     private Map<EnvironmentId, Environment> environmentsById() {

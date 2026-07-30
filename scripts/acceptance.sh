@@ -17,7 +17,11 @@ mk() { # method url body expected_code label
   body=$(curl -s -o /tmp/_b -w '%{http_code}' -X "$1" "$2" -H "$J" ${3:+-d "$3"})
   code=$body
   if [ "$code" != "$4" ]; then
-    bad "$5 -> HTTP $code"; cat /tmp/_b; echo; return 1
+    # To stderr, not stdout: the caller captures this function's output as an
+    # id, and a failure message printed on stdout becomes the id — which then
+    # goes into the next request body and fails it for an unrelated reason.
+    # Every later assertion then reports the wrong cause.
+    bad "$5 -> HTTP $code" >&2; cat /tmp/_b >&2; echo >&2; return 1
   fi
   python3 -c 'import json;print(json.load(open("/tmp/_b"))["id"])'
 }
@@ -32,6 +36,25 @@ put() {
   check "$4" "$code" "$3"
 }
 state() { curl -s "$B/api/release-packs/$1/state" | python3 -c 'import json,sys;print(json.load(sys.stdin)["state"])'; }
+
+# The Scenarios use fixed names, so a second run against the same store gets 409
+# on every create and every later assertion then fails for a reason that has
+# nothing to do with what it is testing. Say so once, here, rather than let a
+# reader work it out from fifty misleading failures.
+if ! curl -sf "$B/api/health" > /dev/null; then
+  echo "No Tower at $B. Start one with ./run.sh." >&2
+  exit 2
+fi
+if curl -s "$B/api/environments" | grep -q '"name":"Dev1"'; then
+  cat >&2 <<'STALE'
+This Tower already holds the acceptance fixtures, so every create would be
+refused as a duplicate and the run would report failures that are really
+collisions. Start a Tower on an empty store and try again:
+
+    TOWER_HOME=$(mktemp -d) ./run.sh
+STALE
+  exit 2
+fi
 
 echo
 echo "=============================================================="
@@ -192,6 +215,75 @@ RESERVED=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$B/api/document-templ
 check "the built-in name cannot be taken" "$RESERVED" "400"
 DELBUILT=$(curl -s -o /dev/null -w '%{http_code}' -X DELETE "$B/api/document-templates/00000000-0000-0000-0000-000000000001")
 check "the complete document cannot be deleted" "$DELBUILT" "400"
+
+echo
+echo "=============================================================="
+echo " MILESTONE 4 — Snapshots and historical comparison (ADR-017)"
+echo "=============================================================="
+# Scenario 1 observed Customer API 2.5.0 in Dev1 on 20 July and in UAT on
+# 22 July; Scenario 3 observed 2.5.1 in Production on 25 July.
+
+# Nobody captured a snapshot on 21 July. The answer must still exist — that is
+# the whole argument for deriving rather than storing.
+UNCAPTURED=$(curl -s "$B/api/environments/$DEV1/state?at=2026-07-21T00:00:00Z" | python3 -c "
+import json,sys
+print(','.join(sorted(d['applicationVersion']['version'] for d in json.load(sys.stdin)['deployed'])))")
+check "an instant nobody captured is answerable" "$UNCAPTURED" "2.5.0"
+
+BEFORE=$(curl -s "$B/api/environments/$DEV1/state?at=2026-07-19T00:00:00Z" | python3 -c "
+import json,sys; print(json.load(sys.stdin)['hasBeenObserved'])")
+check "before anything was observed, state is empty rather than current" "$BEFORE" "False"
+
+# At, not before: asking as of the moment of an Observation includes it.
+INCLUSIVE=$(curl -s "$B/api/environments/$DEV1/state?at=2026-07-20T09:00:00Z" | python3 -c "
+import json,sys; print(len(json.load(sys.stdin)['deployed']))")
+check "the instant itself is included" "$INCLUSIVE" "1"
+
+BADINSTANT=$(curl -s -o /dev/null -w '%{http_code}' "$B/api/environments/$DEV1/state?at=yesterday")
+check "an unreadable instant is refused, not a server error" "$BADINSTANT" "400"
+
+# Two Environments at one instant, and the kind of each difference named rather
+# than left to be inferred from a null version.
+KINDS=$(curl -s "$B/api/environments/$DEV1/state/comparison?against=$PROD" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+print(','.join(sorted(x['kind'] for x in d['differences'])))")
+check "comparing two Environments names each kind of difference" "$KINDS" "CHANGED"
+
+PACKNAMED=$(curl -s "$B/api/environments/$DEV1/state/comparison?against=$PROD" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+print(','.join(sorted(n for x in d['differences'] for n in x['releasePacks'])))")
+check "a difference names the Release Pack holding that version" "$PACKNAMED" "Hotfix 2026.08.1"
+
+SELF=$(curl -s "$B/api/environments/$UAT/state/comparison" | python3 -c "
+import json,sys; print(json.load(sys.stdin)['identical'])")
+check "an Environment compared with itself is identical" "$SELF" "True"
+
+# Release 2026.08 holds 2.5.0 and 1.4.0. Only 2.5.0 was ever observed, so every
+# arrival is partial and must name what is outstanding rather than only count.
+PARTIAL=$(curl -s "$B/api/release-packs/$PACK/progression" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+a=[x for x in d['arrivals'] if x['environmentName']=='UAT'][0]
+print('%s|%s|%s|%s' % (a['complete'], a['observedCount'], a['packedCount'],
+                       ','.join(m['version'] for m in a['missing'])))")
+check "a partly arrived release names what is missing" "$PARTIAL" "False|1|2|1.4.0"
+
+# PreProd was never observed at all. It must be absent, not reported as empty:
+# nobody looked there, which is not the same as the release not being there.
+UNSEEN=$(curl -s "$B/api/release-packs/$PACK/progression" | python3 -c "
+import json,sys
+print(any(a['environmentName']=='PreProd' for a in json.load(sys.stdin)['arrivals']))")
+check "an Environment never observed does not appear at all" "$UNSEEN" "False"
+
+# The hotfix was seen whole in each Environment, so each arrival is complete.
+WHOLE=$(curl -s "$B/api/release-packs/$HPACK/progression" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+print(','.join('%s:%s' % (a['environmentName'], a['complete']) for a in d['arrivals']))")
+check "a release seen whole reports complete, oldest Environment first" "$WHOLE" \
+  "Dev-Hotfix:True,SIT:True,Production:True"
 
 echo
 echo "=============================================================="

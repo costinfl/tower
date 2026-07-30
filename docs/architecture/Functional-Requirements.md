@@ -482,6 +482,19 @@ cite the Observation behind each side.
 
 ---
 
+## FR-070
+
+The system shall report, for each Environment a Release Pack's contents have been observed in, when the first
+of those contents was seen there and when the last of them was.
+
+A release that has only partly arrived shall be reported as such and shall name the Application Versions still
+outstanding, not merely count them.
+
+An Environment in which none of the release has been observed shall not appear. Its absence is not evidence
+that the release is absent from it.
+
+---
+
 # Deferred
 
 ## FR-054
@@ -502,6 +515,6 @@ FR-055 to FR-061 define what Milestone 2 adds.
 
 FR-062 to FR-067 define what Milestone 3 adds.
 
-FR-068 and FR-069 define what Milestone 4 adds.
+FR-068 to FR-070 define what Milestone 4 adds.
 
 Capabilities beyond these requirements shall be evaluated in future milestones.

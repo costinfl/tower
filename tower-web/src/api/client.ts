@@ -327,6 +327,46 @@ export interface EnvironmentStateView {
   deployed: DeployedApplicationView[];
 }
 
+// --- Historical comparison (Milestone 4, ADR-017) -----------------------
+
+// `kind` is named by the server rather than inferred from which version is
+// null, because that inference is exactly where "no longer deployed" gets
+// confused with "no longer observed". GONE means Tower has an Observation on
+// one side and none on the other — not that anything was undeployed.
+export type DifferenceKind = "CHANGED" | "ARRIVED" | "GONE";
+
+export interface DifferenceView {
+  applicationId: string;
+  applicationName: string | null;
+  kind: DifferenceKind;
+  leftVersion: string | null;
+  rightVersion: string | null;
+  leftObservationId: string | null;
+  rightObservationId: string | null;
+  // Release Packs that CONTAIN the version this difference is about — the one
+  // on the right, or the one on the left when there is no right. This is
+  // containment, not causation: two packs may hold the same version and
+  // neither deployed it. Label it accordingly in the UI.
+  releasePacks: string[];
+}
+
+export interface UnchangedView {
+  applicationId: string;
+  applicationName: string | null;
+  version: string | null;
+  leftObservationId: string;
+  rightObservationId: string;
+}
+
+// `identical` is stated rather than inferred from an empty differences list,
+// so "the two agree" cannot be confused with "the comparison returned
+// nothing".
+export interface StateComparisonView {
+  identical: boolean;
+  differences: DifferenceView[];
+  unchanged: UnchangedView[];
+}
+
 // --- Release Pack state -------------------------------------------------
 
 // Derived as the highest Stage at which any content version of the pack
@@ -349,6 +389,40 @@ export interface ReleasePackSighting {
 export interface ReleasePackStateView {
   state: ReleasePackState;
   sightings: ReleasePackSighting[];
+}
+
+// --- Release Pack progression (Milestone 4, ADR-017) --------------------
+
+// A release arrives in an Environment piecemeal, so two instants are
+// reported rather than one: when the first of its versions was seen there
+// and when the last one was. `completeAt` is null while any version is
+// still missing, and `missing` names those versions — a reader waiting on a
+// release needs to know what they are waiting for, not just how many.
+export interface MissingVersionView {
+  applicationVersionId: string;
+  applicationName: string | null;
+  version: string | null;
+}
+
+export interface EnvironmentArrivalView {
+  environmentId: string;
+  environmentName: string | null;
+  stage: Stage | null;
+  firstObservedAt: string;
+  completeAt: string | null;
+  complete: boolean;
+  observedCount: number;
+  packedCount: number;
+  missing: MissingVersionView[];
+}
+
+// Environments the release has never been observed in do not appear at all.
+// Their absence is not evidence the release is absent from them — it may
+// mean nobody looked (Scenarios.md Scenario 4) — so the Viewer must say so
+// rather than render an empty row.
+export interface ReleasePackProgressionView {
+  observed: boolean;
+  arrivals: EnvironmentArrivalView[];
 }
 
 // --- Release Packs --------------------------------------------------------
@@ -486,8 +560,30 @@ export function createObservation(input: CreateObservationInput): Promise<Observ
   return postJson<ObservationView>("/api/observations", input);
 }
 
-export function getEnvironmentState(environmentId: string): Promise<EnvironmentStateView> {
-  return getJson<EnvironmentStateView>(`/api/environments/${encodeURIComponent(environmentId)}/state`);
+// Current state, or the state as it stood at `at` (Milestone 4, ADR-017).
+// A past state is derived from the same Observations on request, never read
+// from a stored snapshot, so any instant is answerable — not only the ones
+// somebody thought to capture.
+export function getEnvironmentState(environmentId: string, at?: string): Promise<EnvironmentStateView> {
+  const query = at ? `?at=${encodeURIComponent(at)}` : "";
+  return getJson<EnvironmentStateView>(`/api/environments/${encodeURIComponent(environmentId)}/state${query}`);
+}
+
+// Compares two derived states. Both sides are an Environment and an instant,
+// either of which may be omitted, so this answers "how did UAT change since
+// Monday" and "how does UAT differ from Production" with one call.
+export function getEnvironmentStateComparison(
+  environmentId: string,
+  options: { at?: string; against?: string; againstAt?: string } = {},
+): Promise<StateComparisonView> {
+  const query = new URLSearchParams();
+  if (options.at) query.set("at", options.at);
+  if (options.against) query.set("against", options.against);
+  if (options.againstAt) query.set("againstAt", options.againstAt);
+  const suffix = query.toString() === "" ? "" : `?${query.toString()}`;
+  return getJson<StateComparisonView>(
+    `/api/environments/${encodeURIComponent(environmentId)}/state/comparison${suffix}`,
+  );
 }
 
 // Full Observation history for an Environment, newest first. Superseded
@@ -609,6 +705,13 @@ export function restoreReleasePack(id: string): Promise<ReleasePackView> {
 
 export function getReleasePackState(id: string): Promise<ReleasePackStateView> {
   return getJson<ReleasePackStateView>(`/api/release-packs/${encodeURIComponent(id)}/state`);
+}
+
+// When this release reached each Environment. Separate from state because it
+// answers a different question: state says how far it got, progression says
+// when it got there and what is still outstanding.
+export function getReleasePackProgression(id: string): Promise<ReleasePackProgressionView> {
+  return getJson<ReleasePackProgressionView>(`/api/release-packs/${encodeURIComponent(id)}/progression`);
 }
 
 // --- Release documentation (Epic 4) -----------------------------------------
