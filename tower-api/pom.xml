@@ -63,6 +63,25 @@
       <version>${project.version}</version>
       <scope>runtime</scope>
     </dependency>
+    <!--
+      Runtime scope, like the other connectors: the compiler cannot see JGit or
+      GitSourceControlConnector from here, so no application-layer class can
+      accidentally name one.
+
+      Present before anything calls it, and deliberately. ArchUnit analyses
+      "dev.tower" on tower-api's test classpath, so a connector module that is
+      not a dependency here is never scanned — the read-only rules
+      (connectors_expose_no_write_operation,
+      connector_methods_are_not_named_for_mutation) would pass while saying
+      nothing about it. A new connector has to be on this list to be governed,
+      not merely to be reachable.
+    -->
+    <dependency>
+      <groupId>dev.tower</groupId>
+      <artifactId>tower-connector-git</artifactId>
+      <version>${project.version}</version>
+      <scope>runtime</scope>
+    </dependency>
     <dependency>
       <groupId>dev.tower</groupId>
       <artifactId>tower-persistence</artifactId>

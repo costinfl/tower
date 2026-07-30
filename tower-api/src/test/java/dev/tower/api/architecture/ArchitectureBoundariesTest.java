@@ -141,6 +141,26 @@ class ArchitectureBoundariesTest {
                     .because("a vendor client terminates at its Connector (CM-05, FR-037, ADR-012)");
 
     /**
+     * The same containment for JGit, the Source Control Connector's client
+     * (ADR-014).
+     *
+     * <p>Scope is the primary guard here too — tower-connector-git is a
+     * runtime-scope dependency of tower-api — and this is the backstop for
+     * someone adding JGit as a compile dependency elsewhere.
+     *
+     * <p>Worth noting what this rule protects that the Kubernetes one does not.
+     * JGit can clone, commit, tag and push; the Connector uses reference
+     * discovery alone. Keeping its types inside one small module is what makes
+     * that restraint reviewable in one file rather than something to trust across
+     * the codebase.
+     */
+    @ArchTest
+    static final ArchRule git_types_are_confined_to_their_connector_module =
+            noClasses().that().resideOutsideOfPackage("dev.tower.connector.git..")
+                    .should().dependOnClassesThat().resideInAnyPackage("org.eclipse.jgit..")
+                    .because("a vendor client terminates at its Connector (CM-05, FR-037, ADR-014)");
+
+    /**
      * ADR-001, CM-01, FR-036: Connectors observe and never modify. This is a
      * naming heuristic rather than a proof — it does not catch a write issued
      * through a method named for something else, such as scale. The Kubernetes
