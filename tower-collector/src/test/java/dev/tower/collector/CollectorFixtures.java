@@ -8,6 +8,7 @@ import java.util.Optional;
 
 import dev.tower.application.binding.ApplicationBinding;
 import dev.tower.application.binding.EnvironmentBinding;
+import dev.tower.application.binding.RepositoryBinding;
 import dev.tower.application.port.out.ApplicationVersionRepository;
 import dev.tower.application.port.out.ConnectorCredentialsPort;
 import dev.tower.application.port.out.CredentialStatus;
@@ -156,6 +157,35 @@ final class CollectorFixtures {
         public void deleteApplicationBinding(ApplicationId id, String connectorId) {
             applicationBindings.removeIf(
                     b -> b.applicationId().equals(id) && b.connectorId().equals(connectorId));
+        }
+
+        private final Map<String, RepositoryBinding> repositoryBindings = new HashMap<>();
+
+        @Override
+        public RepositoryBinding save(RepositoryBinding binding) {
+            repositoryBindings.put(binding.applicationId() + "@" + binding.connectorId(), binding);
+            return binding;
+        }
+
+        @Override
+        public Optional<RepositoryBinding> findRepositoryBinding(ApplicationId id, String connectorId) {
+            return Optional.ofNullable(repositoryBindings.get(id + "@" + connectorId));
+        }
+
+        @Override
+        public List<RepositoryBinding> findAllRepositoryBindings(String connectorId) {
+            return repositoryBindings.values().stream()
+                    .filter(b -> b.connectorId().equals(connectorId)).toList();
+        }
+
+        @Override
+        public List<RepositoryBinding> findAllRepositoryBindings() {
+            return new ArrayList<>(repositoryBindings.values());
+        }
+
+        @Override
+        public void deleteRepositoryBinding(ApplicationId id, String connectorId) {
+            repositoryBindings.remove(id + "@" + connectorId);
         }
     }
 

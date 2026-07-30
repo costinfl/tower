@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 
 import dev.tower.application.binding.ApplicationBinding;
 import dev.tower.application.binding.EnvironmentBinding;
+import dev.tower.application.binding.RepositoryBinding;
 import dev.tower.application.port.in.ExternalBindingUseCases.BindApplication;
 import dev.tower.application.port.in.ExternalBindingUseCases.BindEnvironment;
 import dev.tower.application.port.out.ApplicationRepository;
@@ -184,6 +185,35 @@ class ExternalBindingServiceTest {
         @Override
         public void deleteApplicationBinding(ApplicationId id, String connectorId) {
             applicationBindings.remove(id + "@" + connectorId);
+        }
+
+        private final Map<String, RepositoryBinding> repositoryBindings = new HashMap<>();
+
+        @Override
+        public RepositoryBinding save(RepositoryBinding binding) {
+            repositoryBindings.put(binding.applicationId() + "@" + binding.connectorId(), binding);
+            return binding;
+        }
+
+        @Override
+        public Optional<RepositoryBinding> findRepositoryBinding(ApplicationId id, String connectorId) {
+            return Optional.ofNullable(repositoryBindings.get(id + "@" + connectorId));
+        }
+
+        @Override
+        public List<RepositoryBinding> findAllRepositoryBindings(String connectorId) {
+            return repositoryBindings.values().stream()
+                    .filter(b -> b.connectorId().equals(connectorId)).toList();
+        }
+
+        @Override
+        public List<RepositoryBinding> findAllRepositoryBindings() {
+            return new ArrayList<>(repositoryBindings.values());
+        }
+
+        @Override
+        public void deleteRepositoryBinding(ApplicationId id, String connectorId) {
+            repositoryBindings.remove(id + "@" + connectorId);
         }
     }
 

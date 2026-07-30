@@ -63,7 +63,8 @@ This checklist tracks the architectural documentation required before implementa
 - [x] Connectors screen and read-only connection test
 - [x] ADR-014-Source-Control-Is-Read-Through-Git-Not-A-Vendor-API.md
 - [x] Source Control Connector — git reference discovery (issue #3)
-- [ ] Repository bindings and version discovery from refs (issue #3)
+- [x] Repository bindings (V8) and version discovery from refs (issue #3)
+- [ ] Source control discovery in the Viewer (issue #3)
 
 ## Milestone 3 - Documentation formats
 

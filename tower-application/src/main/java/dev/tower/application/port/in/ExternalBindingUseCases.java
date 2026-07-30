@@ -5,6 +5,7 @@ import java.util.Optional;
 
 import dev.tower.application.binding.ApplicationBinding;
 import dev.tower.application.binding.EnvironmentBinding;
+import dev.tower.application.binding.RepositoryBinding;
 import dev.tower.domain.application.ApplicationId;
 import dev.tower.domain.environment.EnvironmentId;
 
@@ -52,4 +53,18 @@ public interface ExternalBindingUseCases {
      * @param version the Application Version it yields, or null when it did not match
      */
     record VersionPreview(String imageTag, String versionPattern, boolean matched, String version) {}
+
+    // Repository bindings (issue #3, ADR-014): where an Application's code lives.
+
+    RepositoryBinding bindRepository(BindRepository command);
+
+    List<RepositoryBinding> listRepositoryBindings();
+
+    Optional<RepositoryBinding> findRepositoryBinding(ApplicationId applicationId, String connectorId);
+
+    void unbindRepository(ApplicationId applicationId, String connectorId);
+
+    record BindRepository(
+            ApplicationId applicationId, String connectorId, String repositoryUrl,
+            RepositoryBinding.RefSelection refSelection, String versionPattern) {}
 }

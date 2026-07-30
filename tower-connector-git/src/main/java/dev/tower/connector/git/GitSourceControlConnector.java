@@ -14,6 +14,8 @@ import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
 
+import org.springframework.stereotype.Component;
+
 import dev.tower.connector.api.ConnectorCredential;
 import dev.tower.connector.api.ConnectorException;
 import dev.tower.connector.api.RepositoryLocator;
@@ -38,6 +40,7 @@ import dev.tower.connector.api.SourceRef;
  * a self-hosted server or a bare repository on a file share, and this class
  * cannot tell the difference because it only ever asks git questions.
  */
+@Component
 public class GitSourceControlConnector implements SourceControlConnector {
 
     /**

@@ -4,6 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 
 import dev.tower.application.binding.ApplicationBinding;
 import dev.tower.application.binding.EnvironmentBinding;
+import dev.tower.application.binding.RepositoryBinding;
 
 /** Request and response bodies for /api/bindings (issue #47). */
 public final class BindingRequests {
@@ -47,6 +48,31 @@ public final class BindingRequests {
             return new ApplicationBindingResponse(
                     binding.applicationId().value().toString(),
                     binding.connectorId(), binding.image(), binding.versionPattern());
+        }
+    }
+
+    /**
+     * {@code refSelection} and {@code versionPattern} are both optional: tags
+     * only, and the whole ref name as the version, are what most teams want and
+     * what {@link RepositoryBinding} defaults to.
+     */
+    public record RepositoryBindingRequest(
+            @NotBlank(message = "applicationId is required") String applicationId,
+            @NotBlank(message = "connectorId is required") String connectorId,
+            @NotBlank(message = "repositoryUrl is required") String repositoryUrl,
+            String refSelection,
+            String versionPattern) {
+    }
+
+    public record RepositoryBindingResponse(
+            String applicationId, String connectorId, String repositoryUrl,
+            String refSelection, String versionPattern) {
+
+        public static RepositoryBindingResponse from(RepositoryBinding binding) {
+            return new RepositoryBindingResponse(
+                    binding.applicationId().value().toString(),
+                    binding.connectorId(), binding.repositoryUrl(),
+                    binding.refSelection().name(), binding.versionPattern());
         }
     }
 }

@@ -19,9 +19,13 @@ import dev.tower.api.binding.BindingRequests.ApplicationBindingRequest;
 import dev.tower.api.binding.BindingRequests.ApplicationBindingResponse;
 import dev.tower.api.binding.BindingRequests.EnvironmentBindingRequest;
 import dev.tower.api.binding.BindingRequests.EnvironmentBindingResponse;
+import dev.tower.api.binding.BindingRequests.RepositoryBindingRequest;
+import dev.tower.api.binding.BindingRequests.RepositoryBindingResponse;
 import dev.tower.application.port.in.ExternalBindingUseCases;
 import dev.tower.application.port.in.ExternalBindingUseCases.BindApplication;
 import dev.tower.application.port.in.ExternalBindingUseCases.BindEnvironment;
+import dev.tower.application.port.in.ExternalBindingUseCases.BindRepository;
+import dev.tower.application.binding.RepositoryBinding;
 import dev.tower.application.port.in.ExternalBindingUseCases.VersionPreview;
 import dev.tower.domain.application.ApplicationId;
 import dev.tower.domain.environment.EnvironmentId;
@@ -62,6 +66,33 @@ public class BindingController {
             @PathVariable("environmentId") String environmentId,
             @RequestParam("connectorId") String connectorId) {
         bindings.unbindEnvironment(EnvironmentId.of(environmentId), connectorId);
+    }
+
+    /**
+     * Where an Application's code lives (issue #3, ADR-014).
+     *
+     * <p>Separate from the Application binding above rather than a field on it:
+     * one says which running image is this Application, the other says where its
+     * source is, and a team may configure either without the other.
+     */
+    @GetMapping("/repositories")
+    public List<RepositoryBindingResponse> listRepositoryBindings() {
+        return bindings.listRepositoryBindings().stream().map(RepositoryBindingResponse::from).toList();
+    }
+
+    @PutMapping("/repositories")
+    public RepositoryBindingResponse bindRepository(@Valid @RequestBody RepositoryBindingRequest request) {
+        return RepositoryBindingResponse.from(bindings.bindRepository(new BindRepository(
+                ApplicationId.of(request.applicationId()), request.connectorId(), request.repositoryUrl(),
+                RepositoryBinding.RefSelection.parse(request.refSelection()), request.versionPattern())));
+    }
+
+    @DeleteMapping("/repositories/{applicationId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void unbindRepository(
+            @PathVariable("applicationId") String applicationId,
+            @RequestParam("connectorId") String connectorId) {
+        bindings.unbindRepository(ApplicationId.of(applicationId), connectorId);
     }
 
     @GetMapping("/applications")

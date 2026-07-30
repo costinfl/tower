@@ -5,6 +5,7 @@ import java.util.Optional;
 
 import dev.tower.application.binding.ApplicationBinding;
 import dev.tower.application.binding.EnvironmentBinding;
+import dev.tower.application.binding.RepositoryBinding;
 import dev.tower.domain.application.ApplicationId;
 import dev.tower.domain.environment.EnvironmentId;
 
@@ -41,4 +42,19 @@ public interface ExternalBindingRepository {
     List<ApplicationBinding> findAllApplicationBindings();
 
     void deleteApplicationBinding(ApplicationId applicationId, String connectorId);
+
+    // Repository bindings (issue #3, ADR-014). A third kind rather than a field on
+    // ApplicationBinding, because the two answer different questions: one says
+    // which image running somewhere is this Application, the other says where its
+    // code lives. A team may configure either without the other.
+
+    RepositoryBinding save(RepositoryBinding binding);
+
+    Optional<RepositoryBinding> findRepositoryBinding(ApplicationId applicationId, String connectorId);
+
+    List<RepositoryBinding> findAllRepositoryBindings(String connectorId);
+
+    List<RepositoryBinding> findAllRepositoryBindings();
+
+    void deleteRepositoryBinding(ApplicationId applicationId, String connectorId);
 }

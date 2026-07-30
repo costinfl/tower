@@ -18,10 +18,12 @@ import dev.tower.application.service.ApplicationService;
 import dev.tower.application.port.out.DeploymentObservationCollector;
 import dev.tower.application.port.out.DocumentTemplateRepository;
 import dev.tower.application.port.out.ExternalBindingRepository;
+import dev.tower.application.port.out.SourceVersionCollector;
 import dev.tower.application.port.out.SyncRunRepository;
 import dev.tower.application.service.DocumentTemplateService;
 import dev.tower.application.service.EnvironmentService;
 import dev.tower.application.service.ExternalBindingService;
+import dev.tower.application.service.SourceControlService;
 import dev.tower.application.service.PromotionPathService;
 import dev.tower.application.service.SynchronizationService;
 import dev.tower.application.service.ObservationService;
@@ -87,6 +89,18 @@ public class ApplicationServicesConfiguration {
     public SynchronizationService synchronizationService(
             List<DeploymentObservationCollector> collectors, SyncRunRepository syncRunRepository) {
         return new SynchronizationService(collectors, syncRunRepository);
+    }
+
+    /**
+     * Takes every Source Control Collector on the classpath, for the same reason
+     * synchronizationService takes every deployment Collector: a second one needs
+     * no change here.
+     */
+    @Bean
+    public SourceControlService sourceControlService(
+            List<SourceVersionCollector> collectors, ExternalBindingRepository externalBindingRepository,
+            ApplicationRepository applicationRepository) {
+        return new SourceControlService(collectors, externalBindingRepository, applicationRepository);
     }
 
     @Bean

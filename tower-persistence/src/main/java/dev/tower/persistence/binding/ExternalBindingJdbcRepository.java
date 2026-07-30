@@ -11,6 +11,7 @@ import org.springframework.stereotype.Repository;
 
 import dev.tower.application.binding.ApplicationBinding;
 import dev.tower.application.binding.EnvironmentBinding;
+import dev.tower.application.binding.RepositoryBinding;
 import dev.tower.application.port.out.ExternalBindingRepository;
 import dev.tower.domain.application.ApplicationId;
 import dev.tower.domain.environment.EnvironmentId;
@@ -173,6 +174,81 @@ public class ExternalBindingJdbcRepository implements ExternalBindingRepository 
                 .update();
     }
 
+    @Override
+    public RepositoryBinding save(RepositoryBinding binding) {
+        int updated = jdbcClient.sql("""
+                        UPDATE repository_binding
+                        SET repository_url = :repositoryUrl, ref_selection = :refSelection,
+                            version_pattern = :versionPattern
+                        WHERE application_id = :applicationId AND connector_id = :connectorId
+                        """)
+                .param("applicationId", binding.applicationId().value())
+                .param("connectorId", binding.connectorId())
+                .param("repositoryUrl", binding.repositoryUrl())
+                .param("refSelection", binding.refSelection().name())
+                .param("versionPattern", binding.versionPattern())
+                .update();
+        if (updated == 0) {
+            jdbcClient.sql("""
+                            INSERT INTO repository_binding
+                                (application_id, connector_id, repository_url, ref_selection, version_pattern)
+                            VALUES (:applicationId, :connectorId, :repositoryUrl, :refSelection, :versionPattern)
+                            """)
+                    .param("applicationId", binding.applicationId().value())
+                    .param("connectorId", binding.connectorId())
+                    .param("repositoryUrl", binding.repositoryUrl())
+                    .param("refSelection", binding.refSelection().name())
+                    .param("versionPattern", binding.versionPattern())
+                    .update();
+        }
+        return binding;
+    }
+
+    @Override
+    public Optional<RepositoryBinding> findRepositoryBinding(ApplicationId applicationId, String connectorId) {
+        return jdbcClient.sql("""
+                        SELECT application_id, connector_id, repository_url, ref_selection, version_pattern
+                        FROM repository_binding
+                        WHERE application_id = :applicationId AND connector_id = :connectorId
+                        """)
+                .param("applicationId", applicationId.value())
+                .param("connectorId", connectorId)
+                .query(ExternalBindingJdbcRepository::mapRepositoryBinding)
+                .optional();
+    }
+
+    @Override
+    public List<RepositoryBinding> findAllRepositoryBindings(String connectorId) {
+        return jdbcClient.sql("""
+                        SELECT application_id, connector_id, repository_url, ref_selection, version_pattern
+                        FROM repository_binding WHERE connector_id = :connectorId ORDER BY repository_url
+                        """)
+                .param("connectorId", connectorId)
+                .query(ExternalBindingJdbcRepository::mapRepositoryBinding)
+                .list();
+    }
+
+    @Override
+    public List<RepositoryBinding> findAllRepositoryBindings() {
+        return jdbcClient.sql("""
+                        SELECT application_id, connector_id, repository_url, ref_selection, version_pattern
+                        FROM repository_binding ORDER BY connector_id, repository_url
+                        """)
+                .query(ExternalBindingJdbcRepository::mapRepositoryBinding)
+                .list();
+    }
+
+    @Override
+    public void deleteRepositoryBinding(ApplicationId applicationId, String connectorId) {
+        jdbcClient.sql("""
+                        DELETE FROM repository_binding
+                        WHERE application_id = :applicationId AND connector_id = :connectorId
+                        """)
+                .param("applicationId", applicationId.value())
+                .param("connectorId", connectorId)
+                .update();
+    }
+
     private static EnvironmentBinding mapEnvironmentBinding(ResultSet rs, int rowNum) throws SQLException {
         return new EnvironmentBinding(
                 new EnvironmentId(rs.getObject("environment_id", UUID.class)),
@@ -186,6 +262,17 @@ public class ExternalBindingJdbcRepository implements ExternalBindingRepository 
                 new ApplicationId(rs.getObject("application_id", UUID.class)),
                 rs.getString("connector_id"),
                 rs.getString("image"),
+                rs.getString("version_pattern"));
+    }
+
+    private static RepositoryBinding mapRepositoryBinding(ResultSet rs, int rowNum) throws SQLException {
+        return new RepositoryBinding(
+                new ApplicationId(rs.getObject("application_id", UUID.class)),
+                rs.getString("connector_id"),
+                rs.getString("repository_url"),
+                // Parsed rather than valueOf'd, so a row written by a later version of Tower
+                // fails with a message naming the value instead of an IllegalArgumentException.
+                RepositoryBinding.RefSelection.parse(rs.getString("ref_selection")),
                 rs.getString("version_pattern"));
     }
 }

@@ -6,7 +6,9 @@ import java.util.Optional;
 
 import dev.tower.application.binding.ApplicationBinding;
 import dev.tower.application.binding.EnvironmentBinding;
+import dev.tower.application.binding.RepositoryBinding;
 import dev.tower.application.port.in.ExternalBindingUseCases;
+import dev.tower.application.port.in.ExternalBindingUseCases.BindRepository;
 import dev.tower.application.port.out.ApplicationRepository;
 import dev.tower.application.port.out.EnvironmentRepository;
 import dev.tower.application.port.out.ExternalBindingRepository;
@@ -81,6 +83,29 @@ public class ExternalBindingService implements ExternalBindingUseCases {
     @Override
     public void unbindApplication(ApplicationId applicationId, String connectorId) {
         bindings.deleteApplicationBinding(applicationId, connectorId);
+    }
+
+    @Override
+    public RepositoryBinding bindRepository(BindRepository command) {
+        requireApplicationExists(command.applicationId());
+        return bindings.save(new RepositoryBinding(
+                command.applicationId(), command.connectorId(), command.repositoryUrl(),
+                command.refSelection(), command.versionPattern()));
+    }
+
+    @Override
+    public List<RepositoryBinding> listRepositoryBindings() {
+        return bindings.findAllRepositoryBindings();
+    }
+
+    @Override
+    public Optional<RepositoryBinding> findRepositoryBinding(ApplicationId applicationId, String connectorId) {
+        return bindings.findRepositoryBinding(applicationId, connectorId);
+    }
+
+    @Override
+    public void unbindRepository(ApplicationId applicationId, String connectorId) {
+        bindings.deleteRepositoryBinding(applicationId, connectorId);
     }
 
     @Override
