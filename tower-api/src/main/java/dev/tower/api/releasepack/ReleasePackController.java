@@ -33,6 +33,7 @@ import dev.tower.domain.application.ApplicationVersionId;
 import dev.tower.domain.environment.Environment;
 import dev.tower.domain.environment.EnvironmentId;
 import dev.tower.domain.handover.Handover;
+import dev.tower.domain.handover.HandoverRevision;
 import dev.tower.domain.iteration.IterationId;
 import dev.tower.domain.promotionpath.PromotionPath;
 import dev.tower.domain.promotionpath.PromotionPathId;
@@ -122,6 +123,50 @@ public class ReleasePackController {
                 request.databaseMigrations(), request.rollbackProcedure(), request.validationNotes(),
                 request.operationalNotes());
         return toView(releasePackUseCases.updateHandover(ReleasePackId.of(id), handover));
+    }
+
+    /**
+     * Every version this Release Pack's Handover has had, newest first (ADR-016).
+     *
+     * <p>A {@code GET} and nothing else. There is deliberately no endpoint that
+     * restores a revision: putting an old Handover back is an edit like any
+     * other, made through {@code PUT /handover}, and it appends a new revision
+     * rather than rewriting history.
+     */
+    @GetMapping("/{id}/handover/history")
+    public List<HandoverRevisionView> handoverHistory(@PathVariable("id") String id) {
+        List<HandoverRevision> revisions = releasePackUseCases.handoverHistory(ReleasePackId.of(id));
+
+        // Newest first, so the first row is what the Release Pack holds now.
+        // Marked rather than left for the reader to infer from the ordering: a
+        // list where "current" is a position rather than a fact is one a client
+        // can sort and quietly get wrong.
+        List<HandoverRevisionView> views = new java.util.ArrayList<>(revisions.size());
+        for (int i = 0; i < revisions.size(); i++) {
+            views.add(HandoverRevisionView.from(revisions.get(i), i == 0));
+        }
+        return List.copyOf(views);
+    }
+
+    /**
+     * @param revisionNumber how a revision is referred to, rising from 1
+     * @param current        whether this is what the Release Pack holds now, so a
+     *                       reader does not have to infer it from the ordering
+     */
+    public record HandoverRevisionView(
+            String id, int revisionNumber, String recordedAt, boolean current, boolean empty,
+            String deploymentInstructions, String shellCommands, String databaseMigrations,
+            String rollbackProcedure, String validationNotes, String operationalNotes) {
+
+        static HandoverRevisionView from(HandoverRevision revision, boolean current) {
+            Handover handover = revision.handover();
+            return new HandoverRevisionView(
+                    revision.id().toString(), revision.revisionNumber(),
+                    revision.recordedAt().toString(), current, revision.isEmpty(),
+                    handover.deploymentInstructions(), handover.shellCommands(),
+                    handover.databaseMigrations(), handover.rollbackProcedure(),
+                    handover.validationNotes(), handover.operationalNotes());
+        }
     }
 
     @PostMapping("/{id}/iterations")

@@ -343,3 +343,39 @@ export const sourceRefs: Record<string, { kind: "TAG" | "BRANCH"; name: string; 
     { kind: "BRANCH", name: "main", commit: "c0ffee1234567890abcdef1234567890abcdef12" },
   ],
 };
+
+// --- Handover revisions (issue #8, ADR-016) ----------------------------------
+
+// Two versions of one Release Pack's Handover, so the demo shows the thing the
+// feature exists for: the instructions were changed, and what they said before
+// is still there.
+export const handoverRevisions = [
+  {
+    id: id("hrev-1"),
+    releasePackId: id("pack-august"),
+    revisionNumber: 1,
+    recordedAt: "2026-08-01T09:15:00Z",
+    handover: {
+      deploymentInstructions: "Deploy customer-api before orders-api.",
+      shellCommands: "kubectl rollout status deploy/customer-api",
+      databaseMigrations: "",
+      rollbackProcedure: "Roll back orders-api first.",
+      validationNotes: "",
+      operationalNotes: "",
+    },
+  },
+  {
+    id: id("hrev-2"),
+    releasePackId: id("pack-august"),
+    revisionNumber: 2,
+    recordedAt: "2026-08-04T16:40:00Z",
+    handover: {
+      deploymentInstructions: "Deploy customer-api before orders-api.",
+      shellCommands: "kubectl rollout status deploy/customer-api\nkubectl rollout status deploy/orders-api",
+      databaseMigrations: "V37__add_index.sql runs before the customer-api rollout.",
+      rollbackProcedure: "Roll back orders-api first, then customer-api.",
+      validationNotes: "Smoke test checkout end to end.",
+      operationalNotes: "Expect brief latency during the customer-api rollout.",
+    },
+  },
+];

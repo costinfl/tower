@@ -76,6 +76,11 @@ This checklist tracks the architectural documentation required before implementa
 - [x] ADR-015-DOCX-Is-Written-Directly-For-Reproducibility.md
 - [x] DOCX release document renderer (OQ-009 answered, PDF declined)
 
+## Deferred work closed
+
+- [x] ADR-016-Handover-Is-Versioned-Release-Pack-Metadata-Is-Not.md
+- [x] Handover versioning (issue #8, IA-02, FR-054, FR-067)
+
 ---
 
 Current Phase: **Milestone 3 — Documentation formats**

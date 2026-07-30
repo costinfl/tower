@@ -32,6 +32,9 @@ interface Handover {
   rollbackProcedure: string; validationNotes: string; operationalNotes: string;
 }
 interface Iter { id: string; name: string; startedAt: string; completedAt: string | null; notes: string }
+// Issue #8, ADR-016. Append-only: the demo mirrors the rule, so a visitor who
+// edits a Handover twice sees both versions rather than one.
+interface HandoverRev { id: string; releasePackId: string; revisionNumber: number; recordedAt: string; handover: Handover }
 interface PackRec {
   id: string; name: string; description: string; archived: boolean;
   promotionPathId: string | null; promotionPathVersion: number | null;
@@ -99,6 +102,7 @@ const state: {
   repositoryBindings: RepoBinding[];
   credentials: Record<string, string>; runs: RunRec[];
   documentTemplates: TemplateRec[];
+  handoverRevisions: HandoverRev[];
 } = {
   environments: seed.environments.map((e) => ({ ...e })),
   applications: seed.applications.map((a) => ({ ...a })),
@@ -121,6 +125,7 @@ const state: {
     failures: [...r.failures],
   })),
   documentTemplates: seed.documentTemplates.map((t) => ({ ...t, sections: [...t.sections] })),
+  handoverRevisions: seed.handoverRevisions.map((r) => ({ ...r, handover: { ...r.handover } })),
 };
 
 let sequence = 0;
@@ -939,7 +944,29 @@ export function handle(pathname: string, method: string, body: Json | null): unk
       else { p.promotionPathId = String(body?.pathId ?? ""); p.promotionPathVersion = Number(body?.versionNumber ?? 1); }
       return packView(p);
     }
-    if (b === "handover") { p.handover = { ...p.handover, ...(body as object) }; return packView(p); }
+    if (b === "handover" && c === "history") {
+      return state.handoverRevisions
+        .filter((r) => r.releasePackId === p.id)
+        .sort((x, y) => y.revisionNumber - x.revisionNumber)
+        .map((r, index) => ({
+          id: r.id, revisionNumber: r.revisionNumber, recordedAt: r.recordedAt,
+          current: index === 0,
+          empty: Object.values(r.handover).every((v) => !(v ?? "").trim()),
+          ...r.handover,
+        }));
+    }
+    if (b === "handover") {
+      p.handover = { ...p.handover, ...(body as object) };
+      // Appended, never replaced - the whole point of ADR-016.
+      const highest = state.handoverRevisions
+        .filter((r) => r.releasePackId === p.id)
+        .reduce((max, r) => Math.max(max, r.revisionNumber), 0);
+      state.handoverRevisions.push({
+        id: newId("hrev"), releasePackId: p.id, revisionNumber: highest + 1,
+        recordedAt: new Date().toISOString(), handover: { ...p.handover },
+      });
+      return packView(p);
+    }
     if (b === "iterations") {
       if (!c && method === "POST") {
         p.iterations.push({ id: newId("it"), name: String(body?.name ?? ""),

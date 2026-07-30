@@ -1,5 +1,11 @@
 import { useState } from "react";
-import { updateReleasePackHandover, type ReleasePackHandoverInput, type ReleasePackView } from "../api/client";
+import {
+  getHandoverHistory,
+  updateReleasePackHandover,
+  type HandoverRevision,
+  type ReleasePackHandoverInput,
+  type ReleasePackView,
+} from "../api/client";
 import ErrorNote from "./ErrorNote";
 
 interface HandoverField {
@@ -41,6 +47,21 @@ export default function HandoverEditor({ packId, handover, archived, onUpdated }
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
 
+  // Handover history (issue #8, ADR-016). Fetched on request rather than with
+  // the pack: it is the question asked after something went wrong, not on every
+  // visit, and a Release Pack listing should not pay for it.
+  const [history, setHistory] = useState<HandoverRevision[] | null>(null);
+  const [historyBusy, setHistoryBusy] = useState(false);
+
+  function loadHistory() {
+    setHistoryBusy(true);
+    setError(null);
+    getHandoverHistory(packId)
+      .then(setHistory)
+      .catch((e: unknown) => setError(e))
+      .finally(() => setHistoryBusy(false));
+  }
+
   function startEdit() {
     setDraft(handover);
     setError(null);
@@ -75,6 +96,9 @@ export default function HandoverEditor({ packId, handover, archived, onUpdated }
               {empty ? "Prepare Handover" : "Edit Handover"}
             </button>
           )}
+          <button type="button" onClick={loadHistory} disabled={historyBusy}>
+            {historyBusy ? "Loading…" : history === null ? "History" : "Refresh history"}
+          </button>
         </div>
         {empty ? (
           <p className="hint">Nothing has been prepared for this Release Pack's handover yet.</p>
@@ -88,6 +112,9 @@ export default function HandoverEditor({ packId, handover, archived, onUpdated }
             ))}
           </dl>
         )}
+
+        {error !== null && <ErrorNote error={error} />}
+        {history !== null && <HandoverHistory revisions={history} />}
       </div>
     );
   }
@@ -115,5 +142,62 @@ export default function HandoverEditor({ packId, handover, archived, onUpdated }
         </button>
       </div>
     </form>
+  );
+}
+
+// Every version the Handover has had (issue #8, ADR-016).
+//
+// The question this answers is asked after a deployment went wrong: what did we
+// actually hand over. Until Tower kept these, an edit destroyed the answer.
+//
+// Read-only, and there is no "restore" button. Putting an old Handover back is
+// an edit like any other — copy the text into the editor and save it, which
+// appends a new revision rather than rewriting history.
+function HandoverHistory({ revisions }: { revisions: HandoverRevision[] }) {
+  const [open, setOpen] = useState<string | null>(null);
+
+  if (revisions.length === 0) {
+    // Distinct from "nothing was prepared": this Release Pack predates
+    // versioning, or its Handover has genuinely never been saved.
+    return <p className="hint">No edits recorded yet. The next save will be revision 1.</p>;
+  }
+
+  return (
+    <div className="handover-history">
+      <h5>History</h5>
+      <p className="hint">
+        Every edit is kept. Nothing here can be changed or removed — to go back to an earlier
+        version, copy its text into the editor and save, which records that as a new revision.
+      </p>
+      <ol className="handover-history__list">
+        {revisions.map((revision) => (
+          <li className="handover-history__item" key={revision.id}>
+            <button
+              type="button"
+              className="button-link"
+              onClick={() => setOpen(open === revision.id ? null : revision.id)}
+            >
+              Revision {revision.revisionNumber}
+            </button>
+            <span className="handover-history__when">{revision.recordedAt}</span>
+            {revision.current && <span className="handover-history__badge">current</span>}
+            {revision.empty && <span className="hint">nothing prepared</span>}
+
+            {open === revision.id && (
+              <dl className="handover__fields">
+                {FIELDS.map((f) => (
+                  <div className="handover__field" key={f.key}>
+                    <dt>{f.label}</dt>
+                    <dd>
+                      {revision[f.key].trim() ? revision[f.key] : <span className="hint">Not prepared.</span>}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            )}
+          </li>
+        ))}
+      </ol>
+    </div>
   );
 }

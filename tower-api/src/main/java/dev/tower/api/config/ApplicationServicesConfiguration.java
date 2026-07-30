@@ -18,6 +18,7 @@ import dev.tower.application.service.ApplicationService;
 import dev.tower.application.port.out.DeploymentObservationCollector;
 import dev.tower.application.port.out.DocumentTemplateRepository;
 import dev.tower.application.port.out.ExternalBindingRepository;
+import dev.tower.application.port.out.HandoverRevisionRepository;
 import dev.tower.application.port.out.SourceVersionCollector;
 import dev.tower.application.port.out.SyncRunRepository;
 import dev.tower.application.service.DocumentTemplateService;
@@ -107,9 +108,10 @@ public class ApplicationServicesConfiguration {
     @Bean
     public ReleasePackService releasePackService(
             ReleasePackRepository releasePackRepository, ApplicationVersionRepository applicationVersionRepository,
-            PromotionPathRepository promotionPathRepository, Clock clock) {
-        return new ReleasePackService(
-                releasePackRepository, applicationVersionRepository, promotionPathRepository, clock);
+            PromotionPathRepository promotionPathRepository,
+            HandoverRevisionRepository handoverRevisionRepository, Clock clock) {
+        return new ReleasePackService(releasePackRepository, applicationVersionRepository,
+                promotionPathRepository, handoverRevisionRepository, clock);
     }
 
     @Bean

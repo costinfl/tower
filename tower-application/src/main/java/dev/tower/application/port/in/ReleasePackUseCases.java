@@ -2,6 +2,7 @@ package dev.tower.application.port.in;
 
 import dev.tower.domain.application.ApplicationVersionId;
 import dev.tower.domain.handover.Handover;
+import dev.tower.domain.handover.HandoverRevision;
 import dev.tower.domain.iteration.IterationId;
 import dev.tower.domain.promotionpath.PromotionPathId;
 import dev.tower.domain.releasepack.ReleasePack;
@@ -35,6 +36,16 @@ public interface ReleasePackUseCases {
 
     /** FR-006. */
     ReleasePack updateHandover(ReleasePackId id, Handover handover);
+
+    /**
+     * Every version this Release Pack's Handover has had, newest first (ADR-016).
+     *
+     * <p>Read-only, and there is deliberately no counterpart that restores one. A
+     * revision records what a team was told; putting an old one back is an edit
+     * like any other, and it appends a new revision rather than rewriting
+     * history.
+     */
+    List<HandoverRevision> handoverHistory(ReleasePackId id);
 
     ReleasePack startIteration(StartIteration command);
 

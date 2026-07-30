@@ -541,6 +541,22 @@ export function removeReleasePackVersion(id: string, versionId: string): Promise
   );
 }
 
+// Every version the Handover has had, newest first (ADR-016). Read-only, and
+// there is deliberately no "restore" call: putting an old Handover back is an
+// edit like any other, made through the ordinary update, and it appends a new
+// revision rather than rewriting history.
+export interface HandoverRevision extends ReleasePackHandoverInput {
+  id: string;
+  revisionNumber: number;
+  recordedAt: string;
+  current: boolean;
+  empty: boolean;
+}
+
+export function getHandoverHistory(id: string): Promise<HandoverRevision[]> {
+  return getJson<HandoverRevision[]>(`/api/release-packs/${encodeURIComponent(id)}/handover/history`);
+}
+
 export function updateReleasePackHandover(id: string, input: ReleasePackHandoverInput): Promise<ReleasePackView> {
   return putJson<ReleasePackView>(`/api/release-packs/${encodeURIComponent(id)}/handover`, input);
 }

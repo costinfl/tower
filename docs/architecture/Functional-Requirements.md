@@ -16,7 +16,7 @@
 
 This document defines the functional capabilities required for Milestone 1.
 
-FR-055 to FR-061 extend it to Milestone 2, and FR-062 to FR-066 to Milestone 3; each group is under its own heading.
+FR-055 to FR-061 extend it to Milestone 2, and FR-062 to FR-067 to Milestone 3; each group is under its own heading.
 
 Each requirement is atomic, uniquely identified and traceable.
 
@@ -442,6 +442,14 @@ The system shall report the sections a Document Template may select from, so tha
 
 ---
 
+## FR-067
+
+The system shall record every version of a Release Pack's Handover information and make the history available to the user.
+
+No operation shall modify or delete a recorded version. Restoring an earlier version shall be an ordinary edit that appends a new one.
+
+---
+
 ## FR-066
 
 The system shall generate a release document as a Word document, using heading styles that survive import
@@ -458,9 +466,9 @@ while a PDF does neither in reverse.
 
 IA-02 requires User-Owned Information to be versioned by Tower.
 
-Milestone 1 versions Promotion Paths (ADR-007) and preserves Observation history, but does not version Release Pack metadata or Handover information.
+Promotion Paths are versioned (ADR-007), Observation history is preserved, and Handover information is now versioned (ADR-016): every edit appends an immutable revision and none is ever modified or deleted.
 
-Full coverage of IA-02 is deferred to a later milestone and recorded here so the gap is visible rather than assumed closed.
+Release Pack metadata remains unversioned. A rename overwrites the previous name, and ADR-016 records that as a deliberate remaining gap rather than an unmet requirement: it is a fact about Tower's own bookkeeping rather than about what a team was told to do.
 
 ---
 
@@ -470,6 +478,6 @@ FR-001 to FR-054 define the functional scope of Milestone 1.
 
 FR-055 to FR-061 define what Milestone 2 adds.
 
-FR-062 to FR-066 define what Milestone 3 adds.
+FR-062 to FR-067 define what Milestone 3 adds.
 
 Capabilities beyond these requirements shall be evaluated in future milestones.

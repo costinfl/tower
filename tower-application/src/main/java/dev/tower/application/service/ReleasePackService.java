@@ -3,10 +3,12 @@ package dev.tower.application.service;
 import dev.tower.application.port.in.ReleasePackUseCases;
 import dev.tower.application.port.out.ApplicationVersionRepository;
 import dev.tower.application.port.out.PromotionPathRepository;
+import dev.tower.application.port.out.HandoverRevisionRepository;
 import dev.tower.application.port.out.ReleasePackRepository;
 import dev.tower.domain.application.ApplicationVersion;
 import dev.tower.domain.application.ApplicationVersionId;
 import dev.tower.domain.handover.Handover;
+import dev.tower.domain.handover.HandoverRevision;
 import dev.tower.domain.iteration.Iteration;
 import dev.tower.domain.iteration.IterationId;
 import dev.tower.domain.promotionpath.PromotionPath;
@@ -29,15 +31,18 @@ public class ReleasePackService implements ReleasePackUseCases {
     private final ReleasePackRepository releasePacks;
     private final ApplicationVersionRepository versions;
     private final PromotionPathRepository promotionPaths;
+    private final HandoverRevisionRepository handoverRevisions;
     private final Clock clock;
 
     public ReleasePackService(ReleasePackRepository releasePacks,
                               ApplicationVersionRepository versions,
                               PromotionPathRepository promotionPaths,
+                              HandoverRevisionRepository handoverRevisions,
                               Clock clock) {
         this.releasePacks = Objects.requireNonNull(releasePacks);
         this.versions = Objects.requireNonNull(versions);
         this.promotionPaths = Objects.requireNonNull(promotionPaths);
+        this.handoverRevisions = Objects.requireNonNull(handoverRevisions);
         this.clock = Objects.requireNonNull(clock);
     }
 
@@ -113,7 +118,27 @@ public class ReleasePackService implements ReleasePackUseCases {
 
     @Override
     public ReleasePack updateHandover(ReleasePackId id, Handover handover) {
-        return releasePacks.save(get(id).updateHandover(handover));
+        ReleasePack updated = releasePacks.save(get(id).updateHandover(handover));
+
+        // ADR-016: the current Handover lives on the aggregate and every version
+        // lives in the revision store, so this is the one place that writes both.
+        // Nothing else may write either, which is what keeps the newest revision
+        // and the aggregate's Handover the same thing.
+        handoverRevisions.append(HandoverRevision.record(
+                id,
+                handoverRevisions.highestRevisionNumber(id) + 1,
+                updated.handover(),
+                clock.instant()));
+
+        return updated;
+    }
+
+    @Override
+    public List<HandoverRevision> handoverHistory(ReleasePackId id) {
+        // Fails for a Release Pack that does not exist rather than answering with
+        // an empty history, which would read as "nothing was ever handed over".
+        get(id);
+        return handoverRevisions.findAllByReleasePack(id);
     }
 
     @Override
