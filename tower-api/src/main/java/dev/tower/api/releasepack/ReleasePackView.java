@@ -21,8 +21,20 @@ import dev.tower.domain.releasepack.ReleasePack;
  */
 public record ReleasePackView(
         String id, String name, String description, boolean archived,
-        PromotionPathAssignmentView promotionPath, List<PackContentView> contents, HandoverView handover,
+        PromotionPathAssignmentView promotionPath, List<PackContentView> contents,
+        List<WorkItemView> workItems, HandoverView handover,
         List<IterationView> iterations) {
+
+    /**
+     * A work item the release claims to deliver (ADR-018).
+     *
+     * <p>The title is what a person accepted, not what the tracker says now.
+     * Whether the two still agree is a separate question, answered by the
+     * resolution endpoint and never by this view — a Release Pack read must not
+     * depend on an external system being reachable.
+     */
+    public record WorkItemView(String identifier, String title, boolean titleAccepted) {
+    }
 
     public static ReleasePackView from(
             ReleasePack pack,
@@ -43,7 +55,13 @@ public record ReleasePackView(
 
         List<IterationView> iterationViews = pack.iterations().stream().map(IterationView::from).toList();
 
+        List<WorkItemView> workItemViews = pack.workItems().stream()
+                .map(reference -> new WorkItemView(
+                        reference.identifier(), reference.title(), reference.hasTitle()))
+                .toList();
+
         return new ReleasePackView(pack.id().toString(), pack.name(), pack.description(), pack.isArchived(),
-                promotionPathView, contentViews, HandoverView.from(pack.handover()), iterationViews);
+                promotionPathView, contentViews, workItemViews,
+                HandoverView.from(pack.handover()), iterationViews);
     }
 }

@@ -1,6 +1,7 @@
 package dev.tower.docgen;
 
 import dev.tower.domain.releasepack.ReleasePackState;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
@@ -27,6 +28,8 @@ class MarkdownReleaseDocumentRendererTest {
                         "Regular", 1, List.of("Dev1", "SIT1", "UAT", "Production"))),
                 List.of(new ReleaseDocument.ContentEntry(
                         "Customer API", "2.5.0", "release/2.5", "v2.5.0", "abc1234", "build-991")),
+                List.of(new ReleaseDocument.WorkItemEntry("PROJ-123", "Save basket"),
+                        new ReleaseDocument.WorkItemEntry("PROJ-140", "")),
                 new ReleaseDocument.HandoverSection(
                         "Deploy customer-api first.", "kubectl rollout status deploy/customer-api",
                         "V37__add_index.sql", "Roll back orders-api first.",
@@ -39,8 +42,44 @@ class MarkdownReleaseDocumentRendererTest {
     private ReleaseDocument emptyDocument() {
         return new ReleaseDocument("Release 2026.09", "", ReleasePackState.PLANNED, false,
                 Optional.empty(), List.of(),
+                List.of(),
                 new ReleaseDocument.HandoverSection("", "", "", "", "", "", false),
                 List.of(), List.of());
+    }
+
+    @Nested
+    @DisplayName("work items — what the release delivers (ADR-018)")
+    class WorkItems {
+
+        @Test
+        void lists_what_the_release_delivers_in_the_order_they_were_linked() {
+            String out = renderer.render(fullDocument());
+
+            assertThat(out).contains("## Work Items");
+            assertThat(out.indexOf("PROJ-123")).isLessThan(out.indexOf("PROJ-140"));
+            assertThat(out).contains("| PROJ-123 | Save basket |");
+        }
+
+        @Test
+        void an_item_with_no_accepted_title_says_so_rather_than_leaving_a_blank() {
+            assertThat(renderer.render(fullDocument())).contains("| PROJ-140 | _no title accepted_ |");
+        }
+
+        @Test
+        void prints_no_status_because_the_tracker_owns_it() {
+            // ADR-018: a status printed into a document would be stale before
+            // the document was read, and NFR-025 would break the moment a
+            // ticket moved.
+            String out = renderer.render(fullDocument());
+
+            assertThat(out).doesNotContain("Status |").doesNotContain("In Progress").doesNotContain("Done");
+        }
+
+        @Test
+        void a_release_with_no_work_items_says_so() {
+            assertThat(renderer.render(emptyDocument()))
+                    .contains("_No work items have been linked to this Release Pack._");
+        }
     }
 
     @Nested
@@ -96,7 +135,8 @@ class MarkdownReleaseDocumentRendererTest {
             ReleaseDocument document = new ReleaseDocument("R", "", ReleasePackState.PLANNED, false,
                     Optional.empty(),
                     List.of(new ReleaseDocument.ContentEntry("Orders API", "1.0.0", null, null, null, null)),
-                    new ReleaseDocument.HandoverSection("", "", "", "", "", "", false),
+                    List.of(),
+                new ReleaseDocument.HandoverSection("", "", "", "", "", "", false),
                     List.of(), List.of());
 
             assertThat(renderer.render(document)).contains("| Orders API | 1.0.0 | — | — | — | — |");
@@ -132,7 +172,8 @@ class MarkdownReleaseDocumentRendererTest {
         void an_archived_pack_still_reports_where_it_was_observed() {
             ReleaseDocument archived = new ReleaseDocument("R", "", ReleasePackState.PRODUCTION, true,
                     Optional.empty(), List.of(),
-                    new ReleaseDocument.HandoverSection("", "", "", "", "", "", false),
+                    List.of(),
+                new ReleaseDocument.HandoverSection("", "", "", "", "", "", false),
                     List.of(), List.of());
 
             String markdown = renderer.render(archived);
@@ -150,7 +191,8 @@ class MarkdownReleaseDocumentRendererTest {
         void pipes_and_newlines_in_notes_are_neutralised() {
             ReleaseDocument document = new ReleaseDocument("R", "", ReleasePackState.PLANNED, false,
                     Optional.empty(), List.of(),
-                    new ReleaseDocument.HandoverSection("", "", "", "", "", "", false),
+                    List.of(),
+                new ReleaseDocument.HandoverSection("", "", "", "", "", "", false),
                     List.of(new ReleaseDocument.IterationEntry(
                             "UAT", MONDAY, null, "passed | mostly\nsecond line")),
                     List.of());
@@ -175,7 +217,8 @@ class MarkdownReleaseDocumentRendererTest {
         void an_open_iteration_is_marked_rather_than_left_blank() {
             ReleaseDocument document = new ReleaseDocument("R", "", ReleasePackState.PLANNED, false,
                     Optional.empty(), List.of(),
-                    new ReleaseDocument.HandoverSection("", "", "", "", "", "", false),
+                    List.of(),
+                new ReleaseDocument.HandoverSection("", "", "", "", "", "", false),
                     List.of(new ReleaseDocument.IterationEntry("UAT", MONDAY, null, "")),
                     List.of());
 

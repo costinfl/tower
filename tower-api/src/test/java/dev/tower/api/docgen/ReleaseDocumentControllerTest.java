@@ -66,6 +66,7 @@ class ReleaseDocumentControllerTest {
     private static ReleaseDocument document() {
         return new ReleaseDocument("Release 2026.08", "", ReleasePackState.PLANNED, false,
                 Optional.empty(), List.of(),
+                List.of(),
                 new ReleaseDocument.HandoverSection("Deploy it.", "", "", "", "", "", true),
                 List.of(), List.of());
     }

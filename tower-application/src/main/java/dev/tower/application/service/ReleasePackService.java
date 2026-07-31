@@ -15,6 +15,7 @@ import dev.tower.domain.promotionpath.PromotionPath;
 import dev.tower.domain.promotionpath.PromotionPathId;
 import dev.tower.domain.releasepack.ReleasePack;
 import dev.tower.domain.releasepack.ReleasePackId;
+import dev.tower.domain.releasepack.WorkItemReference;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -114,6 +115,21 @@ public class ReleasePackService implements ReleasePackUseCases {
     @Override
     public ReleasePack removeApplicationVersion(ReleasePackId id, ApplicationVersionId versionId) {
         return releasePacks.save(get(id).removeApplicationVersion(versionId));
+    }
+
+    @Override
+    public ReleasePack linkWorkItem(ReleasePackId id, String identifier, String title) {
+        return releasePacks.save(get(id).linkWorkItem(new WorkItemReference(identifier, title)));
+    }
+
+    @Override
+    public ReleasePack acceptWorkItemTitle(ReleasePackId id, String identifier, String title) {
+        return releasePacks.save(get(id).acceptWorkItemTitle(identifier, title));
+    }
+
+    @Override
+    public ReleasePack unlinkWorkItem(ReleasePackId id, String identifier) {
+        return releasePacks.save(get(id).unlinkWorkItem(identifier));
     }
 
     @Override

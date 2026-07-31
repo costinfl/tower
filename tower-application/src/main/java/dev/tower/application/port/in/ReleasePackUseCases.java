@@ -38,6 +38,26 @@ public interface ReleasePackUseCases {
     ReleasePack updateHandover(ReleasePackId id, Handover handover);
 
     /**
+     * States that a Release Pack delivers a work item (ADR-018).
+     *
+     * <p>Intent. Tower does not check the identifier against the tracker, so a
+     * reference may be linked before any Connector is configured.
+     */
+    ReleasePack linkWorkItem(ReleasePackId id, String identifier, String title);
+
+    /**
+     * Takes the tracker's current title as Tower's own.
+     *
+     * <p>A decision rather than a refresh: the developer has seen what the
+     * tracker says and is accepting it. Nothing updates a title on its own,
+     * which is what keeps a generated document reproducible (NFR-025).
+     */
+    ReleasePack acceptWorkItemTitle(ReleasePackId id, String identifier, String title);
+
+    /** Withdraws the claim that a Release Pack delivers a work item. */
+    ReleasePack unlinkWorkItem(ReleasePackId id, String identifier);
+
+    /**
      * Every version this Release Pack's Handover has had, newest first (ADR-016).
      *
      * <p>Read-only, and there is deliberately no counterpart that restores one. A

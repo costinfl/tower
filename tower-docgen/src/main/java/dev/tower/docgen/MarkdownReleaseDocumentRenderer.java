@@ -57,6 +57,7 @@ public class MarkdownReleaseDocumentRenderer {
                 case STATUS -> renderStatus(out, document);
                 case PROMOTION_PATH -> renderPromotionPath(out, document.promotionPath());
                 case CONTENTS -> renderContents(out, document.contents());
+                case WORK_ITEMS -> renderWorkItems(out, document.workItems());
                 case HANDOVER -> renderHandover(out, document.handover());
                 case ITERATIONS -> renderIterations(out, document.iterations());
                 case SIGHTINGS -> renderSightings(out, document.sightings());
@@ -110,6 +111,30 @@ public class MarkdownReleaseDocumentRenderer {
                     .append(" | ").append(orDash(entry.tag()))
                     .append(" | ").append(orDash(entry.commit()))
                     .append(" | ").append(orDash(entry.buildIdentifier()))
+                    .append(" |\n");
+        }
+        out.append("\n");
+    }
+
+    /**
+     * What the release delivers, in the words the team accepted (ADR-018).
+     *
+     * <p>Identifier and title only. No status: the tracker owns that, and a
+     * status printed here would be stale before the page was read.
+     */
+    private void renderWorkItems(StringBuilder out, List<ReleaseDocument.WorkItemEntry> workItems) {
+        out.append("## Work Items\n\n");
+        if (workItems.isEmpty()) {
+            out.append("_No work items have been linked to this Release Pack._\n\n");
+            return;
+        }
+        out.append("| Item | Title |\n");
+        out.append("|---|---|\n");
+        for (ReleaseDocument.WorkItemEntry entry : workItems) {
+            out.append("| ").append(entry.identifier())
+                    // An identifier with no accepted title says so rather than
+                    // leaving a blank cell a reader would take for an oversight.
+                    .append(" | ").append(entry.title().isBlank() ? "_no title accepted_" : entry.title())
                     .append(" |\n");
         }
         out.append("\n");

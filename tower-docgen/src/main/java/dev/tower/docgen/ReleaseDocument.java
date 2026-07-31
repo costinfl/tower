@@ -29,12 +29,14 @@ public record ReleaseDocument(
         boolean archived,
         Optional<PromotionPathSection> promotionPath,
         List<ContentEntry> contents,
+        List<WorkItemEntry> workItems,
         HandoverSection handover,
         List<IterationEntry> iterations,
         List<SightingEntry> sightings) {
 
     public ReleaseDocument {
         contents = List.copyOf(contents);
+        workItems = List.copyOf(workItems);
         iterations = List.copyOf(iterations);
         sightings = List.copyOf(sightings);
     }
@@ -60,6 +62,21 @@ public record ReleaseDocument(
             String tag,
             String commit,
             String buildIdentifier) {
+    }
+
+    /**
+     * One work item the release claims to deliver (ADR-018).
+     *
+     * <p>The title is the one a person accepted from the tracker, not what the
+     * tracker says now. Nothing here is read at generation time, which is what
+     * keeps NFR-025 true: rewriting a ticket summary does not change a document
+     * already handed over.
+     *
+     * <p>No status. That is the tracker's, read on request in the Viewer and
+     * stored nowhere — a status printed into a document would be stale before
+     * the document was read.
+     */
+    public record WorkItemEntry(String identifier, String title) {
     }
 
     /** Developer-owned deployment information (FR-028, FR-029). */

@@ -77,9 +77,26 @@ public class ReleaseDocumentAssembler {
                 pack.isArchived(),
                 promotionPathSection(pack),
                 contents(pack, versionsById, applicationNames),
+                workItems(pack),
                 handoverSection(pack.handover()),
                 iterations(pack),
                 sightings(releasePackId, versionsById, applicationNames));
+    }
+
+    /**
+     * What the release claims to deliver, in the order the team linked them
+     * (ADR-018).
+     *
+     * <p>Read from the Release Pack and from nowhere else. The tracker is not
+     * consulted at generation time, which is what lets an unchanged release
+     * regenerate byte-identically (NFR-025) however often its tickets are
+     * edited afterwards.
+     */
+    private List<ReleaseDocument.WorkItemEntry> workItems(ReleasePack pack) {
+        return pack.workItems().stream()
+                .map(reference -> new ReleaseDocument.WorkItemEntry(
+                        reference.identifier(), reference.title()))
+                .toList();
     }
 
     private Optional<ReleaseDocument.PromotionPathSection> promotionPathSection(ReleasePack pack) {

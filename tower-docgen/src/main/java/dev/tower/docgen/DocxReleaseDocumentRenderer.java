@@ -108,6 +108,7 @@ public class DocxReleaseDocumentRenderer {
                 case STATUS -> renderStatus(out, document);
                 case PROMOTION_PATH -> renderPromotionPath(out, document.promotionPath());
                 case CONTENTS -> renderContents(out, document.contents());
+                case WORK_ITEMS -> renderWorkItems(out, document.workItems());
                 case HANDOVER -> renderHandover(out, document.handover());
                 case ITERATIONS -> renderIterations(out, document.iterations());
                 case SIGHTINGS -> renderSightings(out, document.sightings());
@@ -170,6 +171,21 @@ public class DocxReleaseDocumentRenderer {
                     orDash(entry.tag()), orDash(entry.commit()), orDash(entry.buildIdentifier())));
         }
         table(out, List.of("Application", "Version", "Branch", "Tag", "Commit", "Build"), rows, true);
+    }
+
+    /** What the release delivers, in the words the team accepted (ADR-018). */
+    private void renderWorkItems(StringBuilder out, List<ReleaseDocument.WorkItemEntry> workItems) {
+        heading(out, 2, "Work Items");
+        if (workItems.isEmpty()) {
+            paragraph(out, "No work items have been linked to this Release Pack.", "Quote");
+            return;
+        }
+        var rows = new java.util.ArrayList<List<String>>();
+        for (ReleaseDocument.WorkItemEntry entry : workItems) {
+            rows.add(List.of(entry.identifier(),
+                    entry.title().isBlank() ? "no title accepted" : entry.title()));
+        }
+        table(out, List.of("Item", "Title"), rows, true);
     }
 
     private void renderHandover(StringBuilder out, ReleaseDocument.HandoverSection handover) {

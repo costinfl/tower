@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
@@ -115,6 +116,50 @@ public class ReleasePackController {
         ReleasePack updated = releasePackUseCases.removeApplicationVersion(
                 ReleasePackId.of(id), ApplicationVersionId.of(versionId));
         return toView(updated);
+    }
+
+    /**
+     * States that this release delivers a work item (ADR-018).
+     *
+     * <p>The identifier travels in the body rather than the path: a tracker key
+     * may contain a slash or a hash, and a path variable would have to be
+     * escaped by every caller and unescaped here for no benefit.
+     */
+    @PostMapping("/{id}/work-items")
+    public ReleasePackView linkWorkItem(
+            @PathVariable("id") String id, @Valid @RequestBody WorkItemRequest request) {
+        return toView(releasePackUseCases.linkWorkItem(
+                ReleasePackId.of(id), request.identifier(), request.title()));
+    }
+
+    /**
+     * Takes the tracker's current title as Tower's own.
+     *
+     * <p>An explicit act, never automatic. Nothing refreshes a title on its own,
+     * which is what keeps a generated document reproducible (NFR-025).
+     */
+    @PutMapping("/{id}/work-items/title")
+    public ReleasePackView acceptWorkItemTitle(
+            @PathVariable("id") String id, @Valid @RequestBody WorkItemRequest request) {
+        return toView(releasePackUseCases.acceptWorkItemTitle(
+                ReleasePackId.of(id), request.identifier(), request.title()));
+    }
+
+    /** Withdraws the claim that this release delivers a work item. */
+    @DeleteMapping("/{id}/work-items")
+    public ReleasePackView unlinkWorkItem(
+            @PathVariable("id") String id, @RequestParam("identifier") String identifier) {
+        return toView(releasePackUseCases.unlinkWorkItem(ReleasePackId.of(id), identifier));
+    }
+
+    /**
+     * @param title may be empty: a reference can be linked before any Connector is
+     *              configured, or to a tracker Tower cannot reach
+     */
+    public record WorkItemRequest(
+            @jakarta.validation.constraints.NotBlank(message = "identifier is required")
+            String identifier,
+            String title) {
     }
 
     @PutMapping("/{id}/handover")

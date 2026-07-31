@@ -63,6 +63,7 @@ class DocumentTemplateTest {
                     DocumentSection.STATUS,
                     DocumentSection.PROMOTION_PATH,
                     DocumentSection.CONTENTS,
+                    DocumentSection.WORK_ITEMS,
                     DocumentSection.ITERATIONS,
                     DocumentSection.SIGHTINGS);
         }

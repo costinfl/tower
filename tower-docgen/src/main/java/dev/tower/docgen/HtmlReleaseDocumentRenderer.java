@@ -89,6 +89,7 @@ public class HtmlReleaseDocumentRenderer {
                 case STATUS -> renderStatus(out, document);
                 case PROMOTION_PATH -> renderPromotionPath(out, document.promotionPath());
                 case CONTENTS -> renderContents(out, document.contents());
+                case WORK_ITEMS -> renderWorkItems(out, document.workItems());
                 case HANDOVER -> renderHandover(out, document.handover());
                 case ITERATIONS -> renderIterations(out, document.iterations());
                 case SIGHTINGS -> renderSightings(out, document.sightings());
@@ -147,6 +148,26 @@ public class HtmlReleaseDocumentRenderer {
                     .append("</td><td>").append(orDash(entry.tag()))
                     .append("</td><td>").append(orDash(entry.commit()))
                     .append("</td><td>").append(orDash(entry.buildIdentifier()))
+                    .append("</td></tr>\n");
+        }
+        out.append("</table>\n");
+    }
+
+    /** What the release delivers, in the words the team accepted (ADR-018). */
+    private void renderWorkItems(StringBuilder out, List<ReleaseDocument.WorkItemEntry> workItems) {
+        out.append("<h2>Work Items</h2>\n");
+        if (workItems.isEmpty()) {
+            absent(out, "No work items have been linked to this Release Pack.");
+            return;
+        }
+        out.append("<table>\n<tr><th>Item</th><th>Title</th></tr>\n");
+        for (ReleaseDocument.WorkItemEntry entry : workItems) {
+            out.append("<tr><td>").append(escape(entry.identifier()))
+                    .append("</td><td>")
+                    // Said rather than left blank: an empty cell reads as an
+                    // oversight, and this is a deliberate state.
+                    .append(entry.title().isBlank()
+                            ? "<em>no title accepted</em>" : escape(entry.title()))
                     .append("</td></tr>\n");
         }
         out.append("</table>\n");

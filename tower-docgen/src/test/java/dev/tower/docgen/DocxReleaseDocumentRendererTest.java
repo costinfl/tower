@@ -58,6 +58,7 @@ class DocxReleaseDocumentRendererTest {
                         "Regular", 1, List.of("Dev1", "SIT1", "UAT", "Production"))),
                 List.of(new ReleaseDocument.ContentEntry(
                         "Customer API", "2.5.0", "release/2.5", "v2.5.0", "abc1234", "build-991")),
+                List.of(),
                 new ReleaseDocument.HandoverSection(
                         "Deploy customer-api first.", "kubectl rollout status deploy/customer-api",
                         "V37__add_index.sql", "", "Smoke test checkout.", "Expect brief latency.", true),
@@ -69,6 +70,7 @@ class DocxReleaseDocumentRendererTest {
     private ReleaseDocument emptyDocument() {
         return new ReleaseDocument("Release 2026.09", "", ReleasePackState.PLANNED, false,
                 Optional.empty(), List.of(),
+                List.of(),
                 new ReleaseDocument.HandoverSection("", "", "", "", "", "", false),
                 List.of(), List.of());
     }
@@ -216,7 +218,8 @@ class DocxReleaseDocumentRendererTest {
             // that was written.
             var document = new ReleaseDocument("R", "", ReleasePackState.PLANNED, false,
                     Optional.empty(), List.of(),
-                    new ReleaseDocument.HandoverSection(
+                    List.of(),
+                new ReleaseDocument.HandoverSection(
                             "first line\nsecond line", "", "", "", "", "", true),
                     List.of(), List.of());
 
@@ -239,7 +242,8 @@ class DocxReleaseDocumentRendererTest {
         void escapes_markup_in_text_taken_from_the_model() {
             var document = new ReleaseDocument("<script>", "", ReleasePackState.PLANNED, false,
                     Optional.empty(), List.of(),
-                    new ReleaseDocument.HandoverSection(
+                    List.of(),
+                new ReleaseDocument.HandoverSection(
                             "cat a.xml | grep \"<host>\" && echo 'done'", "", "", "", "", "", true),
                     List.of(), List.of());
 
@@ -256,7 +260,8 @@ class DocxReleaseDocumentRendererTest {
             // rather than one character and tells the reader nothing.
             var document = new ReleaseDocument("R", "", ReleasePackState.PLANNED, false,
                     Optional.empty(), List.of(),
-                    new ReleaseDocument.HandoverSection(
+                    List.of(),
+                new ReleaseDocument.HandoverSection(
                             "before after", "", "", "", "", "", true),
                     List.of(), List.of());
 
