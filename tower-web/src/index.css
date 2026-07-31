@@ -623,12 +623,21 @@ select {
   font-weight: 600;
 }
 
+/* A commit is whatever was recorded: seven characters when somebody typed an
+   abbreviation, forty when it came from a git ref (ADR-014). The full value is
+   always shown — Tower displays what it was told and does not shorten it — so
+   the chip has to wrap inside itself. Without this an unbreakable forty-character
+   hash is wider than the space left on the line, takes a row of its own, and
+   pushes Delete onto a third, which makes one version look unlike its
+   neighbours for no reason a reader could act on. */
 .version-item__attr {
   color: var(--text-muted);
   border: 1px solid var(--border);
   border-radius: 4px;
   padding: 0 0.4rem;
   font-size: 0.78rem;
+  overflow-wrap: anywhere;
+  min-width: 0;
 }
 
 .version-item__delete {
