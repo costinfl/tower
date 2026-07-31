@@ -287,6 +287,68 @@ check "a release seen whole reports complete, oldest Environment first" "$WHOLE"
 
 echo
 echo "=============================================================="
+echo " MILESTONE 5 — Operational dashboard (issue #7)"
+echo "=============================================================="
+# Regular goes Dev1 → SIT1 → UAT → PreProd → Production; Hotfix goes
+# Dev-Hotfix → SIT → UAT → Production. They share UAT and Production, so those
+# two are the Environments both releases are heading for.
+
+CONTESTED=$(curl -s "$B/api/dashboard" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+print(','.join(sorted(e['name'] for e in d['environments'] if e['contested'])))")
+check "names the Environments two releases are heading for" "$CONTESTED" "Production,UAT"
+
+check "counts them too" \
+  "$(curl -s "$B/api/dashboard" | python3 -c "import json,sys;print(json.load(sys.stdin)['summary']['contestedEnvironments'])")" \
+  "2"
+
+# The order must not be a ranking: alphabetical, whatever the progress.
+ORDER=$(curl -s "$B/api/dashboard" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+uat=[e for e in d['environments'] if e['name']=='UAT'][0]
+print(','.join(c['name'] for c in uat['converging']))")
+check "lists converging releases by name, not by how far along they are" "$ORDER" \
+  "Hotfix 2026.08.1,Release 2026.08"
+
+# The hotfix reached Production but was never observed in UAT. That must read
+# as "nobody said", not as "not deployed".
+STANDING=$(curl -s "$B/api/dashboard" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+uat=[e for e in d['environments'] if e['name']=='UAT'][0]
+print(','.join('%s=%s' % (c['name'], c['standing']) for c in uat['converging']))")
+check "names each standing for what Tower was told" "$STANDING" \
+  "Hotfix 2026.08.1=NOT_OBSERVED_HERE,Release 2026.08=PARTLY_OBSERVED"
+
+# A release only appears against Environments its own pinned path names. The
+# Hotfix path has no PreProd, so it must not appear there.
+NOHOTFIX=$(curl -s "$B/api/dashboard" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+pre=[e for e in d['environments'] if e['name']=='PreProd'][0]
+print(any(c['name'].startswith('Hotfix') for c in pre['converging']))")
+check "a release is not heading for an Environment its path omits" "$NOHOTFIX" "False"
+
+FURTHEST=$(curl -s "$B/api/dashboard" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+print(','.join('%s->%s' % (p['name'], '/'.join(p['furthestEnvironments'])) for p in d['releasePacks']))")
+check "reports how far each release got, releases listed by name" "$FURTHEST" \
+  "Hotfix 2026.08.1->Production,Release 2026.08->UAT"
+
+# SIT1 and PreProd have had nothing recorded against them.
+check "counts Environments Tower has been told nothing about" \
+  "$(curl -s "$B/api/dashboard" | python3 -c "import json,sys;print(json.load(sys.stdin)['summary']['environmentsNeverObserved'])")" \
+  "2"
+
+# The constraint the milestone turns on: no control here changes anything.
+check "the dashboard refuses a write rather than half-accepting one" \
+  "$(curl -s -o /dev/null -w '%{http_code}' -X POST "$B/api/dashboard")" "405"
+
+echo
+echo "=============================================================="
 echo " READ-ONLY — Tower observes and never acts (ADR-001)"
 echo "=============================================================="
 ACTION=$(curl -s "$B/api/release-packs" | grep -icE '"(promote|deploy|trigger|execute|rollback)"' || true)

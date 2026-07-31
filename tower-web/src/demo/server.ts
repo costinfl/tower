@@ -379,6 +379,110 @@ function packProgressionView(packId: string) {
   return { observed: arrivals.length > 0, arrivals };
 }
 
+// Mirrors DashboardService. Composes the derivations above rather than adding
+// new ones, for the same reason the real service does: a dashboard that
+// disagreed with the pages it summarises would be worse than no dashboard.
+//
+// Releases converging on an Environment are ordered BY NAME. Any order derived
+// from progress would read as a recommendation, and deciding which release
+// proceeds is the business team's call (ADR-001, Guardrails.md).
+function dashboardView() {
+  const active = state.packs.filter((p) => !p.archived);
+  const progressions = new Map(active.map((p) => [p.id, packProgressionView(p.id)]));
+
+  // The pinned Promotion Path version, not the path's current one (ADR-007).
+  const namesEnvironment = (p: PackRec, environmentId: string) => {
+    if (!p.promotionPathId) return false;
+    const assigned = path(p.promotionPathId);
+    const pinned = assigned?.versions.find((v) => v.number === p.promotionPathVersion);
+    return pinned ? pinned.environmentIds.includes(environmentId) : false;
+  };
+
+  let contested = 0;
+  let neverObserved = 0;
+  const environments = state.environments.map((e) => {
+    const derived = environmentStateView(e.id);
+    if (!derived.hasBeenObserved) neverObserved += 1;
+
+    const converging = active
+      .filter((p) => namesEnvironment(p, e.id))
+      .map((p) => {
+        const arrival = progressions.get(p.id)!.arrivals.find((a) => a.environmentId === e.id);
+        // No arrival means no Observation of this release here. That is not
+        // evidence it is absent — nobody may have looked (Scenario 4).
+        return {
+          releasePackId: p.id,
+          name: p.name,
+          standing: !arrival ? "NOT_OBSERVED_HERE" : arrival.complete ? "FULLY_OBSERVED" : "PARTLY_OBSERVED",
+          firstObservedAt: arrival ? arrival.firstObservedAt : null,
+          completeAt: arrival ? arrival.completeAt : null,
+          observedCount: arrival ? arrival.observedCount : 0,
+          packedCount: p.contents.length,
+        };
+      })
+      .sort((x, y) => x.name.localeCompare(y.name, undefined, { sensitivity: "base" }));
+
+    if (converging.length > 1) contested += 1;
+
+    return {
+      environmentId: e.id,
+      name: e.name,
+      stage: e.stage,
+      hasBeenObserved: derived.hasBeenObserved,
+      lastObservedAt: derived.lastObservedAt,
+      deployedCount: derived.deployed.length,
+      contested: converging.length > 1,
+      converging,
+    };
+  });
+
+  const releasePacks = active
+    .map((p) => {
+      const arrivals = progressions.get(p.id)!.arrivals;
+      // Every Environment at the highest Stage, not one: Environments share
+      // Stages (ADR-008), and picking between two equally-far ones would
+      // answer a question the data does not answer.
+      let furthest: string[] = [];
+      let furthestRank = 0;
+      let lastObservedAt: string | null = null;
+      for (const a of arrivals) {
+        const e = env(a.environmentId);
+        if (e && STAGE_RANK[e.stage] > furthestRank) {
+          furthestRank = STAGE_RANK[e.stage];
+          furthest = [];
+        }
+        if (e && STAGE_RANK[e.stage] === furthestRank) furthest.push(e.name);
+        const seen = a.completeAt ?? a.firstObservedAt;
+        if (!lastObservedAt || Date.parse(seen) > Date.parse(lastObservedAt)) lastObservedAt = seen;
+      }
+      furthest.sort((x, y) => x.localeCompare(y, undefined, { sensitivity: "base" }));
+      const assigned = p.promotionPathId ? path(p.promotionPathId) : undefined;
+      return {
+        releasePackId: p.id,
+        name: p.name,
+        state: packStateView(p.id).state,
+        promotionPath: assigned ? assigned.name : null,
+        contentCount: p.contents.length,
+        environmentsReached: arrivals.length,
+        furthestEnvironments: furthest,
+        lastObservedAt,
+      };
+    })
+    .sort((x, y) => x.name.localeCompare(y.name, undefined, { sensitivity: "base" }));
+
+  return {
+    environments,
+    releasePacks,
+    summary: {
+      activeReleasePacks: active.length,
+      archivedReleasePacks: state.packs.length - active.length,
+      contestedEnvironments: contested,
+      packsNotObservedAnywhere: active.filter((p) => !progressions.get(p.id)!.observed).length,
+      environmentsNeverObserved: neverObserved,
+    },
+  };
+}
+
 // ADR-008: the highest Stage at which any of the pack's contents was observed.
 // Driven by Stage, not by path topology, which is what lets the Hotfix pack
 // reach PRODUCTION with no pre-production Environment in its path.
@@ -690,6 +794,8 @@ export function handle(pathname: string, method: string, body: Json | null): unk
   const [, area, a, b, c, d] = s;
 
   if (area === "health") return { status: "UP", version: "demo" };
+
+  if (area === "dashboard") return dashboardView();
 
   if (area === "bindings") {
     if (a === "environments") {

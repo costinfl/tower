@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { getHealth } from "./api/client";
 import ApplicationsPage from "./pages/ApplicationsPage";
 import ConnectorsPage from "./pages/ConnectorsPage";
+import DashboardPage from "./pages/DashboardPage";
 import DocumentTemplatesPage from "./pages/DocumentTemplatesPage";
 import EnvironmentsPage from "./pages/EnvironmentsPage";
 import PortabilityPage from "./pages/PortabilityPage";
@@ -15,9 +16,12 @@ type ConnectionState =
   | { kind: "connected"; status: string }
   | { kind: "error"; message: string };
 
-// Release Packs leads the nav — it is Tower's central business concept
-// (ADR-004) and every other screen exists to support it.
+// The Dashboard leads the nav from Milestone 5: it is the question a
+// developer arrives with — what is in flight and what is competing for what —
+// and every other screen answers a narrower one. Release Packs stays second
+// because it remains Tower's central business concept (ADR-004).
 type Tab =
+  | "dashboard"
   | "releasePacks"
   | "applications"
   | "paths"
@@ -28,7 +32,7 @@ type Tab =
 
 export default function App() {
   const [connection, setConnection] = useState<ConnectionState>({ kind: "loading" });
-  const [tab, setTab] = useState<Tab>("releasePacks");
+  const [tab, setTab] = useState<Tab>("dashboard");
 
   useEffect(() => {
     let cancelled = false;
@@ -56,6 +60,13 @@ export default function App() {
       <header className="app-header">
         <h1>Tower</h1>
         <nav className="app-nav">
+          <button
+            type="button"
+            className={tab === "dashboard" ? "app-nav__tab app-nav__tab--active" : "app-nav__tab"}
+            onClick={() => setTab("dashboard")}
+          >
+            Dashboard
+          </button>
           <button
             type="button"
             className={tab === "releasePacks" ? "app-nav__tab app-nav__tab--active" : "app-nav__tab"}
@@ -127,6 +138,7 @@ export default function App() {
       </header>
       {DEMO_MODE && <DemoBanner />}
       <main className="app-main">
+        {tab === "dashboard" && <DashboardPage />}
         {tab === "releasePacks" && <ReleasePacksPage />}
         {tab === "applications" && <ApplicationsPage />}
         {tab === "paths" && <PromotionPathsPage />}

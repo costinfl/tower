@@ -155,6 +155,13 @@ export function getHealth(): Promise<HealthStatus> {
   return getJson<HealthStatus>("/api/health");
 }
 
+// The whole operational dashboard in one read, derived on request and stored
+// nowhere. One GET and nothing else — there is no control on this resource
+// that promotes, deploys or triggers anything (ADR-001).
+export function getDashboard(): Promise<DashboardView> {
+  return getJson<DashboardView>("/api/dashboard");
+}
+
 // --- Environments -----------------------------------------------------
 
 export function getEnvironments(): Promise<Environment[]> {
@@ -365,6 +372,67 @@ export interface StateComparisonView {
   identical: boolean;
   differences: DifferenceView[];
   unchanged: UnchangedView[];
+}
+
+// --- Operational dashboard (Milestone 5) --------------------------------
+
+// How much of a Release Pack has been observed in one Environment. Named for
+// what Tower was told, never for what is deployed: NOT_OBSERVED_HERE means
+// nobody has reported this release in this Environment, which is a different
+// fact from the release being absent (Scenarios.md Scenario 4).
+export type ConvergingStanding = "NOT_OBSERVED_HERE" | "PARTLY_OBSERVED" | "FULLY_OBSERVED";
+
+export interface ConvergingPackView {
+  releasePackId: string;
+  name: string;
+  standing: ConvergingStanding;
+  firstObservedAt: string | null;
+  completeAt: string | null;
+  observedCount: number;
+  packedCount: number;
+}
+
+// `converging` arrives ordered BY NAME and must be rendered in that order.
+// Any reordering by progress — nearest to arriving, furthest along — would
+// turn a list into a recommendation, and deciding which release proceeds is
+// the business team's call, not Tower's (ADR-001, Guardrails.md).
+export interface DashboardEnvironmentView {
+  environmentId: string;
+  name: string;
+  stage: Stage;
+  hasBeenObserved: boolean;
+  lastObservedAt: string | null;
+  deployedCount: number;
+  contested: boolean;
+  converging: ConvergingPackView[];
+}
+
+export interface DashboardReleasePackView {
+  releasePackId: string;
+  name: string;
+  state: ReleasePackState;
+  promotionPath: string | null;
+  contentCount: number;
+  environmentsReached: number;
+  // Every Environment at the highest Stage this release was observed at.
+  // A list, not one name: Environments share Stages (ADR-008), and naming
+  // one of them would answer a question the data does not answer.
+  furthestEnvironments: string[];
+  lastObservedAt: string | null;
+}
+
+export interface DashboardSummaryView {
+  activeReleasePacks: number;
+  archivedReleasePacks: number;
+  contestedEnvironments: number;
+  packsNotObservedAnywhere: number;
+  environmentsNeverObserved: number;
+}
+
+export interface DashboardView {
+  environments: DashboardEnvironmentView[];
+  releasePacks: DashboardReleasePackView[];
+  summary: DashboardSummaryView;
 }
 
 // --- Release Pack state -------------------------------------------------

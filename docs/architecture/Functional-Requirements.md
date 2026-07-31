@@ -495,6 +495,61 @@ that the release is absent from it.
 
 ---
 
+# Milestone 5 — Operational Dashboard
+
+## FR-071
+
+The system shall provide a single operational view across all active Release Packs, so that a developer need
+not open each one to see where things stand.
+
+Archived Release Packs shall be excluded. Archiving records that a team stopped working a release (ADR-008),
+and a release nobody is working is not in flight.
+
+---
+
+## FR-072
+
+For each Environment, the system shall report which active Release Packs are heading for it, and how much of
+each has been observed there.
+
+A Release Pack is heading for an Environment when the pack's own pinned Promotion Path version names that
+Environment (ADR-007). The expectation comes from the team's topology and never from Tower inferring where a
+release ought to go.
+
+An Environment more than one active Release Pack is heading for shall be identified as such, because that is
+the situation the dashboard exists to surface.
+
+---
+
+## FR-073
+
+The system shall not rank Release Packs, recommend one, or present them in an order derived from their
+progress.
+
+Converging releases shall be ordered by name. Deciding which release proceeds belongs to the team; Tower
+shows the situation and stops there (ADR-001; Guardrails.md lists "Visualizes" and does not list "Decides").
+
+---
+
+## FR-074
+
+The dashboard shall offer no operation that promotes, deploys, approves or triggers anything.
+
+The resource shall accept a read and refuse every other method. This restates ADR-001 at the point where a
+control would be most tempting to add.
+
+---
+
+## FR-075
+
+Summary indicators shall distinguish what Tower has been told from what is true.
+
+A count of Release Packs observed nowhere, or of Environments nothing has been recorded against, is a count
+of silence. It shall be labelled as such and never presented as a count of failure or of absence
+(Scenarios.md Scenario 4).
+
+---
+
 # Deferred
 
 ## FR-054
@@ -516,5 +571,7 @@ FR-055 to FR-061 define what Milestone 2 adds.
 FR-062 to FR-067 define what Milestone 3 adds.
 
 FR-068 to FR-070 define what Milestone 4 adds.
+
+FR-071 to FR-075 define what Milestone 5 adds.
 
 Capabilities beyond these requirements shall be evaluated in future milestones.

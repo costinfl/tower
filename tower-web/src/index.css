@@ -1355,3 +1355,129 @@ select {
   font-size: 0.85rem;
   opacity: 0.8;
 }
+
+/* --- Operational dashboard (Milestone 5, issue #7) --------------------- */
+
+.summary-tiles {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin: 1rem 0 0.5rem;
+}
+
+.summary-tile {
+  flex: 1 1 12rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.summary-tile__value {
+  font-size: 1.6rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.summary-tile__label {
+  font-size: 0.8rem;
+  opacity: 0.75;
+}
+
+/* Contention is the thing this page exists to surface, so it is marked — but
+   marked as notable, never as wrong. Two releases heading for one Environment
+   is an ordinary situation a team needs to see, not an error. */
+.summary-tile--emphasis {
+  border-color: var(--stage-pre-production);
+}
+
+.summary-tile--muted {
+  opacity: 0.6;
+}
+
+.dashboard-environments {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(22rem, 1fr));
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.env-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+}
+
+.env-card--contested {
+  border-color: var(--stage-pre-production);
+}
+
+.env-card__header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.4rem;
+}
+
+.env-card__name {
+  font-weight: 600;
+}
+
+.env-card__observed {
+  font-size: 0.82rem;
+  opacity: 0.75;
+  margin: 0 0 0.5rem;
+}
+
+/* Never rendered as an empty-and-therefore-fine line: an Environment nobody
+   has reported on is a different fact from one observed to hold nothing. */
+.env-card__observed--never {
+  font-style: italic;
+}
+
+.converging-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.converging {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  font-size: 0.88rem;
+}
+
+.converging__name {
+  font-weight: 600;
+}
+
+.converging__counts,
+.converging__when {
+  font-size: 0.8rem;
+  opacity: 0.7;
+}
+
+/* The three standings differ in weight, not in a good/bad colour. "Not
+   reported here" is not a failure — it means nobody has said. */
+.standing--fully_observed {
+  border-color: var(--stage-production);
+  color: var(--stage-production);
+}
+
+.standing--partly_observed {
+  border-color: var(--stage-validation);
+  color: var(--stage-validation);
+}
+
+.standing--not_observed_here {
+  opacity: 0.7;
+}

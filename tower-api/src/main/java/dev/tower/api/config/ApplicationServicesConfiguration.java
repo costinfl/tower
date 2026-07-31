@@ -27,6 +27,7 @@ import dev.tower.application.service.ExternalBindingService;
 import dev.tower.application.service.SourceControlService;
 import dev.tower.application.service.PromotionPathService;
 import dev.tower.application.service.SynchronizationService;
+import dev.tower.application.service.DashboardService;
 import dev.tower.application.service.ObservationService;
 import dev.tower.application.service.ReleasePackService;
 import dev.tower.docgen.DocxReleaseDocumentRenderer;
@@ -122,6 +123,21 @@ public class ApplicationServicesConfiguration {
             ManualObservationCollector manualObservationCollector, Clock clock) {
         return new ObservationService(observationRepository, environmentRepository,
                 applicationVersionRepository, releasePackRepository, manualObservationCollector, clock);
+    }
+
+    /**
+     * The operational dashboard (Milestone 5, issue #7).
+     *
+     * <p>Takes ObservationService rather than the repositories it would need to
+     * derive anything itself, so the dashboard cannot drift from the pages it
+     * summarises.
+     */
+    @Bean
+    public DashboardService dashboardService(
+            EnvironmentRepository environmentRepository, ReleasePackRepository releasePackRepository,
+            PromotionPathRepository promotionPathRepository, ObservationService observationService) {
+        return new DashboardService(environmentRepository, releasePackRepository,
+                promotionPathRepository, observationService);
     }
 
     @Bean

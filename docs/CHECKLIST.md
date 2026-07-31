@@ -85,6 +85,13 @@ This checklist tracks the architectural documentation required before implementa
 - [x] Release Pack progression history
 - [x] Historical comparison in the Viewer
 
+## Milestone 5 - Operational dashboard
+
+- [x] FR-071 to FR-075
+- [x] Convergence: which releases are heading for which Environment (issue #7)
+- [x] Dashboard API and screen
+- [x] Summary indicators that count silence as silence
+
 ## Deferred work closed
 
 - [x] ADR-016-Handover-Is-Versioned-Release-Pack-Metadata-Is-Not.md
@@ -92,4 +99,4 @@ This checklist tracks the architectural documentation required before implementa
 
 ---
 
-Current Phase: **Milestone 4 — Snapshots and historical comparison**
+Current Phase: **Milestone 5 — Operational dashboard**

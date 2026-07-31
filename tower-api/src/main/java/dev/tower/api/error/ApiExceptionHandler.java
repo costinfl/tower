@@ -9,6 +9,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -109,6 +111,50 @@ public class ApiExceptionHandler {
                         + " for example 2026-08-04T09:00:00Z."
                 : "'" + ex.getName() + "' is not in a form Tower can read.";
         return build(HttpStatus.BAD_REQUEST, message, request);
+    }
+
+    /**
+     * A body Jackson could not read at all — malformed JSON, a string where a
+     * number belongs.
+     *
+     * <p>400 rather than 500: nothing failed on the server, the request was not
+     * well formed. The parser's own message is not returned, because it names
+     * types and offsets from Tower's internals rather than anything the caller
+     * can act on.
+     */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> handleUnreadableBody(
+            HttpMessageNotReadableException ex, HttpServletRequest request) {
+        log.debug("Unreadable request body on {} {}", request.getMethod(), request.getRequestURI(), ex);
+        return build(HttpStatus.BAD_REQUEST,
+                "The request body could not be read. It must be well-formed JSON.", request);
+    }
+
+    /**
+     * The right resource, the wrong verb.
+     *
+     * <p>405 with an Allow header, which is what tells a caller — or a reader
+     * poking at the API by hand — that a resource is read-only. Returning 500
+     * instead made every such resource look broken rather than deliberate,
+     * which matters most for the ones that are read-only on purpose (ADR-001).
+     */
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ErrorResponse> handleMethodNotSupported(
+            HttpRequestMethodNotSupportedException ex, HttpServletRequest request) {
+        String allowed = ex.getSupportedHttpMethods() == null ? ""
+                : ex.getSupportedHttpMethods().stream().map(Object::toString)
+                        .collect(Collectors.joining(", "));
+        ErrorResponse body = new ErrorResponse(
+                Instant.now(), HttpStatus.METHOD_NOT_ALLOWED.value(),
+                allowed.isBlank()
+                        ? "That method is not supported on this resource."
+                        : "That method is not supported on this resource. Allowed: " + allowed + ".",
+                request.getRequestURI());
+        ResponseEntity.BodyBuilder response = ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED);
+        if (!allowed.isBlank()) {
+            response.header("Allow", allowed);
+        }
+        return response.body(body);
     }
 
     @ExceptionHandler(ResponseStatusException.class)
