@@ -64,9 +64,14 @@ Deferred
 
 What synchronization frequency should Connectors use?
 
+Answer
+
+None yet. Synchronization is on demand only, and stays that way until the Connectors have been proven
+against real systems.
+
 Status
 
-Implementation Decision
+Postponed — on demand only
 
 ---
 
@@ -74,9 +79,26 @@ Implementation Decision
 
 Should synchronization be manual, scheduled or event driven?
 
+Answer
+
+Manual for now. Scheduling is postponed deliberately rather than merely unbuilt.
+
+A scheduler would be the first thing in Tower that reaches an External System without a person asking.
+That is not a conflict with ADR-001 — it would still only read — but it changes who is watching when a
+Connector misbehaves. Automating a Connector nobody has yet watched work would turn a visible failure
+into a background one, and the Sync Run record would be the only witness.
+
+Tower also has one user, who is the person pressing the button. Frequency solves a problem that does not
+exist yet.
+
+The condition for revisiting is not a date but evidence: the Milestone 2 exit checks passed against a
+real cluster, and each Connector observed behaving correctly over a period of ordinary use. When that
+holds, scheduling should be recorded in an ADR rather than added quietly, because "Tower acts on its own
+timetable" is a claim about what Tower is.
+
 Status
 
-Implementation Decision
+Postponed — manual until the Connectors are proven
 
 ---
 
@@ -195,9 +217,18 @@ Future Milestone
 
 Should Connectors support incremental synchronization?
 
+Answer
+
+The question is largely answered already, from the other end. ADR-011 records that a Collector appends an
+Observation only when what it read differs from what Tower already holds, so a full read is already
+incremental in its effect: reading everything and recording nothing is the ordinary case.
+
+Whether a Connector should also read less — asking an External System only for what changed — stays open,
+and is worth revisiting only if a real synchronization proves slow. It has not.
+
 Status
 
-Implementation Decision
+Open — deferred until a real synchronization proves slow
 
 ---
 

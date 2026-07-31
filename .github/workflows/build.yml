@@ -66,9 +66,62 @@ jobs:
       - name: Build, test and verify architecture
         run: mvn -B --no-transfer-progress verify
 
+      # The two verification scripts, which check things no unit test can.
+      #
+      # Both have caught real defects that the test suite passed straight over:
+      # an endpoint answering 500 where it owed 405, a demo renderer that had
+      # silently drifted from the real one, a document assertion that was green
+      # against data never created. Until now they ran only when somebody
+      # remembered to run them, which is the same as not having them.
+      #
+      # A fresh store per run, in its own directory: acceptance.sh creates
+      # fixtures under fixed names and refuses to run against a store that
+      # already holds them.
+      - name: Start Tower on an empty store
+        env:
+          TOWER_HOME: /tmp/tower-ci-acceptance
+        run: |
+          rm -rf "$TOWER_HOME"
+          # Exactly one jar, named rather than globbed into java's argv: the
+          # module also produces a .jar.original, and a glob that quietly
+          # matched two would hand the second to the application as an argument.
+          jar=$(ls tower-api/target/tower-api-*.jar | head -1)
+          echo "Starting $jar"
+          nohup java -jar "$jar" > /tmp/tower-ci.log 2>&1 &
+          for _ in $(seq 1 60); do
+            curl -sf http://127.0.0.1:8080/api/health > /dev/null && break
+            sleep 2
+          done
+          if ! curl -sf http://127.0.0.1:8080/api/health > /dev/null; then
+            echo "::error::Tower did not start."
+            tail -50 /tmp/tower-ci.log
+            exit 1
+          fi
+
+      - name: Acceptance pass — the documented Scenarios
+        run: scripts/acceptance.sh
+
+      # The Node the build itself downloaded, not the runner's: the script
+      # bundles the demo backend with the esbuild that ships inside Vite, and
+      # borrowing a different toolchain is how the Viewer build broke once
+      # already.
+      - name: Demo docgen parity — the demo renderer against the real one
+        run: |
+          export PATH="$PWD/tower-web/target/node:$PATH"
+          scripts/verify-demo-docgen.sh
+
+      - name: Tower log on failure
+        if: failure()
+        run: tail -200 /tmp/tower-ci.log || true
+
+      - name: Stop Tower
+        if: always()
+        run: pkill -f 'tower-api-.*\.ja[r]' || true
+
       # ADR-009 keeps application data outside the working tree. If a build ever
       # writes a database file or a config file into the repository, that is a
       # defect and the build should say so rather than let it reach a commit.
+      # Deliberately after the scripts above, so it covers what they write too.
       - name: Assert the working tree is clean
         run: |
           if [ -n "$(git status --porcelain)" ]; then
