@@ -36,12 +36,25 @@ if [ ! -d "$WEB/node_modules" ]; then
   exit 2
 fi
 
-# esbuild rather than tsc: the demo backend is TypeScript with an import of its
-# own seed, and this needs one runnable ES module out of the pair. esbuild ships
-# with Vite, so it is already installed and needs no network.
-if ! (cd "$WEB" && npx --no-install esbuild src/demo/server.ts \
-        --bundle --format=esm --platform=node --log-level=warning \
-        --outfile="$OUT/demo-server.mjs"); then
+# The demo backend is TypeScript importing its own seed, and this needs one
+# runnable ES module out of the pair.
+#
+# rolldown, invoked by path rather than through npx. It is the bundler Vite 8
+# ships, so it is already installed and needs no network — and calling the
+# binary directly is the point: this script previously ran `npx --no-install
+# esbuild`, which quietly kept working on a machine whose npx cache still held
+# an esbuild from before the Vite 8 upgrade. Vite has not shipped esbuild since.
+# The script was passing locally on a stale cache and would have failed on any
+# clean checkout, which is precisely the drift it exists to catch.
+BUNDLER="$WEB/node_modules/.bin/rolldown"
+if [ ! -x "$BUNDLER" ]; then
+  echo "rolldown is missing from tower-web/node_modules. Run 'npm ci' in tower-web first." >&2
+  exit 2
+fi
+
+if ! (cd "$WEB" && "$BUNDLER" src/demo/server.ts \
+        --format esm --platform node \
+        --file "$OUT/demo-server.mjs"); then
   echo "Could not bundle the demo backend." >&2
   exit 2
 fi
