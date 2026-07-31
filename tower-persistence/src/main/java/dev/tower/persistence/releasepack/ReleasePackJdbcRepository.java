@@ -24,6 +24,7 @@ import dev.tower.domain.releasepack.PackedVersion;
 import dev.tower.domain.releasepack.PromotionPathAssignment;
 import dev.tower.domain.releasepack.ReleasePack;
 import dev.tower.domain.releasepack.ReleasePackId;
+import dev.tower.domain.releasepack.WorkItemReference;
 
 /**
  * {@link ReleasePackRepository} adapter backed by the {@code release_pack},
@@ -54,6 +55,7 @@ public class ReleasePackJdbcRepository implements ReleasePackRepository {
     public ReleasePack save(ReleasePack pack) {
         upsertPackRow(pack);
         replaceContents(pack);
+        replaceWorkItems(pack);
         upsertHandover(pack);
         replaceIterations(pack);
         return pack;
@@ -105,6 +107,36 @@ public class ReleasePackJdbcRepository implements ReleasePackRepository {
                     .param("packId", pack.id().value())
                     .param("applicationId", entry.applicationId().value())
                     .param("versionId", entry.versionId().value())
+                    .update();
+        }
+    }
+
+    /**
+     * Work items the release claims to deliver (ADR-018).
+     *
+     * <p>Replaced wholesale like contents and Iterations rather than diffed. The
+     * list is short, the aggregate is saved as a whole, and a diff would be a
+     * second place for the "same item" rule to live — that rule belongs in
+     * ReleasePack.linkWorkItem, which is case-insensitive in a way portable SQL
+     * cannot express.
+     *
+     * <p>position is written from the list order so a document lists them the
+     * way the team linked them, which NFR-025 needs to stay byte-identical.
+     */
+    private void replaceWorkItems(ReleasePack pack) {
+        jdbcClient.sql("DELETE FROM release_pack_work_item WHERE release_pack_id = :packId")
+                .param("packId", pack.id().value())
+                .update();
+        int position = 0;
+        for (WorkItemReference reference : pack.workItems()) {
+            jdbcClient.sql("""
+                    INSERT INTO release_pack_work_item (release_pack_id, identifier, title, position)
+                    VALUES (:packId, :identifier, :title, :position)
+                    """)
+                    .param("packId", pack.id().value())
+                    .param("identifier", reference.identifier())
+                    .param("title", reference.title())
+                    .param("position", position++)
                     .update();
         }
     }
@@ -247,7 +279,28 @@ public class ReleasePackJdbcRepository implements ReleasePackRepository {
 
     private ReleasePack toDomain(PackRow row) {
         return ReleasePack.reconstitute(row.id(), row.name(), row.description(), row.promotionPath(),
-                loadContents(row.id()), loadHandover(row.id()), loadIterations(row.id()), row.archived());
+                loadContents(row.id()), loadWorkItems(row.id()),
+                loadHandover(row.id()), loadIterations(row.id()), row.archived());
+    }
+
+    /**
+     * Work items the release claims to deliver (ADR-018), in the order they were
+     * linked.
+     *
+     * <p>Ordered explicitly rather than left to the database: a generated
+     * document lists them in this order, and NFR-025 requires that document to
+     * be byte-identical on regeneration. An unordered read would break it with
+     * no change to the release at all.
+     */
+    private List<WorkItemReference> loadWorkItems(ReleasePackId packId) {
+        return jdbcClient.sql("""
+                SELECT identifier, title FROM release_pack_work_item
+                WHERE release_pack_id = :packId ORDER BY position
+                """)
+                .param("packId", packId.value())
+                .query((rs, rowNum) -> new WorkItemReference(
+                        rs.getString("identifier"), rs.getString("title")))
+                .list();
     }
 
     private List<PackedVersion> loadContents(ReleasePackId packId) {

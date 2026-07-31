@@ -32,7 +32,12 @@ public record TowerExport(
         List<ObservationRecord> observations) {
 
     /** Incremented only when the format changes in a way older readers cannot handle. */
-    public static final int CURRENT_SCHEMA_VERSION = 1;
+    // Version 2 adds work item references to a Release Pack (ADR-018). A version 1
+    // document still imports: the check is "no newer than this Tower understands",
+    // and an absent list reads as no work items. The bump is for the other
+    // direction — an older Tower must refuse a document carrying Intent it would
+    // silently drop, which is the quiet loss ADR-010 exists to prevent.
+    public static final int CURRENT_SCHEMA_VERSION = 2;
 
     public TowerExport {
         environments = List.copyOf(environments == null ? List.of() : environments);
@@ -56,12 +61,28 @@ public record TowerExport(
 
     public record PromotionPathVersionRecord(int number, Instant createdAt, List<String> environmentIds) {}
 
+    /**
+     * @param workItems what the release claims to deliver (ADR-018). Intent, so it
+     *                  travels with the release like Handover and Iterations do.
+     *                  Absent in schema version 1 documents, which read as no work
+     *                  items rather than as an error.
+     */
     public record ReleasePackRecord(
             String id, String name, String description, boolean archived,
             String promotionPathId, Integer promotionPathVersion,
             List<PackedVersionRecord> contents,
+            List<WorkItemRecord> workItems,
             HandoverRecord handover,
             List<IterationRecord> iterations) {}
+
+    /**
+     * A work item reference, carrying the title a person accepted rather than
+     * whatever the tracker says now (ADR-018).
+     *
+     * <p>No status and no URL: those are the tracker's, read on request and never
+     * stored, so there is nothing about them to transfer.
+     */
+    public record WorkItemRecord(String identifier, String title) {}
 
     public record PackedVersionRecord(String applicationId, String applicationVersionId) {}
 

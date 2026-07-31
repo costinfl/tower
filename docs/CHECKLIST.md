@@ -92,6 +92,17 @@ This checklist tracks the architectural documentation required before implementa
 - [x] Dashboard API and screen
 - [x] Summary indicators that count silence as silence
 
+## Issue Tracking Connector
+
+- [x] ADR-018-A-Work-Item-Reference-Is-Intent-Not-An-Observation.md
+- [x] Connector-Model corrected: not every Connector produces Observations
+- [x] IssueTrackerConnector SPI (vendor-neutral)
+- [x] Work item references on a Release Pack (V10), export schema version 2
+- [ ] Application layer, API and Viewer
+- [ ] Work items in generated documentation
+- [ ] GitHub Issues implementation
+- [ ] Jira implementation
+
 ## Deferred work closed
 
 - [x] ADR-016-Handover-Is-Versioned-Release-Pack-Metadata-Is-Not.md

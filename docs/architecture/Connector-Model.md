@@ -120,14 +120,20 @@ Typical information includes:
 
 ## Issue Tracking Connector
 
-Provides information related to development work.
+Resolves work item references a Release Pack already carries (ADR-018).
 
-Typical information includes:
+Reads:
 
-- work items;
 - issue identifiers;
-- issue status;
-- issue relationships.
+- issue titles;
+- issue status, as the tracker's own word for it;
+- the address a reader can follow.
+
+Produces no Observations. Tower does not own work items (Product-Boundaries.md): a reference is Intent, and
+what this Connector returns is shown beside it and stored nowhere.
+
+Issue relationships are out of scope. They are the tracker's model of the tracker's own domain, and
+importing them would make Tower a second issue tracker.
 
 ---
 
@@ -189,7 +195,19 @@ The synchronization strategy is outside the scope of this document.
 
 # Observation Mapping
 
-Every Connector ultimately produces Observations.
+A Connector whose subject is a running system produces Observations.
+
+This originally read "every Connector ultimately produces Observations". Building the Issue Tracking
+Connector showed that it does not hold, and ADR-018 records why: an Observation is an Application Version
+seen in an Environment, and a work item has no Environment, no Application and no Application Version.
+Forcing one into that shape would have meant a second kind of Observation sharing a name with the first and
+satisfying none of the same derivations.
+
+The omission was already visible here. The examples below map a git tag, a deployment and a pipeline
+execution; there has never been one for a work item.
+
+A Connector reading a record in somebody else's database produces no Observations. It resolves references
+a developer already stated, which are User-Owned Information — the second origin IA-05 has always allowed.
 
 Example:
 

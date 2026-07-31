@@ -25,6 +25,7 @@ import dev.tower.domain.promotionpath.PromotionPathVersion;
 import dev.tower.domain.releasepack.PackedVersion;
 import dev.tower.domain.releasepack.PromotionPathAssignment;
 import dev.tower.domain.releasepack.ReleasePack;
+import dev.tower.domain.releasepack.WorkItemReference;
 import dev.tower.domain.releasepack.ReleasePackId;
 
 import java.util.List;
@@ -294,8 +295,16 @@ public class ImportService {
                         IterationId.of(i.id()), i.name(), i.startedAt(), i.completedAt(), i.notes()))
                 .toList();
 
+        // Absent in schema version 1 documents, which read as no work items
+        // rather than as an error (ADR-018).
+        List<WorkItemReference> workItems = record.workItems() == null ? List.of()
+                : record.workItems().stream()
+                        .map(w -> new WorkItemReference(w.identifier(), w.title()))
+                        .toList();
+
         return ReleasePack.reconstitute(
-                id, name, record.description(), assignment, contents, handover, iterations, record.archived());
+                id, name, record.description(), assignment, contents, workItems,
+                handover, iterations, record.archived());
     }
 
     /**

@@ -39,12 +39,15 @@ public final class ReleasePack {
     private final String description;
     private final PromotionPathAssignment promotionPath;
     private final List<PackedVersion> contents;
+    /** Work items this release claims to deliver — Intent, not Observation (ADR-018). */
+    private final List<WorkItemReference> workItems;
     private final Handover handover;
     private final List<Iteration> iterations;
     private final boolean archived;
 
     private ReleasePack(ReleasePackId id, String name, String description,
                         PromotionPathAssignment promotionPath, List<PackedVersion> contents,
+                        List<WorkItemReference> workItems,
                         Handover handover, List<Iteration> iterations, boolean archived) {
         DomainException.require(id != null, "Release Pack id is required.");
         DomainException.require(name != null && !name.isBlank(), "Release Pack name is required.");
@@ -55,6 +58,7 @@ public final class ReleasePack {
         this.description = description == null ? "" : description.strip();
         this.promotionPath = promotionPath;
         this.contents = List.copyOf(contents);
+        this.workItems = List.copyOf(workItems);
         this.handover = handover == null ? Handover.empty() : handover;
         this.iterations = List.copyOf(iterations);
         this.archived = archived;
@@ -68,19 +72,21 @@ public final class ReleasePack {
      */
     public static ReleasePack create(String name, String description) {
         return new ReleasePack(ReleasePackId.newId(), name, description, null,
-                List.of(), Handover.empty(), List.of(), false);
+                List.of(), List.of(), Handover.empty(), List.of(), false);
     }
 
     /** Reconstitutes a Release Pack from storage. */
     public static ReleasePack reconstitute(ReleasePackId id, String name, String description,
                                            PromotionPathAssignment promotionPath, List<PackedVersion> contents,
+                                           List<WorkItemReference> workItems,
                                            Handover handover, List<Iteration> iterations, boolean archived) {
-        return new ReleasePack(id, name, description, promotionPath, contents, handover, iterations, archived);
+        return new ReleasePack(id, name, description, promotionPath, contents, workItems,
+                handover, iterations, archived);
     }
 
     public ReleasePack updateMetadata(String newName, String newDescription) {
         requireActive("renamed or described");
-        return copyWith(newName, newDescription, promotionPath, contents, handover, iterations, archived);
+        return copyWith(newName, newDescription, promotionPath, contents, workItems, handover, iterations, archived);
     }
 
     /**
@@ -93,12 +99,12 @@ public final class ReleasePack {
     public ReleasePack assignPromotionPath(PromotionPathId pathId, int versionNumber) {
         requireActive("assigned a Promotion Path");
         return copyWith(name, description, new PromotionPathAssignment(pathId, versionNumber),
-                contents, handover, iterations, archived);
+                contents, workItems, handover, iterations, archived);
     }
 
     public ReleasePack clearPromotionPath() {
         requireActive("changed");
-        return copyWith(name, description, null, contents, handover, iterations, archived);
+        return copyWith(name, description, null, contents, workItems, handover, iterations, archived);
     }
 
     /**
@@ -122,7 +128,7 @@ public final class ReleasePack {
 
         List<PackedVersion> updated = new ArrayList<>(contents);
         updated.add(incoming);
-        return copyWith(name, description, promotionPath, updated, handover, iterations, archived);
+        return copyWith(name, description, promotionPath, updated, workItems, handover, iterations, archived);
     }
 
     /** Removes an Application Version from the pack (FR-004). */
@@ -132,14 +138,75 @@ public final class ReleasePack {
         boolean removed = updated.removeIf(entry -> entry.versionId().equals(versionId));
         DomainConflictException.requireNoConflict(removed,
                 "This Application Version is not in the Release Pack.");
-        return copyWith(name, description, promotionPath, updated, handover, iterations, archived);
+        return copyWith(name, description, promotionPath, updated, workItems, handover, iterations, archived);
+    }
+
+    /**
+     * States that this release delivers a work item (ADR-018).
+     *
+     * <p>Intent: the team saying what the release is for, in the vocabulary the
+     * people receiving a handover use. Tower did not observe this and does not
+     * check it against the tracker — a reference may be linked before any
+     * Connector is configured, or to a tracker Tower cannot reach.
+     */
+    public ReleasePack linkWorkItem(WorkItemReference reference) {
+        requireActive("changed");
+        DomainException.require(reference != null, "A work item reference is required.");
+
+        for (WorkItemReference existing : workItems) {
+            DomainConflictException.requireNoConflict(!existing.namesSameItemAs(reference),
+                    "This Release Pack already delivers " + existing.identifier() + ".");
+        }
+
+        List<WorkItemReference> updated = new ArrayList<>(workItems);
+        updated.add(reference);
+        return copyWith(name, description, promotionPath, contents, updated, handover, iterations, archived);
+    }
+
+    /**
+     * Accepts a title for a work item already linked.
+     *
+     * <p>Separate from linking because accepting a title is a decision: the
+     * developer has seen what the tracker says and is taking it as Tower's own.
+     * Replacing the title of a reference that is not there would be inventing
+     * the link, so it is refused.
+     */
+    public ReleasePack acceptWorkItemTitle(String identifier, String title) {
+        requireActive("changed");
+        WorkItemReference target = WorkItemReference.of(identifier);
+
+        List<WorkItemReference> updated = new ArrayList<>();
+        boolean found = false;
+        for (WorkItemReference existing : workItems) {
+            if (existing.namesSameItemAs(target)) {
+                updated.add(existing.withTitle(title));
+                found = true;
+            } else {
+                updated.add(existing);
+            }
+        }
+        DomainConflictException.requireNoConflict(found,
+                "This Release Pack does not deliver " + target.identifier() + ".");
+        return copyWith(name, description, promotionPath, contents, updated, handover, iterations, archived);
+    }
+
+    /** Withdraws the claim that this release delivers a work item. */
+    public ReleasePack unlinkWorkItem(String identifier) {
+        requireActive("changed");
+        WorkItemReference target = WorkItemReference.of(identifier);
+
+        List<WorkItemReference> updated = new ArrayList<>(workItems);
+        boolean removed = updated.removeIf(existing -> existing.namesSameItemAs(target));
+        DomainConflictException.requireNoConflict(removed,
+                "This Release Pack does not deliver " + target.identifier() + ".");
+        return copyWith(name, description, promotionPath, contents, updated, handover, iterations, archived);
     }
 
     /** Replaces the Handover information (FR-006). */
     public ReleasePack updateHandover(Handover newHandover) {
         requireActive("changed");
         DomainException.require(newHandover != null, "Handover information is required.");
-        return copyWith(name, description, promotionPath, contents, newHandover, iterations, archived);
+        return copyWith(name, description, promotionPath, contents, workItems, newHandover, iterations, archived);
     }
 
     /** Records a validation Iteration against this pack (gap G4). */
@@ -147,7 +214,7 @@ public final class ReleasePack {
         requireActive("changed");
         List<Iteration> updated = new ArrayList<>(iterations);
         updated.add(Iteration.start(iterationName, startedAt, notes));
-        return copyWith(name, description, promotionPath, contents, handover, updated, archived);
+        return copyWith(name, description, promotionPath, contents, workItems, handover, updated, archived);
     }
 
     public ReleasePack replaceIteration(Iteration iteration) {
@@ -158,7 +225,7 @@ public final class ReleasePack {
         DomainConflictException.requireNoConflict(index >= 0,
                 "This Iteration does not belong to the Release Pack.");
         updated.set(index, iteration);
-        return copyWith(name, description, promotionPath, contents, handover, updated, archived);
+        return copyWith(name, description, promotionPath, contents, workItems, handover, updated, archived);
     }
 
     public ReleasePack removeIteration(IterationId iterationId) {
@@ -167,7 +234,7 @@ public final class ReleasePack {
         boolean removed = updated.removeIf(existing -> existing.id().equals(iterationId));
         DomainConflictException.requireNoConflict(removed,
                 "This Iteration does not belong to the Release Pack.");
-        return copyWith(name, description, promotionPath, contents, handover, updated, archived);
+        return copyWith(name, description, promotionPath, contents, workItems, handover, updated, archived);
     }
 
     /**
@@ -179,12 +246,12 @@ public final class ReleasePack {
      */
     public ReleasePack archive() {
         return archived ? this
-                : copyWith(name, description, promotionPath, contents, handover, iterations, true);
+                : copyWith(name, description, promotionPath, contents, workItems, handover, iterations, true);
     }
 
     public ReleasePack restore() {
         return archived
-                ? copyWith(name, description, promotionPath, contents, handover, iterations, false)
+                ? copyWith(name, description, promotionPath, contents, workItems, handover, iterations, false)
                 : this;
     }
 
@@ -227,6 +294,11 @@ public final class ReleasePack {
         return contents;
     }
 
+    /** The work items this release claims to deliver, in the order they were linked. */
+    public List<WorkItemReference> workItems() {
+        return workItems;
+    }
+
     public Handover handover() {
         return handover;
     }
@@ -254,9 +326,10 @@ public final class ReleasePack {
     }
 
     private ReleasePack copyWith(String name, String description, PromotionPathAssignment promotionPath,
-                                 List<PackedVersion> contents, Handover handover,
-                                 List<Iteration> iterations, boolean archived) {
-        return new ReleasePack(id, name, description, promotionPath, contents, handover, iterations, archived);
+                                 List<PackedVersion> contents, List<WorkItemReference> workItems,
+                                 Handover handover, List<Iteration> iterations, boolean archived) {
+        return new ReleasePack(id, name, description, promotionPath, contents, workItems,
+                handover, iterations, archived);
     }
 
     @Override

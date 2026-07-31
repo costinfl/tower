@@ -129,6 +129,9 @@ public class ExportService {
                         .map(c -> new TowerExport.PackedVersionRecord(
                                 c.applicationId().toString(), c.versionId().toString()))
                         .toList(),
+                pack.workItems().stream()
+                        .map(w -> new TowerExport.WorkItemRecord(w.identifier(), w.title()))
+                        .toList(),
                 new TowerExport.HandoverRecord(
                         pack.handover().deploymentInstructions(),
                         pack.handover().shellCommands(),
