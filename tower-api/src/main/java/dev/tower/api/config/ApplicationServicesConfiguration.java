@@ -28,7 +28,9 @@ import dev.tower.application.service.SourceControlService;
 import dev.tower.application.service.PromotionPathService;
 import dev.tower.application.service.SynchronizationService;
 import dev.tower.application.service.DashboardService;
+import dev.tower.application.port.out.WorkItemCollector;
 import dev.tower.application.service.ObservationService;
+import dev.tower.application.service.WorkItemService;
 import dev.tower.application.service.ReleasePackService;
 import dev.tower.docgen.DocxReleaseDocumentRenderer;
 import dev.tower.docgen.HtmlReleaseDocumentRenderer;
@@ -138,6 +140,19 @@ public class ApplicationServicesConfiguration {
             PromotionPathRepository promotionPathRepository, ObservationService observationService) {
         return new DashboardService(environmentRepository, releasePackRepository,
                 promotionPathRepository, observationService);
+    }
+
+    /**
+     * Work item resolution (ADR-018).
+     *
+     * <p>Takes every WorkItemCollector Spring finds. None may be installed, and
+     * that is an ordinary state: a Release Pack still names what it delivers.
+     */
+    @Bean
+    public WorkItemService workItemService(
+            ReleasePackRepository releasePackRepository, ExternalBindingRepository externalBindingRepository,
+            List<WorkItemCollector> workItemCollectors) {
+        return new WorkItemService(releasePackRepository, externalBindingRepository, workItemCollectors);
     }
 
     @Bean

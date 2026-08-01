@@ -1178,6 +1178,56 @@ export function handle(pathname: string, method: string, body: Json | null): unk
 
     if (b === "state") return packStateView(p.id);
     if (b === "progression") return packProgressionView(p.id);
+
+    // Work items (ADR-018). Intent: linking checks nothing against a tracker,
+    // so it succeeds here exactly as it does against a real Tower with no
+    // Connector configured.
+    if (b === "work-items" && c === "resolved") {
+      // The demo reaches no tracker and says so, rather than fabricating
+      // titles and statuses a visitor would have no way to know are invented.
+      // This is also the honest UNRESOLVED state the real Tower shows when
+      // nothing is configured.
+      return {
+        connectorId: null,
+        reachedTracker: false,
+        failure: "This demonstration has no issue tracker, so Tower cannot say what these items are"
+          + " now. The titles shown are the ones already accepted, which is what documents print.",
+        items: p.workItems.map((w) => ({
+          identifier: w.identifier, acceptedTitle: w.title,
+          trackerTitle: null, status: null, closed: false, url: null,
+          state: "UNRESOLVED", diverged: false,
+        })),
+      };
+    }
+    if (b === "work-items") {
+      const same = (x: string, y: string) => x.toLowerCase() === y.toLowerCase();
+
+      if (method === "POST") {
+        const identifier = String(body?.identifier ?? "").trim();
+        if (!identifier) throw badRequest("A work item reference must name the item,"
+          + " as the tracker writes it.");
+        if (p.workItems.some((w) => same(w.identifier, identifier)))
+          throw conflict(`This Release Pack already delivers ${identifier}.`);
+        p.workItems.push({ identifier, title: String(body?.title ?? "").trim() });
+        return packView(p);
+      }
+      if (method === "PUT" && c === "title") {
+        const identifier = String(body?.identifier ?? "").trim();
+        const found = p.workItems.find((w) => same(w.identifier, identifier));
+        if (!found) throw conflict(`This Release Pack does not deliver ${identifier}.`);
+        found.title = String(body?.title ?? "").trim();
+        return packView(p);
+      }
+      if (method === "DELETE") {
+        const identifier = (new URLSearchParams(pathname.split("?")[1] ?? "")
+          .get("identifier") ?? "").trim();
+        const before = p.workItems.length;
+        p.workItems = p.workItems.filter((w) => !same(w.identifier, identifier));
+        if (p.workItems.length === before)
+          throw conflict(`This Release Pack does not deliver ${identifier}.`);
+        return packView(p);
+      }
+    }
     if (b === "documentation") {
       if (c === "markdown") {
         const requested = new URLSearchParams(pathname.split("?")[1] ?? "").get("template");

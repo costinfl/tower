@@ -22,6 +22,7 @@ import ReleasePackContents from "../components/ReleasePackContents";
 import ReleasePackProgressionPanel from "../components/ReleasePackProgressionPanel";
 import ReleasePackPromotionPathPanel from "../components/ReleasePackPromotionPathPanel";
 import ReleasePackStatePanel from "../components/ReleasePackStatePanel";
+import WorkItemsPanel from "../components/WorkItemsPanel";
 
 export default function ReleasePacksPage() {
   const [packs, setPacks] = useState<ReleasePackView[] | null>(null);
@@ -279,6 +280,27 @@ export default function ReleasePacksPage() {
                     contents={selectedPack.contents}
                     applications={applications}
                     versions={versions}
+                    archived={selectedPack.archived}
+                    onUpdated={replacePack}
+                  />
+                </section>
+
+                {/*
+                  After Contents and before Handover, the same place the
+                  generated document puts it: the release described once in
+                  Application Versions and once in the vocabulary the people
+                  receiving the handover use (ADR-018).
+                */}
+                <section className="pack-section">
+                  <h4>Work Items</h4>
+                  <p className="field-hint">
+                    What this release delivers. Tower holds an identifier and a title you accepted — that is
+                    what documents print. The tracker is read only when you ask, and never written back.
+                  </p>
+                  <WorkItemsPanel
+                    key={selectedPack.id}
+                    packId={selectedPack.id}
+                    workItems={selectedPack.workItems}
                     archived={selectedPack.archived}
                     onUpdated={replacePack}
                   />

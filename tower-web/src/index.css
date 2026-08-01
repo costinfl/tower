@@ -1490,3 +1490,63 @@ select {
 .standing--not_observed_here {
   opacity: 0.7;
 }
+
+/* --- Work items (ADR-018) ---------------------------------------------- */
+
+.work-item-list {
+  list-style: none;
+  margin: 0 0 1rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.work-item {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+}
+
+.work-item__header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.work-item__id {
+  font-weight: 600;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+}
+
+.work-item__remove {
+  margin-left: auto;
+}
+
+/* What the tracker says, kept visually subordinate to what Tower holds. The
+   accepted title is what documents print; this is a comparison, not a
+   correction. */
+.work-item__tracker {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.35rem;
+  padding-top: 0.35rem;
+  border-top: 1px dashed var(--border);
+  font-size: 0.85rem;
+}
+
+.work-item__tracker-title {
+  opacity: 0.85;
+}
+
+.work-item__link {
+  font-size: 0.8rem;
+}
+
+.work-items__check {
+  margin-bottom: 1rem;
+}

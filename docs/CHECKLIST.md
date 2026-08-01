@@ -98,8 +98,8 @@ This checklist tracks the architectural documentation required before implementa
 - [x] Connector-Model corrected: not every Connector produces Observations
 - [x] IssueTrackerConnector SPI (vendor-neutral)
 - [x] Work item references on a Release Pack (V10), export schema version 2
-- [ ] Application layer, API and Viewer
-- [ ] Work items in generated documentation
+- [x] Application layer, API and Viewer
+- [x] Work items in generated documentation
 - [ ] GitHub Issues implementation
 - [ ] Jira implementation
 

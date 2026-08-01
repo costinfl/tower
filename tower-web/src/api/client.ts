@@ -528,6 +528,42 @@ export interface ReleasePackHandover {
   operationalNotes: string;
 }
 
+// A work item the release claims to deliver (ADR-018). The title is the one a
+// person accepted, not what the tracker says now — that comparison is a
+// separate read, so a Release Pack loads with no tracker configured.
+export interface ReleasePackWorkItem {
+  identifier: string;
+  title: string;
+  titleAccepted: boolean;
+}
+
+// What the tracker says right now, beside what Tower holds.
+//
+// `state` is named by the server and must be rendered as four distinct things.
+// NOT_FOUND means the tracker answered and does not have this identifier;
+// UNRESOLVED means Tower never asked, because none is configured or it could
+// not be reached. Collapsing those two would turn "nobody looked" into "it does
+// not exist" — the same mistake as reporting an unobserved Environment as empty.
+export type WorkItemState = "RESOLVED" | "DIVERGED" | "NOT_FOUND" | "UNRESOLVED";
+
+export interface ResolvedWorkItem {
+  identifier: string;
+  acceptedTitle: string;
+  trackerTitle: string | null;
+  status: string | null;
+  closed: boolean;
+  url: string | null;
+  state: WorkItemState;
+  diverged: boolean;
+}
+
+export interface WorkItemResolution {
+  connectorId: string | null;
+  reachedTracker: boolean;
+  failure: string | null;
+  items: ResolvedWorkItem[];
+}
+
 export interface ReleasePackIteration {
   id: string;
   name: string;
@@ -546,6 +582,7 @@ export interface ReleasePackView {
   archived: boolean;
   promotionPath: ReleasePackPromotionPath | null;
   contents: ReleasePackContent[];
+  workItems: ReleasePackWorkItem[];
   handover: ReleasePackHandover;
   iterations: ReleasePackIteration[];
 }
@@ -769,6 +806,33 @@ export function archiveReleasePack(id: string): Promise<ReleasePackView> {
 
 export function restoreReleasePack(id: string): Promise<ReleasePackView> {
   return postJson<ReleasePackView>(`/api/release-packs/${encodeURIComponent(id)}/restore`);
+}
+
+// Links a work item. Tower checks nothing against a tracker, so a release can
+// name what it delivers before any Connector is configured.
+export function linkWorkItem(id: string, identifier: string, title: string): Promise<ReleasePackView> {
+  return postJson<ReleasePackView>(
+    `/api/release-packs/${encodeURIComponent(id)}/work-items`, { identifier, title });
+}
+
+// Takes the tracker's current title as Tower's own. Always an explicit act:
+// nothing refreshes a title on its own, which is what keeps a generated
+// document reproducible (NFR-025).
+export function acceptWorkItemTitle(id: string, identifier: string, title: string): Promise<ReleasePackView> {
+  return putJson<ReleasePackView>(
+    `/api/release-packs/${encodeURIComponent(id)}/work-items/title`, { identifier, title });
+}
+
+export function unlinkWorkItem(id: string, identifier: string): Promise<ReleasePackView> {
+  return deleteJson<ReleasePackView>(
+    `/api/release-packs/${encodeURIComponent(id)}/work-items?identifier=${encodeURIComponent(identifier)}`);
+}
+
+// Reads the tracker. Answers 200 even when the tracker could not be reached —
+// the failure is stated in the body, and the release's own work items are still
+// listed, marked unresolved.
+export function resolveWorkItems(id: string): Promise<WorkItemResolution> {
+  return getJson<WorkItemResolution>(`/api/release-packs/${encodeURIComponent(id)}/work-items/resolved`);
 }
 
 export function getReleasePackState(id: string): Promise<ReleasePackStateView> {
