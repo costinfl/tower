@@ -168,8 +168,14 @@ echo " DOCUMENT TEMPLATES — OQ-010, ADR-013"
 echo "=============================================================="
 # Names are unique, so a rerun against the same instance needs its own.
 TSTAMP=$(date +%s)
-SECTIONS=$(curl -s "$B/api/document-templates/sections" | python3 -c 'import json,sys;print(len(json.load(sys.stdin)))')
-check "the sections a template may choose from are served" "$SECTIONS" "6"
+# Every section is named rather than counted. A count has to be bumped whenever
+# a section is added — which says nothing about whether the right ones are
+# there — and it passes just as happily if one section is swapped for another.
+SECTIONS=$(curl -s "$B/api/document-templates/sections" | python3 -c '
+import json,sys
+print(",".join(sorted(s["name"] for s in json.load(sys.stdin))))')
+check "the sections a template may choose from are served" "$SECTIONS" \
+  "CONTENTS,HANDOVER,ITERATIONS,PROMOTION_PATH,SIGHTINGS,STATUS,WORK_ITEMS"
 
 BUILTIN=$(curl -s "$B/api/document-templates" | python3 -c 'import json,sys;d=json.load(sys.stdin);print(d[0]["builtIn"])')
 check "the complete document heads the list" "$BUILTIN" "True"

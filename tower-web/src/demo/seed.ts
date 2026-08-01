@@ -108,6 +108,14 @@ export const releasePacks = [
       { applicationId: id("app-orders"), applicationVersionId: id("v-orders-140") },
       { applicationId: id("app-web"), applicationVersionId: id("v-web-980") },
     ],
+    // ADR-018: what the release delivers, in the vocabulary the business team
+    // uses. RETAIL-912 carries no accepted title, so the demo shows that state
+    // rather than only the happy one.
+    workItems: [
+      { identifier: "RETAIL-871", title: "Saved basket survives sign-out" },
+      { identifier: "RETAIL-903", title: "Address validation against postcode service" },
+      { identifier: "RETAIL-912", title: "" },
+    ],
     handover: {
       deploymentInstructions:
         "Deploy in order: customer-api, then orders-api, then web.\n"
@@ -147,6 +155,7 @@ export const releasePacks = [
     // correct, not stale, and is exactly what ADR-007 exists to preserve.
     promotionPathVersion: 1,
     contents: [{ applicationId: id("app-customer"), applicationVersionId: id("v-cust-251") }],
+    workItems: [{ identifier: "RETAIL-940", title: "Checkout fails for guests with no saved address" }],
     handover: {
       deploymentInstructions: "Single service. Deploy customer-api 2.5.1 and restart nothing else.",
       shellCommands: "kubectl -n retail rollout status deploy/customer-api",
@@ -170,6 +179,7 @@ export const releasePacks = [
     promotionPathId: id("path-regular"),
     promotionPathVersion: 1,
     contents: [{ applicationId: id("app-auth"), applicationVersionId: id("v-auth-330") }],
+    workItems: [],
     handover: {
       deploymentInstructions: "Deploy auth 3.3.0.",
       shellCommands: "", databaseMigrations: "", rollbackProcedure: "Redeploy 3.2.4.",

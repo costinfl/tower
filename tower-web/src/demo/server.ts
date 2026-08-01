@@ -39,6 +39,9 @@ interface PackRec {
   id: string; name: string; description: string; archived: boolean;
   promotionPathId: string | null; promotionPathVersion: number | null;
   contents: { applicationId: string; applicationVersionId: string }[];
+  // ADR-018: Intent, not Observation. An identifier and a title a person
+  // accepted, and nothing else about the work item.
+  workItems: { identifier: string; title: string }[];
   handover: Handover; iterations: Iter[];
 }
 interface Src { collector: string; actor: string | null; originInstance: string | null; manual: boolean }
@@ -84,6 +87,8 @@ const DOCUMENT_SECTIONS: { name: string; heading: string; description: string }[
     description: "The path this release follows, at the version it was pinned to." },
   { name: "CONTENTS", heading: "Contents",
     description: "The Application Versions the release contains." },
+  { name: "WORK_ITEMS", heading: "Work Items",
+    description: "The work items this release delivers, as the team stated them." },
   { name: "HANDOVER", heading: "Handover",
     description: "Deployment instructions, commands, migrations, rollback and notes." },
   { name: "ITERATIONS", heading: "Validation Iterations",
@@ -111,6 +116,7 @@ const state: {
   packs: seed.releasePacks.map((p) => ({
     ...p,
     contents: p.contents.map((c) => ({ ...c })),
+    workItems: (p.workItems ?? []).map((w) => ({ ...w })),
     handover: { ...p.handover },
     iterations: p.iterations.map((i) => ({ ...i })),
   })),
@@ -209,6 +215,9 @@ function packView(p: PackRec) {
         buildIdentifier: v?.buildIdentifier ?? null,
       };
     }),
+    workItems: p.workItems.map((w) => ({
+      identifier: w.identifier, title: w.title, titleAccepted: w.title.trim() !== "",
+    })),
     handover: { ...p.handover },
     iterations: p.iterations.map((i) => ({ ...i })),
   };
@@ -557,6 +566,7 @@ function releaseMarkdown(packId: string, template: TemplateRec | null): string {
     if (section === "STATUS") status(out, p, derived);
     else if (section === "PROMOTION_PATH") promotionPath(out, view);
     else if (section === "CONTENTS") contents(out, view);
+    else if (section === "WORK_ITEMS") workItems(out, pack(packId)!);
     else if (section === "HANDOVER") handover(out, p);
     else if (section === "ITERATIONS") iterations(out, p);
     else if (section === "SIGHTINGS") sightings(out, derived);
@@ -611,6 +621,22 @@ function contents(out: string[], view: ReturnType<typeof packView>) {
     .sort((a, b) => a.applicationName.localeCompare(b.applicationName) || a.version.localeCompare(b.version))
     .forEach((c) => out.push(
       `| ${c.applicationName} | ${c.version} | ${dash(c.branch)} | ${dash(c.tag)} | ${dash(c.commit)} | ${dash(c.buildIdentifier)} |`));
+  out.push("");
+}
+
+// Mirrors MarkdownReleaseDocumentRenderer.renderWorkItems (ADR-018).
+// Identifier and accepted title only: no status, because the tracker owns that
+// and a status printed into a document would be stale before it was read.
+function workItems(out: string[], p: PackRec) {
+  out.push("## Work Items\n");
+  if (!p.workItems.length) {
+    out.push("_No work items have been linked to this Release Pack._\n");
+    return;
+  }
+  out.push("| Item | Title |");
+  out.push("|---|---|");
+  p.workItems.forEach((w) => out.push(
+    `| ${w.identifier} | ${w.title.trim() ? w.title : "_no title accepted_"} |`));
   out.push("");
 }
 
@@ -1139,6 +1165,7 @@ export function handle(pathname: string, method: string, body: Json | null): unk
         id: newId("pack"), name: String(body?.name ?? ""), description: String(body?.description ?? ""),
         archived: false, promotionPathId: null as string | null, promotionPathVersion: null as number | null,
         contents: [] as { applicationId: string; applicationVersionId: string }[],
+        workItems: [] as { identifier: string; title: string }[],
         handover: { deploymentInstructions: "", shellCommands: "", databaseMigrations: "",
           rollbackProcedure: "", validationNotes: "", operationalNotes: "" },
         iterations: [],
