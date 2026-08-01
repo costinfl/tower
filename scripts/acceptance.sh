@@ -355,6 +355,60 @@ check "the dashboard refuses a write rather than half-accepting one" \
 
 echo
 echo "=============================================================="
+echo " ISSUE TRACKER — a work item reference is Intent (ADR-018)"
+echo "=============================================================="
+# Nothing here reaches a tracker. The point of these checks is what Tower does
+# with references on its own: a release names what it delivers whether or not a
+# tracker is configured, reachable, or installed at all. Reading a live tracker
+# is exercised by the Connector's own tests, which do not depend on somebody
+# else's service being up while CI runs.
+post "$B/api/release-packs/$PACK/work-items" '{"identifier":"#3","title":""}' 200 \
+  "a release can name a work item"
+post "$B/api/release-packs/$PACK/work-items" '{"identifier":"PROJ-12","title":"Save the basket"}' 200 \
+  "a reference may carry a title somebody accepted"
+DUPITEM=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$B/api/release-packs/$PACK/work-items" \
+  -H "$J" -d '{"identifier":"#3","title":""}')
+check "the same item is not delivered twice" "$DUPITEM" "409"
+
+# UNRESOLVED, not NOT_FOUND: Tower never asked. The difference is the whole
+# reason the state has four values rather than two.
+UNASKED=$(curl -s "$B/api/release-packs/$PACK/work-items/resolved" | python3 -c '
+import json,sys
+d=json.load(sys.stdin)
+print("%s|%s" % (d["reachedTracker"], ",".join(sorted(i["state"] for i in d["items"]))))')
+check "with no tracker configured, items are unresolved rather than missing" "$UNASKED" \
+  "False|UNRESOLVED,UNRESOLVED"
+
+put "$B/api/bindings/issue-trackers" '{"connectorId":"github-issues","locator":"acme/retail"}' 200 \
+  "a tracker is bound once, to a Connector"
+BOUND=$(curl -s "$B/api/bindings/issue-trackers" | python3 -c '
+import json,sys
+print(",".join("%s@%s" % (b["connectorId"], b["locator"]) for b in json.load(sys.stdin)))')
+check "the binding is held" "$BOUND" "github-issues@acme/retail"
+
+BADBIND=$(curl -s -o /dev/null -w '%{http_code}' -X PUT "$B/api/bindings/issue-trackers" \
+  -H "$J" -d '{"connectorId":"github-issues","locator":""}')
+check "a binding with nowhere to look is refused" "$BADBIND" "400"
+
+# The Connector is read-only, so there is no endpoint that could write to a
+# tracker. Asserted the only way that means anything: by trying.
+WRITE=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$B/api/work-items/connection-test?connectorId=github-issues")
+check "the tracker connection test refuses a write" "$WRITE" "405"
+
+DELBIND=$(curl -s -o /dev/null -w '%{http_code}' -X DELETE "$B/api/bindings/issue-trackers/github-issues")
+check "a tracker can be unbound" "$DELBIND" "204"
+
+# What a document prints, which is the property ADR-018 turns on: the title
+# somebody accepted, never a title fetched behind their back.
+curl -s "$B/api/release-packs/$PACK/documentation/markdown" > /tmp/doc_w.md
+grep -qF "| PROJ-12 | Save the basket |" /tmp/doc_w.md \
+  && ok "a document prints the accepted title" || bad "the accepted title is missing"
+grep -qF "_no title accepted_" /tmp/doc_w.md \
+  && ok "a reference with no accepted title says so rather than showing blank" \
+  || bad "an unaccepted title renders as nothing"
+
+echo
+echo "=============================================================="
 echo " READ-ONLY — Tower observes and never acts (ADR-001)"
 echo "=============================================================="
 ACTION=$(curl -s "$B/api/release-packs" | grep -icE '"(promote|deploy|trigger|execute|rollback)"' || true)

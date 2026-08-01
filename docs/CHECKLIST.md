@@ -100,7 +100,7 @@ This checklist tracks the architectural documentation required before implementa
 - [x] Work item references on a Release Pack (V10), export schema version 2
 - [x] Application layer, API and Viewer
 - [x] Work items in generated documentation
-- [ ] GitHub Issues implementation
+- [x] GitHub Issues implementation, verified against this repository's own issues
 - [ ] Jira implementation
 
 ## Deferred work closed

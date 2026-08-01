@@ -135,6 +135,17 @@ what this Connector returns is shown beside it and stored nowhere.
 Issue relationships are out of scope. They are the tracker's model of the tracker's own domain, and
 importing them would make Tower a second issue tracker.
 
+The tracker is bound once, per Connector, rather than per Environment or Application. A work item
+belongs to a release rather than to one Application, and a team has one tracker, so there is no Tower
+concept on the left of this binding — the one place ADR-012's shape does not fit, recorded in ADR-018
+rather than left looking like an oversight.
+
+GitHub Issues is the first implementation. It reads one issue per identifier rather than paging and
+filtering, because a filtered list cannot tell "this issue does not exist" apart from "it was not on
+the page I read", and that difference is exactly what a reader needs. An identifier the tracker does
+not know is omitted, never invented; an identifier from another tracker's scheme is omitted too,
+rather than failing the whole read for one reference a team wrote before they bound anything.
+
 ---
 
 ## Documentation Connector

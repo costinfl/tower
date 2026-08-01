@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>dev.tower</groupId>
+    <artifactId>tower-parent</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>tower-connector-github</artifactId>
+  <name>tower-connector-github</name>
+  <description>
+    Reads work items from GitHub Issues (ADR-018).
+
+    No GitHub SDK. The REST API is three fields deep for what Tower needs — a title, a state and a
+    URL — and the JDK's own HTTP client reads it in a few lines. A vendor SDK would pull a large
+    dependency tree to save nothing, and would make it tempting to reach for the parts of GitHub
+    Tower has no business holding.
+  </description>
+
+  <dependencies>
+    <!-- Jackson for the response body only. java.net.http is in the JDK. -->
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+    </dependency>
+    <!-- @Component only; the connector holds no Spring behaviour beyond being a bean. -->
+    <dependency>
+      <groupId>org.springframework</groupId>
+      <artifactId>spring-context</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>dev.tower</groupId>
+      <artifactId>tower-connector-api</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.assertj</groupId>
+      <artifactId>assertj-core</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+</project>

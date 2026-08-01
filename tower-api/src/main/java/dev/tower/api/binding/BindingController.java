@@ -19,11 +19,14 @@ import dev.tower.api.binding.BindingRequests.ApplicationBindingRequest;
 import dev.tower.api.binding.BindingRequests.ApplicationBindingResponse;
 import dev.tower.api.binding.BindingRequests.EnvironmentBindingRequest;
 import dev.tower.api.binding.BindingRequests.EnvironmentBindingResponse;
+import dev.tower.api.binding.BindingRequests.IssueTrackerBindingRequest;
+import dev.tower.api.binding.BindingRequests.IssueTrackerBindingResponse;
 import dev.tower.api.binding.BindingRequests.RepositoryBindingRequest;
 import dev.tower.api.binding.BindingRequests.RepositoryBindingResponse;
 import dev.tower.application.port.in.ExternalBindingUseCases;
 import dev.tower.application.port.in.ExternalBindingUseCases.BindApplication;
 import dev.tower.application.port.in.ExternalBindingUseCases.BindEnvironment;
+import dev.tower.application.port.in.ExternalBindingUseCases.BindIssueTracker;
 import dev.tower.application.port.in.ExternalBindingUseCases.BindRepository;
 import dev.tower.application.binding.RepositoryBinding;
 import dev.tower.application.port.in.ExternalBindingUseCases.VersionPreview;
@@ -93,6 +96,31 @@ public class BindingController {
             @PathVariable("applicationId") String applicationId,
             @RequestParam("connectorId") String connectorId) {
         bindings.unbindRepository(ApplicationId.of(applicationId), connectorId);
+    }
+
+    /**
+     * Where the team's work items live (ADR-018).
+     *
+     * <p>Keyed by Connector alone, so the path carries a connector id where the
+     * others carry a Tower id. That asymmetry is the design rather than an
+     * oversight — ADR-018 records why a tracker is not bound per Application.
+     */
+    @GetMapping("/issue-trackers")
+    public List<IssueTrackerBindingResponse> listIssueTrackerBindings() {
+        return bindings.listIssueTrackerBindings().stream().map(IssueTrackerBindingResponse::from).toList();
+    }
+
+    @PutMapping("/issue-trackers")
+    public IssueTrackerBindingResponse bindIssueTracker(
+            @Valid @RequestBody IssueTrackerBindingRequest request) {
+        return IssueTrackerBindingResponse.from(bindings.bindIssueTracker(
+                new BindIssueTracker(request.connectorId(), request.locator())));
+    }
+
+    @DeleteMapping("/issue-trackers/{connectorId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void unbindIssueTracker(@PathVariable("connectorId") String connectorId) {
+        bindings.unbindIssueTracker(connectorId);
     }
 
     @GetMapping("/applications")

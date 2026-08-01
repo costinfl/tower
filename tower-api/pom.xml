@@ -82,6 +82,18 @@
       <version>${project.version}</version>
       <scope>runtime</scope>
     </dependency>
+    <!--
+      GitHub Issues (ADR-018). On this list for the reason stated just above:
+      being scanned by ArchUnit is the point, not being reachable. It is also
+      what makes the Connector's read-only claim checkable rather than merely
+      asserted in its own Javadoc.
+    -->
+    <dependency>
+      <groupId>dev.tower</groupId>
+      <artifactId>tower-connector-github</artifactId>
+      <version>${project.version}</version>
+      <scope>runtime</scope>
+    </dependency>
     <dependency>
       <groupId>dev.tower</groupId>
       <artifactId>tower-persistence</artifactId>

@@ -105,6 +105,7 @@ const state: {
   paths: PathRec[]; packs: PackRec[]; observations: Obs[];
   environmentBindings: EnvBinding[]; applicationBindings: AppBinding[];
   repositoryBindings: RepoBinding[];
+  issueTrackerBindings: { connectorId: string; locator: string }[];
   credentials: Record<string, string>; runs: RunRec[];
   documentTemplates: TemplateRec[];
   handoverRevisions: HandoverRev[];
@@ -124,6 +125,10 @@ const state: {
   environmentBindings: seed.environmentBindings.map((b) => ({ ...b })),
   applicationBindings: seed.applicationBindings.map((b) => ({ ...b })),
   repositoryBindings: seed.repositoryBindings.map((b) => ({ ...b })),
+  // Empty on purpose (ADR-018): the demo reaches no tracker, and a binding that
+  // looked configured while every item stayed unresolved would read as Tower
+  // having lost them.
+  issueTrackerBindings: [],
   credentials: { ...seed.credentials },
   runs: seed.syncRuns.map((r) => ({
     ...r,
@@ -890,6 +895,28 @@ export function handle(pathname: string, method: string, body: Json | null): unk
         return null;
       }
     }
+    // Where the team's work items live (ADR-018). Keyed by Connector alone —
+    // no Tower concept on the left, unlike every binding above.
+    if (a === "issue-trackers") {
+      if (method === "GET") return state.issueTrackerBindings;
+      if (method === "PUT") {
+        const incoming = body as unknown as { connectorId: string; locator: string };
+        const connectorId = String(incoming?.connectorId ?? "").trim();
+        const locator = String(incoming?.locator ?? "").trim();
+        if (!connectorId) throw badRequest("A binding must name the Connector it configures.");
+        if (!locator) throw badRequest("A binding must name where the tracker lives,"
+          + " in the form that Connector expects.");
+        state.issueTrackerBindings = state.issueTrackerBindings.filter(
+          (x) => x.connectorId !== connectorId);
+        const saved = { connectorId, locator };
+        state.issueTrackerBindings.push(saved);
+        return saved;
+      }
+      if (method === "DELETE") {
+        state.issueTrackerBindings = state.issueTrackerBindings.filter((x) => x.connectorId !== b);
+        return null;
+      }
+    }
     if (a === "version-preview") {
       const params = new URLSearchParams(pathname.split("?")[1] ?? "");
       const imageTag = params.get("imageTag") ?? "";
@@ -954,6 +981,21 @@ export function handle(pathname: string, method: string, body: Json | null): unk
       };
     }
     if (!a) return state.repositoryBindings.map((b) => discoverVersions(b.applicationId));
+  }
+
+  if (area === "work-items" && a === "connection-test") {
+    const params = new URLSearchParams(pathname.split("?")[1] ?? "");
+    const connectorId = params.get("connectorId") ?? "";
+    const bound = state.issueTrackerBindings.find((x) => x.connectorId === connectorId);
+    if (!bound) {
+      return { connectorId, locator: null, reachable: false,
+        message: "No tracker is bound to this Connector yet." };
+    }
+    // No network here either, and said plainly rather than answered with a
+    // reassuring tick a visitor could not tell from a real one.
+    return { connectorId, locator: bound.locator, reachable: false,
+      message: "This demonstration has no network access, so no tracker can be read."
+        + " Against a real Tower this reports whether the tracker answered." };
   }
 
   if (area === "credentials") {

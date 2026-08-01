@@ -1156,6 +1156,42 @@ export function testRepositoryConnection(repositoryUrl: string): Promise<Connect
   );
 }
 
+// Where the team's work items live (ADR-018). Keyed by Connector alone: a work
+// item belongs to a release rather than to one Application, and a team has one
+// tracker, so there is no Tower id on the left of this binding.
+export interface IssueTrackerBinding {
+  connectorId: string;
+  locator: string;
+}
+
+// What the connection test answers for a tracker. Not a ConnectionTest: a
+// tracker has no scope to report, and a record with a permanently empty field
+// invites a screen to render one.
+export interface IssueTrackerConnectionReport {
+  connectorId: string;
+  locator: string | null;
+  reachable: boolean;
+  message: string;
+}
+
+export function listIssueTrackerBindings(): Promise<IssueTrackerBinding[]> {
+  return getJson<IssueTrackerBinding[]>("/api/bindings/issue-trackers");
+}
+
+export function bindIssueTracker(binding: IssueTrackerBinding): Promise<IssueTrackerBinding> {
+  return putJson<IssueTrackerBinding>("/api/bindings/issue-trackers", binding);
+}
+
+export function unbindIssueTracker(connectorId: string): Promise<void> {
+  return deleteRequest(`/api/bindings/issue-trackers/${encodeURIComponent(connectorId)}`);
+}
+
+export function testIssueTrackerConnection(connectorId: string): Promise<IssueTrackerConnectionReport> {
+  return getJson<IssueTrackerConnectionReport>(
+    `/api/work-items/connection-test?connectorId=${encodeURIComponent(connectorId)}`,
+  );
+}
+
 export function getCredentialStatus(connectorId: string, target: string): Promise<CredentialStatus> {
   return getJson<CredentialStatus>(
     `/api/credentials?connectorId=${encodeURIComponent(connectorId)}&target=${encodeURIComponent(target)}`,

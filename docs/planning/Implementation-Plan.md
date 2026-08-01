@@ -145,6 +145,7 @@ tower/
 ├── tower-connector-manual/
 ├── tower-connector-git/
 ├── tower-connector-k8s/
+├── tower-connector-github/
 ├── tower-persistence/
 ├── tower-config/
 ├── tower-docgen/
@@ -240,6 +241,18 @@ A connector module is a runtime-scope dependency of tower-api, so its vendor cli
 The Deployment Platform Connector uses the fabric8 OpenShift client, which is a superset of the Kubernetes client and reads both Deployment and OpenShift DeploymentConfig from one dependency.
 
 Reading both matters: a namespace using only DeploymentConfig would otherwise report as empty, and under ADR-011 an empty report is indistinguishable from nothing being deployed.
+
+---
+
+## tower-connector-github
+
+The Issue Tracking Connector for GitHub Issues.
+
+Produces no Observations, which is the category rather than an omission: ADR-018 records why a work item is Intent a developer stated and not something Tower saw.
+
+Carries no GitHub SDK. What Tower reads is three fields deep — a title, a state and an address — and the JDK's own HTTP client reads that in a few lines, where an SDK would pull a large dependency tree to save nothing and put the whole of GitHub's model within reach of code that has no business holding it.
+
+The same reasoning as ADR-014, reached from the other direction: there, a vendor API was declined in favour of a protocol every vendor speaks; here, no protocol exists, so the vendor's API is read directly and kept as small as the need.
 
 ---
 

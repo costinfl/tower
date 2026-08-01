@@ -5,6 +5,7 @@ import java.util.Optional;
 
 import dev.tower.application.binding.ApplicationBinding;
 import dev.tower.application.binding.EnvironmentBinding;
+import dev.tower.application.binding.IssueTrackerBinding;
 import dev.tower.application.binding.RepositoryBinding;
 import dev.tower.domain.application.ApplicationId;
 import dev.tower.domain.environment.EnvironmentId;
@@ -67,4 +68,27 @@ public interface ExternalBindingUseCases {
     record BindRepository(
             ApplicationId applicationId, String connectorId, String repositoryUrl,
             RepositoryBinding.RefSelection refSelection, String versionPattern) {}
+
+    // Issue tracker bindings (ADR-018): where the team's work items live.
+    //
+    // No Tower concept on the left, unlike every binding above it. A work item
+    // belongs to a release rather than to an Application, and a team has one
+    // tracker, so the tracker is named once per Connector. ADR-018 records why
+    // that difference is deliberate.
+
+    IssueTrackerBinding bindIssueTracker(BindIssueTracker command);
+
+    List<IssueTrackerBinding> listIssueTrackerBindings();
+
+    Optional<IssueTrackerBinding> findIssueTrackerBinding(String connectorId);
+
+    void unbindIssueTracker(String connectorId);
+
+    /**
+     * @param locator where the tracker lives, in the form that Connector expects
+     *                — {@code owner/repository} for GitHub Issues, a site for
+     *                Jira. Opaque above the Connector, deliberately: nothing in
+     *                the application layer may parse it.
+     */
+    record BindIssueTracker(String connectorId, String locator) {}
 }

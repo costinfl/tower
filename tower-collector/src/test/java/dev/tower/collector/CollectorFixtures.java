@@ -8,6 +8,7 @@ import java.util.Optional;
 
 import dev.tower.application.binding.ApplicationBinding;
 import dev.tower.application.binding.EnvironmentBinding;
+import dev.tower.application.binding.IssueTrackerBinding;
 import dev.tower.application.binding.RepositoryBinding;
 import dev.tower.application.port.out.ApplicationVersionRepository;
 import dev.tower.application.port.out.ConnectorCredentialsPort;
@@ -98,28 +99,30 @@ final class CollectorFixtures {
 
     static final class InMemoryBindings implements ExternalBindingRepository {
 
-        // Issue tracker bindings (ADR-018) belong to a Connector that produces no
-        // Observations, so nothing in these Collector fixtures reaches them.
+        // Issue tracker bindings (ADR-018). Keyed by Connector alone, unlike
+        // every binding below: a team has one tracker, and it belongs to no
+        // single Environment or Application.
+        private final Map<String, IssueTrackerBinding> issueTrackerBindings = new HashMap<>();
+
         @Override
-        public dev.tower.application.binding.IssueTrackerBinding save(
-                dev.tower.application.binding.IssueTrackerBinding binding) {
+        public IssueTrackerBinding save(IssueTrackerBinding binding) {
+            issueTrackerBindings.put(binding.connectorId(), binding);
             return binding;
         }
 
         @Override
-        public java.util.Optional<dev.tower.application.binding.IssueTrackerBinding>
-                findIssueTrackerBinding(String connectorId) {
-            return java.util.Optional.empty();
+        public Optional<IssueTrackerBinding> findIssueTrackerBinding(String connectorId) {
+            return Optional.ofNullable(issueTrackerBindings.get(connectorId));
         }
 
         @Override
-        public java.util.List<dev.tower.application.binding.IssueTrackerBinding>
-                findAllIssueTrackerBindings() {
-            return java.util.List.of();
+        public List<IssueTrackerBinding> findAllIssueTrackerBindings() {
+            return new ArrayList<>(issueTrackerBindings.values());
         }
 
         @Override
         public void deleteIssueTrackerBinding(String connectorId) {
+            issueTrackerBindings.remove(connectorId);
         }
 
 

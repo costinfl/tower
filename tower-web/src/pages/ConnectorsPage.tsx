@@ -6,10 +6,13 @@ import {
   CredentialStatus,
   Environment,
   EnvironmentBinding,
+  IssueTrackerBinding,
+  IssueTrackerConnectionReport,
   RefSelection,
   RepositoryBinding,
   SyncRun,
   bindApplication,
+  bindIssueTracker,
   bindRepository,
   bindEnvironment,
   forgetCredential,
@@ -18,14 +21,17 @@ import {
   getEnvironments,
   listApplicationBindings,
   listEnvironmentBindings,
+  listIssueTrackerBindings,
   listSyncRuns,
   previewVersion,
   storeCredential,
   synchronizeNow,
   testConnection,
   listRepositoryBindings,
+  testIssueTrackerConnection,
   testRepositoryConnection,
   unbindApplication,
+  unbindIssueTracker,
   unbindRepository,
   unbindEnvironment,
 } from "../api/client";
@@ -41,24 +47,28 @@ export default function ConnectorsPage() {
   const [environmentBindings, setEnvironmentBindings] = useState<EnvironmentBinding[]>([]);
   const [applicationBindings, setApplicationBindings] = useState<ApplicationBinding[]>([]);
   const [repositoryBindings, setRepositoryBindings] = useState<RepositoryBinding[]>([]);
+  const [trackerBindings, setTrackerBindings] = useState<IssueTrackerBinding[]>([]);
   const [runs, setRuns] = useState<SyncRun[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
     try {
-      const [envs, apps, envBindings, appBindings, repoBindings, history] = await Promise.all([
-        getEnvironments(),
-        getApplications(),
-        listEnvironmentBindings(),
-        listApplicationBindings(),
-        listRepositoryBindings(),
-        listSyncRuns(10),
-      ]);
+      const [envs, apps, envBindings, appBindings, repoBindings, trackers, history] =
+        await Promise.all([
+          getEnvironments(),
+          getApplications(),
+          listEnvironmentBindings(),
+          listApplicationBindings(),
+          listRepositoryBindings(),
+          listIssueTrackerBindings(),
+          listSyncRuns(10),
+        ]);
       setEnvironments(envs);
       setApplications(apps);
       setEnvironmentBindings(envBindings);
       setApplicationBindings(appBindings);
       setRepositoryBindings(repoBindings);
+      setTrackerBindings(trackers);
       setRuns(history);
       setError(null);
     } catch (caught: unknown) {
@@ -100,6 +110,12 @@ export default function ConnectorsPage() {
       <RepositoryBindingsPanel
         applications={applications}
         bindings={repositoryBindings}
+        onChanged={reload}
+        onError={setError}
+      />
+
+      <IssueTrackerBindingsPanel
+        bindings={trackerBindings}
         onChanged={reload}
         onError={setError}
       />
@@ -760,6 +776,189 @@ function RepositoryBindingsPanel({
         </button>
       </form>
       {tested && <p className="hint">{tested}</p>}
+    </div>
+  );
+}
+
+// --- Issue tracker bindings ------------------------------------------------
+
+// Where the team's work items live (ADR-018).
+//
+// The odd panel out, and deliberately: every panel above binds a Tower concept
+// to a vendor locator, and this one binds nothing on the left. A work item
+// belongs to a release rather than to an Application, and a team has one
+// tracker, so the tracker is named once.
+const ISSUE_TRACKER_CONNECTOR_ID = "github-issues";
+
+function IssueTrackerBindingsPanel({
+  bindings,
+  onChanged,
+  onError,
+}: {
+  bindings: IssueTrackerBinding[];
+  onChanged: () => Promise<void>;
+  onError: (message: string) => void;
+}) {
+  const [locator, setLocator] = useState("");
+  const [secret, setSecret] = useState("");
+  const [credential, setCredential] = useState<CredentialStatus | null>(null);
+  const [test, setTest] = useState<IssueTrackerConnectionReport | null>(null);
+
+  const bound = bindings.find((binding) => binding.connectorId === ISSUE_TRACKER_CONNECTOR_ID) ?? null;
+
+  const refreshCredential = useCallback(async () => {
+    if (bound === null) {
+      setCredential(null);
+      return;
+    }
+    try {
+      setCredential(await getCredentialStatus(bound.connectorId, bound.locator));
+    } catch (caught: unknown) {
+      onError(describeError(caught));
+    }
+  }, [bound, onError]);
+
+  useEffect(() => {
+    void refreshCredential();
+  }, [refreshCredential]);
+
+  async function save(event: React.FormEvent) {
+    event.preventDefault();
+    try {
+      await bindIssueTracker({ connectorId: ISSUE_TRACKER_CONNECTOR_ID, locator });
+      setLocator("");
+      setTest(null);
+      await onChanged();
+    } catch (caught: unknown) {
+      onError(describeError(caught));
+    }
+  }
+
+  async function remove() {
+    if (bound === null) {
+      return;
+    }
+    try {
+      await unbindIssueTracker(bound.connectorId);
+      setTest(null);
+      await onChanged();
+    } catch (caught: unknown) {
+      onError(describeError(caught));
+    }
+  }
+
+  async function check() {
+    try {
+      setTest(await testIssueTrackerConnection(ISSUE_TRACKER_CONNECTOR_ID));
+    } catch (caught: unknown) {
+      onError(describeError(caught));
+    }
+  }
+
+  async function saveSecret(event: React.FormEvent) {
+    event.preventDefault();
+    if (bound === null) {
+      return;
+    }
+    try {
+      await storeCredential(bound.connectorId, bound.locator, secret);
+      // Cleared as soon as it is sent, like every other token field here.
+      setSecret("");
+      await refreshCredential();
+    } catch (caught: unknown) {
+      onError(describeError(caught));
+    }
+  }
+
+  async function forget() {
+    if (bound === null) {
+      return;
+    }
+    try {
+      await forgetCredential(bound.connectorId, bound.locator);
+      await refreshCredential();
+    } catch (caught: unknown) {
+      onError(describeError(caught));
+    }
+  }
+
+  return (
+    <div className="panel">
+      <h3>Issue tracker</h3>
+      <p className="hint">
+        Where the work items a release delivers are tracked. Tower reads them and writes nothing
+        back: it never opens an issue, never closes one and never comments.
+      </p>
+      <p className="hint">
+        What a release document prints is the title somebody accepted, not whatever the tracker says
+        today. That is what keeps a document reproducible — nothing here changes a document on its
+        own.
+      </p>
+
+      {bound === null && <p className="hint">No tracker is bound yet.</p>}
+
+      {bound !== null && (
+        <div className="binding">
+          <div className="binding__header">
+            <strong>GitHub Issues</strong>
+            <span className="mono">{bound.locator}</span>
+            <button type="button" onClick={() => void check()}>
+              Test connection
+            </button>
+            <button type="button" className="button-link" onClick={() => void remove()}>
+              Unbind
+            </button>
+          </div>
+
+          {test && (
+            <p className="connection-test" data-reachable={test.reachable}>
+              {test.reachable ? "✓ " : "✗ "}
+              {test.message}
+            </p>
+          )}
+
+          <form className="inline-form" onSubmit={(event) => void saveSecret(event)}>
+            <label>
+              Token
+              <input
+                type="password"
+                value={secret}
+                onChange={(event) => setSecret(event.target.value)}
+                placeholder={credential?.configured ? "A token is stored" : "Only for a private repository"}
+                autoComplete="off"
+                required
+              />
+            </label>
+            <button type="submit">{credential?.configured ? "Replace" : "Save"}</button>
+            {credential?.configured && (
+              <button type="button" className="button-link" onClick={() => void forget()}>
+                Forget
+              </button>
+            )}
+          </form>
+
+          <p className="hint">
+            {credential?.configured
+              ? "A token is stored for this tracker. It is encrypted at rest and is never shown again — replace it rather than reading it back."
+              : "No token is stored. A public repository needs none; a private one will answer as though it did not exist."}
+          </p>
+        </div>
+      )}
+
+      {bound === null && (
+        <form className="inline-form" onSubmit={(event) => void save(event)}>
+          <label>
+            Repository
+            <input
+              value={locator}
+              onChange={(event) => setLocator(event.target.value)}
+              placeholder="acme/retail"
+              required
+            />
+          </label>
+          <button type="submit">Bind</button>
+        </form>
+      )}
     </div>
   );
 }

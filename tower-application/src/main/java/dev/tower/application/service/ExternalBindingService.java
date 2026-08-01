@@ -6,6 +6,7 @@ import java.util.Optional;
 
 import dev.tower.application.binding.ApplicationBinding;
 import dev.tower.application.binding.EnvironmentBinding;
+import dev.tower.application.binding.IssueTrackerBinding;
 import dev.tower.application.binding.RepositoryBinding;
 import dev.tower.application.port.in.ExternalBindingUseCases;
 import dev.tower.application.port.in.ExternalBindingUseCases.BindRepository;
@@ -106,6 +107,35 @@ public class ExternalBindingService implements ExternalBindingUseCases {
     @Override
     public void unbindRepository(ApplicationId applicationId, String connectorId) {
         bindings.deleteRepositoryBinding(applicationId, connectorId);
+    }
+
+    /**
+     * Binds the team's tracker (ADR-018).
+     *
+     * <p>Nothing is checked to exist first, and that is the difference from every
+     * binding above. The others name a Tower concept whose absence would make the
+     * binding meaningless; this one names only a Connector and a locator, and
+     * whether the locator points at a real repository is a question only the
+     * Connector can answer — which is what the connection test is for.
+     */
+    @Override
+    public IssueTrackerBinding bindIssueTracker(BindIssueTracker command) {
+        return bindings.save(new IssueTrackerBinding(command.connectorId(), command.locator()));
+    }
+
+    @Override
+    public List<IssueTrackerBinding> listIssueTrackerBindings() {
+        return bindings.findAllIssueTrackerBindings();
+    }
+
+    @Override
+    public Optional<IssueTrackerBinding> findIssueTrackerBinding(String connectorId) {
+        return bindings.findIssueTrackerBinding(connectorId);
+    }
+
+    @Override
+    public void unbindIssueTracker(String connectorId) {
+        bindings.deleteIssueTrackerBinding(connectorId);
     }
 
     @Override

@@ -4,6 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 
 import dev.tower.application.binding.ApplicationBinding;
 import dev.tower.application.binding.EnvironmentBinding;
+import dev.tower.application.binding.IssueTrackerBinding;
 import dev.tower.application.binding.RepositoryBinding;
 
 /** Request and response bodies for /api/bindings (issue #47). */
@@ -73,6 +74,30 @@ public final class BindingRequests {
                     binding.applicationId().value().toString(),
                     binding.connectorId(), binding.repositoryUrl(),
                     binding.refSelection().name(), binding.versionPattern());
+        }
+    }
+
+    /**
+     * Where the team's work items live (ADR-018).
+     *
+     * <p>Names no Tower concept, unlike every request above it: a work item
+     * belongs to a release rather than to one Application, and a team has one
+     * tracker, so the tracker is named once per Connector.
+     *
+     * <p>{@code locator} is whatever that Connector expects —
+     * {@code owner/repository} for GitHub Issues. Not validated for shape here:
+     * only the Connector knows what shape is right, and a rule guessed at this
+     * layer would reject a form some future tracker uses.
+     */
+    public record IssueTrackerBindingRequest(
+            @NotBlank(message = "connectorId is required") String connectorId,
+            @NotBlank(message = "locator is required") String locator) {
+    }
+
+    public record IssueTrackerBindingResponse(String connectorId, String locator) {
+
+        public static IssueTrackerBindingResponse from(IssueTrackerBinding binding) {
+            return new IssueTrackerBindingResponse(binding.connectorId(), binding.locator());
         }
     }
 }
