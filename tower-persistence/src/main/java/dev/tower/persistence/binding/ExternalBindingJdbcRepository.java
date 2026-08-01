@@ -11,6 +11,7 @@ import org.springframework.stereotype.Repository;
 
 import dev.tower.application.binding.ApplicationBinding;
 import dev.tower.application.binding.EnvironmentBinding;
+import dev.tower.application.binding.IssueTrackerBinding;
 import dev.tower.application.binding.RepositoryBinding;
 import dev.tower.application.port.out.ExternalBindingRepository;
 import dev.tower.domain.application.ApplicationId;
@@ -236,6 +237,65 @@ public class ExternalBindingJdbcRepository implements ExternalBindingRepository 
                         """)
                 .query(ExternalBindingJdbcRepository::mapRepositoryBinding)
                 .list();
+    }
+
+    /**
+     * Issue tracker bindings (ADR-018), keyed by Connector alone.
+     *
+     * <p>The primary key is the Connector, so "one tracker per Connector" is
+     * enforced by the table rather than by a service that could be bypassed.
+     */
+    @Override
+    public IssueTrackerBinding save(IssueTrackerBinding binding) {
+        int updated = jdbcClient.sql("""
+                        UPDATE issue_tracker_binding SET locator = :locator
+                        WHERE connector_id = :connectorId
+                        """)
+                .param("connectorId", binding.connectorId())
+                .param("locator", binding.locator())
+                .update();
+        if (updated == 0) {
+            jdbcClient.sql("""
+                            INSERT INTO issue_tracker_binding (connector_id, locator)
+                            VALUES (:connectorId, :locator)
+                            """)
+                    .param("connectorId", binding.connectorId())
+                    .param("locator", binding.locator())
+                    .update();
+        }
+        return binding;
+    }
+
+    @Override
+    public Optional<IssueTrackerBinding> findIssueTrackerBinding(String connectorId) {
+        return jdbcClient.sql("""
+                        SELECT connector_id, locator FROM issue_tracker_binding
+                        WHERE connector_id = :connectorId
+                        """)
+                .param("connectorId", connectorId)
+                .query(ExternalBindingJdbcRepository::mapIssueTrackerBinding)
+                .optional();
+    }
+
+    @Override
+    public List<IssueTrackerBinding> findAllIssueTrackerBindings() {
+        return jdbcClient.sql("""
+                        SELECT connector_id, locator FROM issue_tracker_binding ORDER BY connector_id
+                        """)
+                .query(ExternalBindingJdbcRepository::mapIssueTrackerBinding)
+                .list();
+    }
+
+    @Override
+    public void deleteIssueTrackerBinding(String connectorId) {
+        jdbcClient.sql("DELETE FROM issue_tracker_binding WHERE connector_id = :connectorId")
+                .param("connectorId", connectorId)
+                .update();
+    }
+
+    private static IssueTrackerBinding mapIssueTrackerBinding(java.sql.ResultSet rs, int rowNum)
+            throws java.sql.SQLException {
+        return new IssueTrackerBinding(rs.getString("connector_id"), rs.getString("locator"));
     }
 
     @Override
