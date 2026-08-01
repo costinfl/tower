@@ -5,6 +5,7 @@ import java.util.Optional;
 
 import dev.tower.application.binding.ApplicationBinding;
 import dev.tower.application.binding.EnvironmentBinding;
+import dev.tower.application.binding.IssueTrackerBinding;
 import dev.tower.application.binding.RepositoryBinding;
 import dev.tower.domain.application.ApplicationId;
 import dev.tower.domain.environment.EnvironmentId;
@@ -57,4 +58,16 @@ public interface ExternalBindingRepository {
     List<RepositoryBinding> findAllRepositoryBindings();
 
     void deleteRepositoryBinding(ApplicationId applicationId, String connectorId);
+
+    // Issue tracker bindings (ADR-018). Keyed by Connector alone, unlike every
+    // other binding here: a work item belongs to a release rather than to one
+    // Application, so there is one tracker named once rather than a Tower
+    // concept on the left.
+    IssueTrackerBinding save(IssueTrackerBinding binding);
+
+    Optional<IssueTrackerBinding> findIssueTrackerBinding(String connectorId);
+
+    List<IssueTrackerBinding> findAllIssueTrackerBindings();
+
+    void deleteIssueTrackerBinding(String connectorId);
 }

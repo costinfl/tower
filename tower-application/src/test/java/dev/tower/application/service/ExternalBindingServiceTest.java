@@ -130,6 +130,31 @@ class ExternalBindingServiceTest {
 
     private static final class InMemoryBindings implements ExternalBindingRepository {
 
+        // Issue tracker bindings (ADR-018) are not what this test is about; the
+        // WorkItemService tests cover them.
+        @Override
+        public dev.tower.application.binding.IssueTrackerBinding save(
+                dev.tower.application.binding.IssueTrackerBinding binding) {
+            return binding;
+        }
+
+        @Override
+        public java.util.Optional<dev.tower.application.binding.IssueTrackerBinding>
+                findIssueTrackerBinding(String connectorId) {
+            return java.util.Optional.empty();
+        }
+
+        @Override
+        public java.util.List<dev.tower.application.binding.IssueTrackerBinding>
+                findAllIssueTrackerBindings() {
+            return java.util.List.of();
+        }
+
+        @Override
+        public void deleteIssueTrackerBinding(String connectorId) {
+        }
+
+
         private final Map<String, EnvironmentBinding> environmentBindings = new HashMap<>();
         private final Map<String, ApplicationBinding> applicationBindings = new HashMap<>();
 

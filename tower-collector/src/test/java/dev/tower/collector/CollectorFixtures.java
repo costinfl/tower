@@ -98,6 +98,31 @@ final class CollectorFixtures {
 
     static final class InMemoryBindings implements ExternalBindingRepository {
 
+        // Issue tracker bindings (ADR-018) belong to a Connector that produces no
+        // Observations, so nothing in these Collector fixtures reaches them.
+        @Override
+        public dev.tower.application.binding.IssueTrackerBinding save(
+                dev.tower.application.binding.IssueTrackerBinding binding) {
+            return binding;
+        }
+
+        @Override
+        public java.util.Optional<dev.tower.application.binding.IssueTrackerBinding>
+                findIssueTrackerBinding(String connectorId) {
+            return java.util.Optional.empty();
+        }
+
+        @Override
+        public java.util.List<dev.tower.application.binding.IssueTrackerBinding>
+                findAllIssueTrackerBindings() {
+            return java.util.List.of();
+        }
+
+        @Override
+        public void deleteIssueTrackerBinding(String connectorId) {
+        }
+
+
         private final List<EnvironmentBinding> environmentBindings = new ArrayList<>();
         private final List<ApplicationBinding> applicationBindings = new ArrayList<>();
 
