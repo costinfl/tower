@@ -145,6 +145,26 @@ class IssueTrackerCollectorTest {
         }
 
         @Test
+        void does_not_claim_a_credential_was_accepted_when_none_was_presented() {
+            // A public tracker reads with no token. Saying one was accepted
+            // would tell a user their token works before they have saved one.
+            bindTracker("acme/retail");
+
+            assertThat(collector.checkConnection().message())
+                    .doesNotContain("credential was accepted")
+                    .contains("No credential was presented");
+        }
+
+        @Test
+        void says_the_credential_was_accepted_when_one_was() {
+            bindTracker("acme/retail");
+            credentials.store(CONNECTOR_ID, "acme/retail", "ghp_secret".toCharArray());
+
+            assertThat(collector.checkConnection().message())
+                    .isEqualTo("Connected and the credential was accepted.");
+        }
+
+        @Test
         void reports_rather_than_throws_when_the_tracker_refuses() {
             bindTracker("acme/retail");
             connector.failWith("GitHub refused the credential for acme/retail (HTTP 401).");

@@ -140,11 +140,21 @@ belongs to a release rather than to one Application, and a team has one tracker,
 concept on the left of this binding — the one place ADR-012's shape does not fit, recorded in ADR-018
 rather than left looking like an oversight.
 
-GitHub Issues is the first implementation. It reads one issue per identifier rather than paging and
-filtering, because a filtered list cannot tell "this issue does not exist" apart from "it was not on
+GitHub Issues and Jira are the two implementations. Neither is privileged: the SPI names no vendor, and
+what a locator is — a repository for one, a site address for the other — is known only inside the
+Connector that reads it.
+
+GitHub Issues reads one issue per identifier rather than paging and filtering, because a filtered list cannot tell "this issue does not exist" apart from "it was not on
 the page I read", and that difference is exactly what a reader needs. An identifier the tracker does
 not know is omitted, never invented; an identifier from another tracker's scheme is omitted too,
 rather than failing the whole read for one reference a team wrote before they bound anything.
+
+Jira follows the same rules and differs where Jira does. Whether an item is finished comes from Jira's
+own status category rather than the status name, because the site's administrator decides which of a
+team's statuses count as done and Tower has no standing to decide it for them. A 404 means both "no
+such issue" and "the credential cannot see it" — Jira answers the same way for each, deliberately, so
+that a stranger cannot learn which keys are real — and Tower omits the item rather than claiming to
+know which happened.
 
 ---
 

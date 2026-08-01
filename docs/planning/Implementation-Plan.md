@@ -146,6 +146,7 @@ tower/
 ├── tower-connector-git/
 ├── tower-connector-k8s/
 ├── tower-connector-github/
+├── tower-connector-jira/
 ├── tower-persistence/
 ├── tower-config/
 ├── tower-docgen/
@@ -253,6 +254,20 @@ Produces no Observations, which is the category rather than an omission: ADR-018
 Carries no GitHub SDK. What Tower reads is three fields deep — a title, a state and an address — and the JDK's own HTTP client reads that in a few lines, where an SDK would pull a large dependency tree to save nothing and put the whole of GitHub's model within reach of code that has no business holding it.
 
 The same reasoning as ADR-014, reached from the other direction: there, a vendor API was declined in favour of a protocol every vendor speaks; here, no protocol exists, so the vendor's API is read directly and kept as small as the need.
+
+---
+
+## tower-connector-jira
+
+The Issue Tracking Connector for Jira, and the second implementation of the same SPI.
+
+Reads REST API version 2, which Cloud, Server and Data Center all serve. Version 3 exists only on Cloud and differs in rendering rich text as Atlassian Document Format; a summary and a status are identical in both, so one path serves every deployment and Tower never has to ask which kind of Jira it is talking to.
+
+Asks for `fields=summary,status` rather than the issue. A Jira issue document carries every custom field the site defines; Tower reads two values, and asking for exactly those keeps the rest of somebody's issue out of this process.
+
+Takes Jira's own status category, not the status name, as the answer to whether an item is finished. The site's administrator decides which statuses are done, and reading the name would have Tower deciding that for them.
+
+Carries no Atlassian SDK, for the reason tower-connector-github carries no GitHub SDK.
 
 ---
 

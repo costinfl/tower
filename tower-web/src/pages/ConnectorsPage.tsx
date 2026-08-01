@@ -788,7 +788,35 @@ function RepositoryBindingsPanel({
 // to a vendor locator, and this one binds nothing on the left. A work item
 // belongs to a release rather than to an Application, and a team has one
 // tracker, so the tracker is named once.
-const ISSUE_TRACKER_CONNECTOR_ID = "github-issues";
+//
+// What a locator is, and what a credential looks like, differ per tracker and
+// are the Connector's business — so they are described here rather than guessed
+// at by a single form that would fit neither.
+const ISSUE_TRACKERS: {
+  id: string;
+  name: string;
+  locatorLabel: string;
+  placeholder: string;
+  credentialHint: string;
+}[] = [
+  {
+    id: "github-issues",
+    name: "GitHub Issues",
+    locatorLabel: "Repository",
+    placeholder: "acme/retail",
+    credentialHint:
+      "A personal access token, and only for a private repository. A public one reads without any.",
+  },
+  {
+    id: "jira",
+    name: "Jira",
+    locatorLabel: "Site",
+    placeholder: "https://acme.atlassian.net",
+    credentialHint:
+      "For Jira Cloud: your account email, a colon, then an API token — person@acme.com:abc123."
+      + " For Server or Data Center: a personal access token on its own.",
+  },
+];
 
 function IssueTrackerBindingsPanel({
   bindings,
@@ -799,84 +827,17 @@ function IssueTrackerBindingsPanel({
   onChanged: () => Promise<void>;
   onError: (message: string) => void;
 }) {
+  const [connectorId, setConnectorId] = useState(ISSUE_TRACKERS[0].id);
   const [locator, setLocator] = useState("");
-  const [secret, setSecret] = useState("");
-  const [credential, setCredential] = useState<CredentialStatus | null>(null);
-  const [test, setTest] = useState<IssueTrackerConnectionReport | null>(null);
 
-  const bound = bindings.find((binding) => binding.connectorId === ISSUE_TRACKER_CONNECTOR_ID) ?? null;
-
-  const refreshCredential = useCallback(async () => {
-    if (bound === null) {
-      setCredential(null);
-      return;
-    }
-    try {
-      setCredential(await getCredentialStatus(bound.connectorId, bound.locator));
-    } catch (caught: unknown) {
-      onError(describeError(caught));
-    }
-  }, [bound, onError]);
-
-  useEffect(() => {
-    void refreshCredential();
-  }, [refreshCredential]);
+  const chosen = ISSUE_TRACKERS.find((t) => t.id === connectorId) ?? ISSUE_TRACKERS[0];
 
   async function save(event: React.FormEvent) {
     event.preventDefault();
     try {
-      await bindIssueTracker({ connectorId: ISSUE_TRACKER_CONNECTOR_ID, locator });
+      await bindIssueTracker({ connectorId, locator });
       setLocator("");
-      setTest(null);
       await onChanged();
-    } catch (caught: unknown) {
-      onError(describeError(caught));
-    }
-  }
-
-  async function remove() {
-    if (bound === null) {
-      return;
-    }
-    try {
-      await unbindIssueTracker(bound.connectorId);
-      setTest(null);
-      await onChanged();
-    } catch (caught: unknown) {
-      onError(describeError(caught));
-    }
-  }
-
-  async function check() {
-    try {
-      setTest(await testIssueTrackerConnection(ISSUE_TRACKER_CONNECTOR_ID));
-    } catch (caught: unknown) {
-      onError(describeError(caught));
-    }
-  }
-
-  async function saveSecret(event: React.FormEvent) {
-    event.preventDefault();
-    if (bound === null) {
-      return;
-    }
-    try {
-      await storeCredential(bound.connectorId, bound.locator, secret);
-      // Cleared as soon as it is sent, like every other token field here.
-      setSecret("");
-      await refreshCredential();
-    } catch (caught: unknown) {
-      onError(describeError(caught));
-    }
-  }
-
-  async function forget() {
-    if (bound === null) {
-      return;
-    }
-    try {
-      await forgetCredential(bound.connectorId, bound.locator);
-      await refreshCredential();
     } catch (caught: unknown) {
       onError(describeError(caught));
     }
@@ -887,7 +848,7 @@ function IssueTrackerBindingsPanel({
       <h3>Issue tracker</h3>
       <p className="hint">
         Where the work items a release delivers are tracked. Tower reads them and writes nothing
-        back: it never opens an issue, never closes one and never comments.
+        back: it never opens an issue, never closes one, never transitions one and never comments.
       </p>
       <p className="hint">
         What a release document prints is the title somebody accepted, not whatever the tracker says
@@ -895,70 +856,172 @@ function IssueTrackerBindingsPanel({
         own.
       </p>
 
-      {bound === null && <p className="hint">No tracker is bound yet.</p>}
+      {bindings.length === 0 && <p className="hint">No tracker is bound yet.</p>}
 
-      {bound !== null && (
-        <div className="binding">
-          <div className="binding__header">
-            <strong>GitHub Issues</strong>
-            <span className="mono">{bound.locator}</span>
-            <button type="button" onClick={() => void check()}>
-              Test connection
-            </button>
-            <button type="button" className="button-link" onClick={() => void remove()}>
-              Unbind
-            </button>
-          </div>
+      {bindings.map((binding) => (
+        <IssueTrackerBindingRow
+          key={binding.connectorId}
+          binding={binding}
+          onChanged={onChanged}
+          onError={onError}
+        />
+      ))}
 
-          {test && (
-            <p className="connection-test" data-reachable={test.reachable}>
-              {test.reachable ? "✓ " : "✗ "}
-              {test.message}
-            </p>
-          )}
-
-          <form className="inline-form" onSubmit={(event) => void saveSecret(event)}>
-            <label>
-              Token
-              <input
-                type="password"
-                value={secret}
-                onChange={(event) => setSecret(event.target.value)}
-                placeholder={credential?.configured ? "A token is stored" : "Only for a private repository"}
-                autoComplete="off"
-                required
-              />
-            </label>
-            <button type="submit">{credential?.configured ? "Replace" : "Save"}</button>
-            {credential?.configured && (
-              <button type="button" className="button-link" onClick={() => void forget()}>
-                Forget
-              </button>
-            )}
-          </form>
-
-          <p className="hint">
-            {credential?.configured
-              ? "A token is stored for this tracker. It is encrypted at rest and is never shown again — replace it rather than reading it back."
-              : "No token is stored. A public repository needs none; a private one will answer as though it did not exist."}
-          </p>
-        </div>
+      {/*
+        ADR-018 expects one tracker. More than one is not refused by the API —
+        nothing breaks — but Tower reads the first by Connector name, and a
+        screen that left that unsaid would look like it was ignoring one of them.
+      */}
+      {bindings.length > 1 && (
+        <p className="hint">
+          More than one tracker is bound. Tower reads the first by name —{" "}
+          <strong>{[...bindings].map((b) => b.connectorId).sort()[0]}</strong> — so unbind the others
+          unless that is what you meant.
+        </p>
       )}
 
-      {bound === null && (
+      {bindings.length < ISSUE_TRACKERS.length && (
         <form className="inline-form" onSubmit={(event) => void save(event)}>
           <label>
-            Repository
+            Tracker
+            <select value={connectorId} onChange={(event) => setConnectorId(event.target.value)}>
+              {ISSUE_TRACKERS.filter((t) => !bindings.some((b) => b.connectorId === t.id)).map(
+                (tracker) => (
+                  <option key={tracker.id} value={tracker.id}>
+                    {tracker.name}
+                  </option>
+                ),
+              )}
+            </select>
+          </label>
+          <label>
+            {chosen.locatorLabel}
             <input
               value={locator}
               onChange={(event) => setLocator(event.target.value)}
-              placeholder="acme/retail"
+              placeholder={chosen.placeholder}
               required
             />
           </label>
           <button type="submit">Bind</button>
         </form>
       )}
+    </div>
+  );
+}
+
+function IssueTrackerBindingRow({
+  binding,
+  onChanged,
+  onError,
+}: {
+  binding: IssueTrackerBinding;
+  onChanged: () => Promise<void>;
+  onError: (message: string) => void;
+}) {
+  const [credential, setCredential] = useState<CredentialStatus | null>(null);
+  const [secret, setSecret] = useState("");
+  const [test, setTest] = useState<IssueTrackerConnectionReport | null>(null);
+
+  const tracker = ISSUE_TRACKERS.find((t) => t.id === binding.connectorId);
+
+  const refreshCredential = useCallback(async () => {
+    try {
+      setCredential(await getCredentialStatus(binding.connectorId, binding.locator));
+    } catch (caught: unknown) {
+      onError(describeError(caught));
+    }
+  }, [binding.connectorId, binding.locator, onError]);
+
+  useEffect(() => {
+    void refreshCredential();
+  }, [refreshCredential]);
+
+  async function remove() {
+    try {
+      await unbindIssueTracker(binding.connectorId);
+      await onChanged();
+    } catch (caught: unknown) {
+      onError(describeError(caught));
+    }
+  }
+
+  async function check() {
+    try {
+      setTest(await testIssueTrackerConnection(binding.connectorId));
+    } catch (caught: unknown) {
+      onError(describeError(caught));
+    }
+  }
+
+  async function saveSecret(event: React.FormEvent) {
+    event.preventDefault();
+    try {
+      await storeCredential(binding.connectorId, binding.locator, secret);
+      // Cleared as soon as it is sent, like every other token field here.
+      setSecret("");
+      await refreshCredential();
+    } catch (caught: unknown) {
+      onError(describeError(caught));
+    }
+  }
+
+  async function forget() {
+    try {
+      await forgetCredential(binding.connectorId, binding.locator);
+      await refreshCredential();
+    } catch (caught: unknown) {
+      onError(describeError(caught));
+    }
+  }
+
+  return (
+    <div className="binding">
+      <div className="binding__header">
+        {/* The Connector's id when it is one this build does not know — honest
+            about what is bound rather than rendering an empty name. */}
+        <strong>{tracker?.name ?? binding.connectorId}</strong>
+        <span className="mono">{binding.locator}</span>
+        <button type="button" onClick={() => void check()}>
+          Test connection
+        </button>
+        <button type="button" className="button-link" onClick={() => void remove()}>
+          Unbind
+        </button>
+      </div>
+
+      {test && (
+        <p className="connection-test" data-reachable={test.reachable}>
+          {test.reachable ? "✓ " : "✗ "}
+          {test.message}
+        </p>
+      )}
+
+      <form className="inline-form" onSubmit={(event) => void saveSecret(event)}>
+        <label>
+          Token
+          <input
+            type="password"
+            value={secret}
+            onChange={(event) => setSecret(event.target.value)}
+            placeholder={credential?.configured ? "A token is stored" : "Only if the tracker is private"}
+            autoComplete="off"
+            required
+          />
+        </label>
+        <button type="submit">{credential?.configured ? "Replace" : "Save"}</button>
+        {credential?.configured && (
+          <button type="button" className="button-link" onClick={() => void forget()}>
+            Forget
+          </button>
+        )}
+      </form>
+
+      <p className="hint">
+        {credential?.configured
+          ? "A token is stored for this tracker. It is encrypted at rest and is never shown again — replace it rather than reading it back."
+          : tracker?.credentialHint ?? "No token is stored."}
+      </p>
     </div>
   );
 }

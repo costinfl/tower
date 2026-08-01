@@ -105,12 +105,21 @@ public class SourceControlCollector implements SourceVersionCollector {
     public ConnectionTest checkConnection(String repositoryUrl) {
         String connectorId = connector.connectorId();
         ConnectorCredential credential = credentialFor(connectorId, repositoryUrl);
+        // Recorded before the call, because the credential is cleared by it.
+        boolean presented = credential.isPresent();
         try {
             connector.checkConnection(new RepositoryLocator(repositoryUrl), credential);
             // ConnectionTest carries a scope because a Deployment Platform has
             // one. A repository does not, so it is stated rather than left as a
             // null a screen would have to render.
-            return ConnectionTest.reachable(connectorId, repositoryUrl, "whole repository");
+            //
+            // A public repository reads with no credential, and saying one was
+            // accepted would tell a user their token works before they have saved
+            // one.
+            return presented
+                    ? ConnectionTest.reachable(connectorId, repositoryUrl, "whole repository")
+                    : ConnectionTest.reachableAnonymously(
+                            connectorId, repositoryUrl, "whole repository");
         } catch (ConnectorException e) {
             return ConnectionTest.unreachable(connectorId, repositoryUrl, "whole repository", e.getMessage());
         } finally {

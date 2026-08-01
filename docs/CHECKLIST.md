@@ -101,7 +101,17 @@ This checklist tracks the architectural documentation required before implementa
 - [x] Application layer, API and Viewer
 - [x] Work items in generated documentation
 - [x] GitHub Issues implementation, verified against this repository's own issues
-- [ ] Jira implementation
+- [x] Jira implementation (live verification against a real site outstanding — see below)
+
+## Outstanding verification
+
+- [ ] Jira Connector against a real site. Built and tested against a local server standing in for
+      Jira, and exercised end to end through Tower's whole path — binding, Collector, Connector,
+      HTTP — but no Atlassian host is reachable from the environment this was built in, so nothing
+      here has yet spoken to a real Jira. This is the condition to clear before a scheduler is
+      considered.
+- [ ] A generated DOCX opened in Word.
+- [ ] The six real-cluster M2 exit checks.
 
 ## Deferred work closed
 

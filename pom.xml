@@ -28,6 +28,7 @@
     <module>tower-connector-git</module>
     <module>tower-connector-k8s</module>
     <module>tower-connector-github</module>
+    <module>tower-connector-jira</module>
     <module>tower-persistence</module>
     <module>tower-config</module>
     <module>tower-docgen</module>

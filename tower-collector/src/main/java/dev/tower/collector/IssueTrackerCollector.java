@@ -93,9 +93,14 @@ public class IssueTrackerCollector implements WorkItemCollector {
 
         String locator = bound.get().locator();
         ConnectorCredential credential = credentialFor(locator);
+        // Recorded before the call, because the credential is cleared by it.
+        boolean presented = credential.isPresent();
         try {
             connector.checkConnection(new IssueLocator(locator), credential);
-            return ConnectionTest.reachable(connector.connectorId(), locator, WHOLE_TRACKER);
+            return presented
+                    ? ConnectionTest.reachable(connector.connectorId(), locator, WHOLE_TRACKER)
+                    : ConnectionTest.reachableAnonymously(
+                            connector.connectorId(), locator, WHOLE_TRACKER);
         } catch (RuntimeException e) {
             // Reported rather than thrown: FR-061 asks what the state is, and
             // "refused the credential" is an answer, not an accident.

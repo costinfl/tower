@@ -25,6 +25,20 @@ public record ConnectionTest(
                 "Connected and the credential was accepted.");
     }
 
+    /**
+     * Connected, with no credential presented.
+     *
+     * <p>Separate from {@link #reachable} because that message says a credential
+     * was accepted, and for a public repository or a public Jira there was none
+     * to accept. A reader who has not yet saved a token would otherwise be told
+     * their token works.
+     */
+    public static ConnectionTest reachableAnonymously(
+            String connectorId, String target, String scope) {
+        return new ConnectionTest(connectorId, target, scope, true,
+                "Connected. No credential was presented, and none was needed.");
+    }
+
     public static ConnectionTest unreachable(
             String connectorId, String target, String scope, String message) {
         return new ConnectionTest(connectorId, target, scope, false, message);
