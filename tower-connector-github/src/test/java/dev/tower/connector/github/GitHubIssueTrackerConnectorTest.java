@@ -2,20 +2,10 @@ package dev.tower.connector.github;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
-import java.io.IOException;
-import java.io.OutputStream;
-import java.net.InetSocketAddress;
-import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
-import com.sun.net.httpserver.HttpServer;
-
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -23,168 +13,106 @@ import org.junit.jupiter.api.Test;
 import dev.tower.connector.api.ConnectorCredential;
 import dev.tower.connector.api.ConnectorException;
 import dev.tower.connector.api.IssueLocator;
+import dev.tower.connector.api.IssueTrackerConnector;
 import dev.tower.connector.api.TrackedIssue;
+import dev.tower.testkit.connector.IssueTrackerConnectorContract;
+import dev.tower.testkit.connector.RecordingHttpServer;
+import dev.tower.testkit.connector.VendorDescription;
 
 /**
  * ADR-018: reading GitHub Issues, and only reading them.
  *
+ * <p>Extends the shared contract, so everything the SPI promises — absence is not
+ * an error, a status is never normalised, a credential never reaches a message —
+ * is asserted here without being restated here. What is left below is what is
+ * genuinely GitHub's own: how it writes an issue number, that a 404 means two
+ * different things, what its connection test can and cannot conclude.
+ *
  * <p>Run against a real HTTP server on a loopback port rather than a mocked
- * client. What is under test is largely what Tower does with the answers GitHub
- * actually gives — a 404 for an issue that does not exist, a 404 for a private
- * repository, a body that is not JSON — and a mocked client would only return
- * what this test already assumed.
+ * client, and served bodies recorded from the real api.github.com. A mocked
+ * client could only return what this test already assumed.
  */
 @DisplayName("Reading work items from GitHub Issues")
-class GitHubIssueTrackerConnectorTest {
+class GitHubIssueTrackerConnectorTest extends IssueTrackerConnectorContract {
 
-    private HttpServer server;
+    private GitHubTracker github;
     private GitHubIssueTrackerConnector connector;
 
-    /** Every request the server saw, so the read-only claim can be checked. */
-    private final List<String> requests = new ArrayList<>();
-    private final Map<String, String> bodies = new ConcurrentHashMap<>();
-    private final Map<String, Integer> statuses = new ConcurrentHashMap<>();
-
-    @BeforeEach
-    void startServer() throws IOException {
-        server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        server.createContext("/", exchange -> {
-            requests.add(exchange.getRequestMethod() + " " + exchange.getRequestURI().getPath());
-            String path = exchange.getRequestURI().getPath();
-            int status = statuses.getOrDefault(path, bodies.containsKey(path) ? 200 : 404);
-            byte[] body = bodies.getOrDefault(path, "{}").getBytes(StandardCharsets.UTF_8);
-            exchange.sendResponseHeaders(status, body.length);
-            try (OutputStream out = exchange.getResponseBody()) {
-                out.write(body);
-            }
-        });
-        server.start();
-        connector = new GitHubIssueTrackerConnector(
-                "http://127.0.0.1:" + server.getAddress().getPort());
+    @Override
+    protected IssueTrackerConnector connectorReading(RecordingHttpServer server) {
+        github = new GitHubTracker(server);
+        connector = new GitHubIssueTrackerConnector(server.baseUrl());
+        return connector;
     }
 
-    @AfterEach
-    void stopServer() {
-        server.stop(0);
+    @Override
+    protected IssueLocator locator() {
+        return new IssueLocator(GitHubTracker.REPOSITORY);
     }
 
-    private void issue(int number, String title, String state) {
-        bodies.put("/repos/acme/retail/issues/" + number,
-                "{\"number\":" + number + ",\"title\":\"" + title + "\",\"state\":\"" + state
-                        + "\",\"html_url\":\"https://github.com/acme/retail/issues/" + number + "\"}");
+    @Override
+    protected void givenIssue(CannedIssue issue) {
+        github.givenIssue(issue);
     }
 
-    private List<TrackedIssue> read(String... identifiers) {
-        return connector.readIssues(new IssueLocator("acme/retail"), List.of(identifiers),
-                ConnectorCredential.none());
+    @Override
+    protected void givenTheTrackerAnswers(String identifier, int status, String body) {
+        server.answer(github.pathOf(identifier), status, body);
+    }
+
+    @Override
+    protected String anIdentifier() {
+        return "42";
+    }
+
+    @Override
+    protected String anAbsentIdentifier() {
+        return "999";
+    }
+
+    @Override
+    protected String anIdentifierFromAnotherTracker() {
+        // A Jira key. GitHub numbers its issues, so this can name nothing here.
+        return "PROJ-123";
+    }
+
+    @Override
+    protected String anUnfinishedStatus() {
+        return "open";
+    }
+
+    @Override
+    protected String aFinishedStatus() {
+        return "closed";
     }
 
     @Nested
-    @DisplayName("reads and never writes")
-    class ReadOnly {
+    @DisplayName("fixtures are shaped the way GitHub shapes them")
+    class VendorShape {
 
         @Test
-        void issues_only_GET_requests() {
-            // ADR-001, enforced where it can actually be observed: whatever the
-            // Connector does, the server sees nothing but GET.
-            issue(42, "Save basket", "open");
-            statuses.put("/repos/acme/retail", 200);
-            bodies.put("/repos/acme/retail", "{\"full_name\":\"acme/retail\"}");
+        void the_recorded_responses_still_match_githubs_own_description() {
+            // ADR-019. The recordings came from the real API; this says they are
+            // still what GitHub's published description says that API answers, so
+            // a fixture cannot quietly drift into a shape GitHub never produces.
+            assumeTrue(github.hasDescription(), VendorDescription.absenceOf(GitHubTracker.SLICE));
 
-            read("42");
-            connector.checkConnection(new IssueLocator("acme/retail"), ConnectorCredential.none());
-
-            assertThat(requests).isNotEmpty().allSatisfy(r -> assertThat(r).startsWith("GET "));
-        }
-
-        @Test
-        void reads_the_title_state_and_address() {
-            issue(42, "Save basket", "open");
-
-            assertThat(read("42")).singleElement().satisfies(found -> {
-                assertThat(found.identifier()).isEqualTo("42");
-                assertThat(found.title()).isEqualTo("Save basket");
-                assertThat(found.status()).isEqualTo("open");
-                assertThat(found.closed()).isFalse();
-                assertThat(found.url()).isEqualTo("https://github.com/acme/retail/issues/42");
-            });
-        }
-
-        @Test
-        void reports_closed_using_githubs_own_word_for_the_state() {
-            // ADR-018: status is the tracker's word, not normalised into a Tower
-            // vocabulary. Only "is it finished" is normalised, because it is the
-            // one thing every tracker agrees on.
-            issue(7, "Old work", "closed");
-
-            assertThat(read("7")).singleElement().satisfies(found -> {
-                assertThat(found.status()).isEqualTo("closed");
-                assertThat(found.closed()).isTrue();
-            });
-        }
-
-        @Test
-        void keeps_the_identifier_the_team_wrote() {
-            // Tower stores the identifier unchanged, so what comes back must
-            // match what went in rather than GitHub's canonical number.
-            issue(42, "Save basket", "open");
-
-            assertThat(read("#42")).singleElement()
-                    .extracting(TrackedIssue::identifier).isEqualTo("#42");
+            github.requireRecordingsAreStillVendorShaped();
         }
     }
 
     @Nested
-    @DisplayName("distinguishes not-there from cannot-ask")
-    class Absence {
+    @DisplayName("reads what a release document needs")
+    class Reading {
 
         @Test
-        void an_issue_the_repository_does_not_have_is_omitted_rather_than_invented() {
-            issue(42, "Save basket", "open");
+        void reads_the_address_a_reader_can_follow() {
+            github.givenIssue(new CannedIssue("42", "Save basket", "open", false));
 
-            assertThat(read("42", "999"))
-                    .extracting(TrackedIssue::identifier).containsExactly("42");
-        }
-
-        @Test
-        void an_identifier_that_is_not_a_number_is_omitted_rather_than_failing_the_read() {
-            // A team that linked "PROJ-123" and later bound GitHub should still
-            // see their other items resolve.
-            issue(42, "Save basket", "open");
-
-            assertThat(read("PROJ-123", "42"))
-                    .extracting(TrackedIssue::identifier).containsExactly("42");
-        }
-
-        @Test
-        void a_repository_that_answers_an_error_fails_loudly() {
-            // Not the same as an issue being absent: the whole read failed, and
-            // the caller must be able to tell that apart.
-            statuses.put("/repos/acme/retail/issues/42", 500);
-            bodies.put("/repos/acme/retail/issues/42", "{}");
-
-            assertThatThrownBy(() -> read("42"))
-                    .isInstanceOf(ConnectorException.class)
-                    .hasMessageContaining("500");
-        }
-
-        @Test
-        void a_body_that_is_not_json_is_reported_rather_than_half_read() {
-            statuses.put("/repos/acme/retail/issues/42", 200);
-            bodies.put("/repos/acme/retail/issues/42", "<html>not json</html>");
-
-            assertThatThrownBy(() -> read("42"))
-                    .isInstanceOf(ConnectorException.class)
-                    .hasMessageContaining("not JSON");
-        }
-
-        @Test
-        void reads_each_identifier_once_however_often_it_is_named() {
-            issue(42, "Save basket", "open");
-
-            read("42", "42", "#42");
-
-            assertThat(requests).filteredOn(r -> r.endsWith("/issues/42")).hasSize(2);
+            assertThat(connector.readIssues(locator(), List.of("42"), ConnectorCredential.none()))
+                    .singleElement()
+                    .extracting(TrackedIssue::url)
+                    .isEqualTo("https://github.com/acme/retail/issues/42");
         }
     }
 
@@ -194,18 +122,16 @@ class GitHubIssueTrackerConnectorTest {
 
         @Test
         void passes_when_the_repository_answers() {
-            statuses.put("/repos/acme/retail", 200);
-            bodies.put("/repos/acme/retail", "{\"full_name\":\"acme/retail\"}");
+            github.givenTheRepository();
 
-            connector.checkConnection(new IssueLocator("acme/retail"), ConnectorCredential.none());
+            connector.checkConnection(locator(), ConnectorCredential.none());
         }
 
         @Test
         void names_both_possibilities_for_a_404_rather_than_asserting_the_wrong_one() {
             // GitHub answers 404 for a private repository a credential cannot
             // see, so "does not exist" would often be false.
-            assertThatThrownBy(() -> connector.checkConnection(
-                    new IssueLocator("acme/retail"), ConnectorCredential.none()))
+            assertThatThrownBy(() -> connector.checkConnection(locator(), ConnectorCredential.none()))
                     .isInstanceOf(ConnectorException.class)
                     .hasMessageContaining("does not exist")
                     .hasMessageContaining("cannot see it");
@@ -213,10 +139,9 @@ class GitHubIssueTrackerConnectorTest {
 
         @Test
         void says_the_credential_was_refused_when_it_was() {
-            statuses.put("/repos/acme/retail", 401);
+            server.answer("/repos/" + GitHubTracker.REPOSITORY, 401, "{}");
 
-            assertThatThrownBy(() -> connector.checkConnection(
-                    new IssueLocator("acme/retail"), ConnectorCredential.none()))
+            assertThatThrownBy(() -> connector.checkConnection(locator(), ConnectorCredential.none()))
                     .isInstanceOf(ConnectorException.class)
                     .hasMessageContaining("refused the credential");
         }
@@ -249,24 +174,16 @@ class GitHubIssueTrackerConnectorTest {
             assertThat(GitHubIssueTrackerConnector.numberOf("")).isNull();
             assertThat(GitHubIssueTrackerConnector.numberOf(null)).isNull();
         }
-    }
-
-    @Nested
-    @DisplayName("keeps the credential out of everything a reader can see")
-    class Secrecy {
 
         @Test
-        void a_failure_message_never_carries_the_token() {
-            // NFR-028. The token is in the request object the failure came from,
-            // which is exactly why the message is built from the cause instead.
-            statuses.put("/repos/acme/retail/issues/42", 500);
-            bodies.put("/repos/acme/retail/issues/42", "{}");
-            var credential = ConnectorCredential.bearerToken("ghp_supersecrettoken".toCharArray());
+        void reports_the_identifier_as_written_even_when_it_had_to_be_read_first() {
+            // "#42" is asked for as 42 and reported back as "#42". The contract
+            // asserts this for the plain form; this is the one that was parsed.
+            github.givenIssue(new CannedIssue("42", "Save basket", "open", false));
 
-            assertThatThrownBy(() -> connector.readIssues(
-                    new IssueLocator("acme/retail"), List.of("42"), credential))
-                    .isInstanceOf(ConnectorException.class)
-                    .hasMessageNotContaining("ghp_supersecrettoken");
+            assertThat(connector.readIssues(locator(), List.of("#42"), ConnectorCredential.none()))
+                    .singleElement()
+                    .extracting(TrackedIssue::identifier).isEqualTo("#42");
         }
     }
 }

@@ -2,20 +2,12 @@ package dev.tower.connector.jira;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
-import java.io.IOException;
-import java.io.OutputStream;
-import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
-import com.sun.net.httpserver.HttpServer;
-
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -23,216 +15,140 @@ import org.junit.jupiter.api.Test;
 import dev.tower.connector.api.ConnectorCredential;
 import dev.tower.connector.api.ConnectorException;
 import dev.tower.connector.api.IssueLocator;
+import dev.tower.connector.api.IssueTrackerConnector;
 import dev.tower.connector.api.TrackedIssue;
+import dev.tower.testkit.connector.IssueTrackerConnectorContract;
+import dev.tower.testkit.connector.RecordingHttpServer;
+import dev.tower.testkit.connector.VendorDescription;
 
 /**
  * ADR-018: reading Jira, and only reading it.
  *
- * <p>Run against a real HTTP server on a loopback port rather than a mocked
- * client, for the reason the GitHub Connector's test gives: what is under test is
- * largely what Tower does with the answers Jira actually gives — a 404 that means
- * two different things, a status category rather than a status name, a body that
- * is not JSON — and a mocked client would only return what this test already
- * assumed.
+ * <p>Extends the shared contract, so what the SPI promises is asserted here
+ * without being restated here. What is left below is what is genuinely Jira's:
+ * two credential shapes and no way to ask a site which it wants, a status
+ * category that decides what a status name must not, a 404 that means two things
+ * on purpose, and a version-2 path chosen so one Connector serves Cloud, Server
+ * and Data Center alike.
  *
- * <p>The one thing these tests cannot stand in for is a real Jira. Live
- * verification against a site is recorded as outstanding rather than implied by
- * a green run here.
+ * <p><strong>Nothing here has spoken to a real Jira.</strong> The fixtures are
+ * hand-written, unlike GitHub's, because no Atlassian host is reachable from the
+ * environment this was built in. A green run means the Connector agrees with what
+ * I believe Jira returns. Committing {@code specs/jira/} makes Atlassian's own
+ * description the judge of that belief instead; the live check in CHECKLIST.md is
+ * the only thing that can settle it entirely, and it is still outstanding.
  */
 @DisplayName("Reading work items from Jira")
-class JiraIssueTrackerConnectorTest {
+class JiraIssueTrackerConnectorTest extends IssueTrackerConnectorContract {
 
-    private HttpServer server;
+    private JiraTracker jira;
     private JiraIssueTrackerConnector connector;
     private String site;
 
-    /** Every request the server saw, so the read-only claim can be checked. */
-    private final List<String> requests = new ArrayList<>();
-    private final List<String> authorizations = new ArrayList<>();
-    /** The query string of each request, so the fields asked for can be checked. */
-    private final List<String> queries = new ArrayList<>();
-    private final Map<String, String> bodies = new ConcurrentHashMap<>();
-    private final Map<String, Integer> statuses = new ConcurrentHashMap<>();
-
-    @BeforeEach
-    void startServer() throws IOException {
-        server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        server.createContext("/", exchange -> {
-            requests.add(exchange.getRequestMethod() + " " + exchange.getRequestURI().getPath());
-            queries.add(exchange.getRequestURI().getQuery());
-            String header = exchange.getRequestHeaders().getFirst("Authorization");
-            if (header != null) {
-                authorizations.add(header);
-            }
-            String path = exchange.getRequestURI().getPath();
-            int status = statuses.getOrDefault(path, bodies.containsKey(path) ? 200 : 404);
-            byte[] body = bodies.getOrDefault(path, "{}").getBytes(StandardCharsets.UTF_8);
-            exchange.sendResponseHeaders(status, body.length);
-            try (OutputStream out = exchange.getResponseBody()) {
-                out.write(body);
-            }
-        });
-        server.start();
-        site = "http://127.0.0.1:" + server.getAddress().getPort();
+    @Override
+    protected IssueTrackerConnector connectorReading(RecordingHttpServer server) {
+        jira = new JiraTracker(server);
+        site = server.baseUrl();
         connector = new JiraIssueTrackerConnector();
+        return connector;
     }
 
-    @AfterEach
-    void stopServer() {
-        server.stop(0);
+    @Override
+    protected IssueLocator locator() {
+        return new IssueLocator(site);
     }
 
-    /** A Jira issue as the site answers it, with the status in a category. */
-    private void issue(String key, String summary, String status, String category) {
-        bodies.put("/rest/api/2/issue/" + key,
-                "{\"key\":\"" + key + "\",\"fields\":{\"summary\":\"" + summary + "\","
-                        + "\"status\":{\"name\":\"" + status + "\","
-                        + "\"statusCategory\":{\"key\":\"" + category + "\"}}}}");
+    @Override
+    protected void givenIssue(CannedIssue issue) {
+        jira.givenIssue(issue);
     }
 
-    private List<TrackedIssue> read(String... identifiers) {
-        return connector.readIssues(new IssueLocator(site), List.of(identifiers),
-                ConnectorCredential.none());
+    @Override
+    protected void givenTheTrackerAnswers(String identifier, int status, String body) {
+        server.answer(jira.pathOf(identifier), status, body);
+    }
+
+    @Override
+    protected String anIdentifier() {
+        return "PROJ-123";
+    }
+
+    @Override
+    protected String anAbsentIdentifier() {
+        return "PROJ-999";
+    }
+
+    @Override
+    protected String anIdentifierFromAnotherTracker() {
+        // A GitHub issue number. Jira keys its issues, so this can name nothing here.
+        return "#42";
+    }
+
+    @Override
+    protected String anUnfinishedStatus() {
+        return "In Review";
+    }
+
+    @Override
+    protected String aFinishedStatus() {
+        return "Shipped it";
     }
 
     @Nested
-    @DisplayName("reads and never writes")
-    class ReadOnly {
+    @DisplayName("fixtures are shaped the way Jira shapes them")
+    class VendorShape {
 
         @Test
-        void issues_only_GET_requests() {
-            // ADR-001, enforced where it can actually be observed: whatever the
-            // Connector does, the server sees nothing but GET.
-            issue("PROJ-123", "Save basket", "In Progress", "indeterminate");
-            bodies.put("/rest/api/2/serverInfo", "{\"version\":\"9.4.0\"}");
+        void the_fixtures_match_atlassians_own_description() {
+            // ADR-019, and the check this Connector needs most: unlike GitHub's,
+            // these bodies were written from belief rather than recorded from a
+            // real response. Until specs/jira/ is committed this skips, and says
+            // so, rather than passing and looking like proof.
+            assumeTrue(jira.hasDescription(), VendorDescription.absenceOf(JiraTracker.SLICE));
 
-            read("PROJ-123");
-            connector.checkConnection(new IssueLocator(site), ConnectorCredential.none());
-
-            assertThat(requests).isNotEmpty().allSatisfy(r -> assertThat(r).startsWith("GET "));
+            jira.givenIssue(new CannedIssue("PROJ-1", "Anything", "In Review", false));
+            jira.givenTheSiteAnswers();
+            jira.givenTheCredentialIsAccepted();
         }
+    }
+
+    @Nested
+    @DisplayName("reads what a release document needs")
+    class Reading {
 
         @Test
-        void reads_the_summary_status_and_address() {
-            issue("PROJ-123", "Save basket", "In Progress", "indeterminate");
+        void reads_the_address_a_reader_can_follow() {
+            jira.givenIssue(new CannedIssue("PROJ-123", "Save basket", "In Review", false));
 
-            assertThat(read("PROJ-123")).singleElement().satisfies(found -> {
-                assertThat(found.identifier()).isEqualTo("PROJ-123");
-                assertThat(found.title()).isEqualTo("Save basket");
-                assertThat(found.status()).isEqualTo("In Progress");
-                assertThat(found.closed()).isFalse();
-                assertThat(found.url()).isEqualTo(site + "/browse/PROJ-123");
-            });
+            assertThat(connector.readIssues(locator(), List.of("PROJ-123"), ConnectorCredential.none()))
+                    .singleElement()
+                    .extracting(TrackedIssue::url)
+                    .isEqualTo(site + "/browse/PROJ-123");
         }
 
         @Test
         void asks_for_two_fields_rather_than_the_whole_issue() {
             // A Jira issue document carries every custom field the site defines.
             // Tower reads two values, and the request says so.
-            issue("PROJ-123", "Save basket", "In Progress", "indeterminate");
+            jira.givenIssue(new CannedIssue("PROJ-123", "Save basket", "In Review", false));
 
-            read("PROJ-123");
+            connector.readIssues(locator(), List.of("PROJ-123"), ConnectorCredential.none());
 
-            assertThat(lastQuery()).isEqualTo("fields=summary,status");
-        }
-
-        @Test
-        void reports_the_teams_own_word_for_the_status() {
-            // ADR-018: status is the tracker's word, never normalised into a
-            // Tower vocabulary. A workflow state nobody else has is still the
-            // state this team is in.
-            issue("PROJ-9", "Old work", "Ready for QA", "indeterminate");
-
-            assertThat(read("PROJ-9")).singleElement()
-                    .extracting(TrackedIssue::status).isEqualTo("Ready for QA");
-        }
-
-        @Test
-        void takes_jiras_own_answer_for_whether_it_is_finished() {
-            // The site's administrator put this status in the done category.
-            // Reading the category rather than the name is what keeps Tower from
-            // deciding which of a team's states count as finished.
-            issue("PROJ-9", "Old work", "Shipped it", "done");
-
-            assertThat(read("PROJ-9")).singleElement().satisfies(found -> {
-                assertThat(found.status()).isEqualTo("Shipped it");
-                assertThat(found.closed()).isTrue();
-            });
+            assertThat(server.requests()).singleElement()
+                    .extracting(RecordingHttpServer.Request::query)
+                    .isEqualTo("fields=summary,status");
         }
 
         @Test
         void does_not_read_finished_out_of_a_status_that_merely_sounds_finished() {
-            // "Done" by name, but the site has it in an unfinished category —
-            // a real arrangement on boards with a "Done, pending release" column.
-            issue("PROJ-9", "Nearly there", "Done", "indeterminate");
+            // "Done" by name, but the site has it in an unfinished category — a
+            // real arrangement on boards with a "Done, pending release" column.
+            // Reading the name instead of the category would call this shipped.
+            jira.givenIssue(new CannedIssue("PROJ-9", "Nearly there", "Done", false));
 
-            assertThat(read("PROJ-9")).singleElement()
+            assertThat(connector.readIssues(locator(), List.of("PROJ-9"), ConnectorCredential.none()))
+                    .singleElement()
                     .extracting(TrackedIssue::closed).isEqualTo(false);
-        }
-
-        @Test
-        void keeps_the_identifier_the_team_wrote() {
-            // Tower stores the identifier unchanged, so a lower-case key comes
-            // back as the team wrote it even though Jira was asked in upper case.
-            issue("PROJ-123", "Save basket", "In Progress", "indeterminate");
-
-            assertThat(read("proj-123")).singleElement()
-                    .extracting(TrackedIssue::identifier).isEqualTo("proj-123");
-        }
-    }
-
-    @Nested
-    @DisplayName("distinguishes not-there from cannot-ask")
-    class Absence {
-
-        @Test
-        void an_issue_the_site_does_not_have_is_omitted_rather_than_invented() {
-            issue("PROJ-123", "Save basket", "In Progress", "indeterminate");
-
-            assertThat(read("PROJ-123", "PROJ-999"))
-                    .extracting(TrackedIssue::identifier).containsExactly("PROJ-123");
-        }
-
-        @Test
-        void an_identifier_that_is_not_a_jira_key_is_omitted_rather_than_failing_the_read() {
-            // A team that linked GitHub issues and later bound Jira should still
-            // see their other items resolve.
-            issue("PROJ-123", "Save basket", "In Progress", "indeterminate");
-
-            assertThat(read("#42", "42", "PROJ-123"))
-                    .extracting(TrackedIssue::identifier).containsExactly("PROJ-123");
-        }
-
-        @Test
-        void a_site_that_answers_an_error_fails_loudly() {
-            // Not the same as an issue being absent: the whole read failed, and
-            // the caller must be able to tell that apart.
-            statuses.put("/rest/api/2/issue/PROJ-123", 500);
-            bodies.put("/rest/api/2/issue/PROJ-123", "{}");
-
-            assertThatThrownBy(() -> read("PROJ-123"))
-                    .isInstanceOf(ConnectorException.class)
-                    .hasMessageContaining("500");
-        }
-
-        @Test
-        void a_body_that_is_not_json_is_reported_rather_than_half_read() {
-            // What a login page looks like from here: HTTP 200, and HTML.
-            statuses.put("/rest/api/2/issue/PROJ-123", 200);
-            bodies.put("/rest/api/2/issue/PROJ-123", "<html>sign in</html>");
-
-            assertThatThrownBy(() -> read("PROJ-123"))
-                    .isInstanceOf(ConnectorException.class)
-                    .hasMessageContaining("not JSON");
-        }
-
-        @Test
-        void reads_each_key_once_however_often_it_is_named() {
-            issue("PROJ-123", "Save basket", "In Progress", "indeterminate");
-
-            read("PROJ-123", "PROJ-123", "proj-123");
-
-            assertThat(requests).filteredOn(r -> r.endsWith("/issue/PROJ-123")).hasSize(2);
         }
     }
 
@@ -244,30 +160,34 @@ class JiraIssueTrackerConnectorTest {
         void asks_a_public_site_only_whether_it_answers() {
             // No credential, so there is nothing to accept: /myself would report
             // an authentication failure for a credential the user never supplied.
-            bodies.put("/rest/api/2/serverInfo", "{\"version\":\"9.4.0\"}");
+            jira.givenTheSiteAnswers();
 
-            connector.checkConnection(new IssueLocator(site), ConnectorCredential.none());
+            connector.checkConnection(locator(), ConnectorCredential.none());
 
-            assertThat(requests).containsExactly("GET /rest/api/2/serverInfo");
+            assertThat(server.requests()).singleElement()
+                    .extracting(RecordingHttpServer.Request::path)
+                    .isEqualTo("/rest/api/2/serverInfo");
         }
 
         @Test
         void proves_a_credential_is_accepted_rather_than_only_that_the_site_is_up() {
             // FR-061 asks whether the credential is accepted. Only an endpoint
             // that requires one can answer that.
-            bodies.put("/rest/api/2/myself", "{\"displayName\":\"A person\"}");
+            jira.givenTheCredentialIsAccepted();
 
-            connector.checkConnection(new IssueLocator(site),
+            connector.checkConnection(locator(),
                     ConnectorCredential.bearerToken("pat_token".toCharArray()));
 
-            assertThat(requests).containsExactly("GET /rest/api/2/myself");
+            assertThat(server.requests()).singleElement()
+                    .extracting(RecordingHttpServer.Request::path)
+                    .isEqualTo("/rest/api/2/myself");
         }
 
         @Test
         void says_the_credential_was_refused_and_what_shape_jira_wants() {
-            statuses.put("/rest/api/2/myself", 401);
+            server.answer("/rest/api/2/myself", 401, "{}");
 
-            assertThatThrownBy(() -> connector.checkConnection(new IssueLocator(site),
+            assertThatThrownBy(() -> connector.checkConnection(locator(),
                     ConnectorCredential.bearerToken("pat_token".toCharArray())))
                     .isInstanceOf(ConnectorException.class)
                     .hasMessageContaining("refused the credential")
@@ -276,8 +196,7 @@ class JiraIssueTrackerConnectorTest {
 
         @Test
         void says_an_address_may_not_be_a_jira_at_all_when_it_answers_404() {
-            assertThatThrownBy(() -> connector.checkConnection(
-                    new IssueLocator(site), ConnectorCredential.none()))
+            assertThatThrownBy(() -> connector.checkConnection(locator(), ConnectorCredential.none()))
                     .isInstanceOf(ConnectorException.class)
                     .hasMessageContaining("not a Jira site");
         }
@@ -293,11 +212,13 @@ class JiraIssueTrackerConnectorTest {
         @Test
         void reads_a_site_written_with_a_trailing_slash() {
             // Pasted out of a browser, which is where site addresses come from.
-            bodies.put("/rest/api/2/serverInfo", "{\"version\":\"9.4.0\"}");
+            jira.givenTheSiteAnswers();
 
             connector.checkConnection(new IssueLocator(site + "/"), ConnectorCredential.none());
 
-            assertThat(requests).containsExactly("GET /rest/api/2/serverInfo");
+            assertThat(server.requests()).singleElement()
+                    .extracting(RecordingHttpServer.Request::path)
+                    .isEqualTo("/rest/api/2/serverInfo");
         }
     }
 
@@ -308,36 +229,27 @@ class JiraIssueTrackerConnectorTest {
         @Test
         void presents_a_cloud_credential_as_basic() {
             // What Atlassian's own documentation tells a Cloud user to write.
-            issue("PROJ-123", "Save basket", "In Progress", "indeterminate");
+            jira.givenIssue(new CannedIssue("PROJ-123", "Save basket", "In Review", false));
 
-            connector.readIssues(new IssueLocator(site), List.of("PROJ-123"),
+            connector.readIssues(locator(), List.of("PROJ-123"),
                     ConnectorCredential.bearerToken("person@acme.test:api_token".toCharArray()));
 
-            assertThat(authorizations).singleElement().satisfies(header -> {
-                assertThat(header).startsWith("Basic ");
-                assertThat(decoded(header)).isEqualTo("person@acme.test:api_token");
+            assertThat(server.requests()).singleElement().satisfies(request -> {
+                assertThat(request.authorization()).startsWith("Basic ");
+                assertThat(decoded(request.authorization())).isEqualTo("person@acme.test:api_token");
             });
         }
 
         @Test
         void presents_a_data_center_credential_as_a_bearer_token() {
-            issue("PROJ-123", "Save basket", "In Progress", "indeterminate");
+            jira.givenIssue(new CannedIssue("PROJ-123", "Save basket", "In Review", false));
 
-            connector.readIssues(new IssueLocator(site), List.of("PROJ-123"),
+            connector.readIssues(locator(), List.of("PROJ-123"),
                     ConnectorCredential.bearerToken("pat_token".toCharArray()));
 
-            assertThat(authorizations).containsExactly("Bearer pat_token");
-        }
-
-        @Test
-        void presents_nothing_at_all_when_no_credential_is_stored() {
-            // A public Jira reads without one, and sending an empty header would
-            // turn an anonymous read into a refused one.
-            issue("PROJ-123", "Save basket", "In Progress", "indeterminate");
-
-            read("PROJ-123");
-
-            assertThat(authorizations).isEmpty();
+            assertThat(server.requests()).singleElement()
+                    .extracting(RecordingHttpServer.Request::authorization)
+                    .isEqualTo("Bearer pat_token");
         }
     }
 
@@ -368,48 +280,24 @@ class JiraIssueTrackerConnectorTest {
 
         @Test
         void does_not_find_a_key_inside_a_sentence() {
-            // The pattern is anchored. A description that mentions a key is not
-            // a reference to it, and reading one out would resolve an item the
+            // The pattern is anchored. A description that mentions a key is not a
+            // reference to it, and reading one out would resolve an item the
             // release never claimed to deliver.
             assertThat(JiraIssueTrackerConnector.keyOf("fixes PROJ-123 finally")).isNull();
         }
-    }
-
-    @Nested
-    @DisplayName("keeps the credential out of everything a reader can see")
-    class Secrecy {
 
         @Test
-        void a_failure_message_never_carries_the_token() {
-            // NFR-028. The token is in the request object the failure came from,
-            // which is exactly why the message is built from the cause instead.
-            statuses.put("/rest/api/2/issue/PROJ-123", 500);
-            bodies.put("/rest/api/2/issue/PROJ-123", "{}");
+        void reports_the_identifier_as_written_even_though_jira_was_asked_in_upper_case() {
+            jira.givenIssue(new CannedIssue("PROJ-123", "Save basket", "In Review", false));
 
-            assertThatThrownBy(() -> connector.readIssues(new IssueLocator(site),
-                    List.of("PROJ-123"),
-                    ConnectorCredential.bearerToken("pat_supersecrettoken".toCharArray())))
-                    .isInstanceOf(ConnectorException.class)
-                    .hasMessageNotContaining("pat_supersecrettoken");
+            assertThat(connector.readIssues(locator(), List.of("proj-123"), ConnectorCredential.none()))
+                    .singleElement()
+                    .extracting(TrackedIssue::identifier).isEqualTo("proj-123");
         }
-
-        @Test
-        void a_refused_credential_is_reported_without_quoting_it() {
-            statuses.put("/rest/api/2/myself", 401);
-
-            assertThatThrownBy(() -> connector.checkConnection(new IssueLocator(site),
-                    ConnectorCredential.bearerToken("person@acme.test:supersecret".toCharArray())))
-                    .isInstanceOf(ConnectorException.class)
-                    .hasMessageNotContaining("supersecret");
-        }
-    }
-
-    private String lastQuery() {
-        return queries.isEmpty() ? null : queries.get(queries.size() - 1);
     }
 
     private static String decoded(String basicHeader) {
-        return new String(java.util.Base64.getDecoder().decode(
+        return new String(Base64.getDecoder().decode(
                 basicHeader.substring("Basic ".length())), StandardCharsets.UTF_8);
     }
 }

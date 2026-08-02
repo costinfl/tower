@@ -252,6 +252,27 @@ Future Milestone
 
 ---
 
+## OQ-016
+
+How often should a vendored API description be refreshed, and does the drift check belong in the build?
+
+ADR-019 commits slices of vendors' own API descriptions and checks Connector fixtures against them. A stale
+slice quietly stops being evidence: it goes on agreeing with fixtures the vendor no longer produces.
+
+`scripts/check-openapi-drift.sh` exists and is deliberately kept out of CI, because a build that goes red
+because GitHub edited a document is a build that went red for something the diff did not do. That leaves the
+refresh depending on somebody remembering.
+
+The unresolved part is which failure is worse: a suite that silently rots, or a build that breaks for
+reasons outside the repository. A scheduled job that opens an issue rather than failing a build is the
+obvious third answer, and it needs the scheduler that is itself postponed.
+
+Status
+
+Open
+
+---
+
 # Future Capabilities
 
 The following ideas are intentionally outside Milestone 1.

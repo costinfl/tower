@@ -1,0 +1,9 @@
+{
+  "accountId": "5b10a2844c20165700ede21g",
+  "accountType": "atlassian",
+  "active": true,
+  "displayName": "A person",
+  "emailAddress": "person@acme.test",
+  "self": "https://acme.atlassian.net/rest/api/2/user?accountId=5b10a2844c20165700ede21g",
+  "timeZone": "Europe/Bucharest"
+}

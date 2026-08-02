@@ -1,0 +1,9 @@
+{
+  "baseUrl": "https://acme.atlassian.net",
+  "deploymentType": "Cloud",
+  "scmInfo": "1234567890abcdef",
+  "serverTitle": "Jira",
+  "serverTime": "2026-01-15T09:30:00.000+0000",
+  "version": "9.4.0",
+  "versionNumbers": [9, 4, 0]
+}

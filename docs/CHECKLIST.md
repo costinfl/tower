@@ -103,7 +103,19 @@ This checklist tracks the architectural documentation required before implementa
 - [x] GitHub Issues implementation, verified against this repository's own issues
 - [x] Jira implementation (live verification against a real site outstanding — see below)
 
+## Connector verification
+
+- [x] ADR-019-Connector-Fixtures-Are-Verified-Against-The-Vendors-Own-Description.md
+- [x] tower-testkit: recording HTTP server and the conformance suite every Issue Tracking Connector extends
+- [x] GitHub fixtures recorded from the real API, checked against GitHub's published description
+- [x] The validator proven to fail: a corrupted recording is caught and the field named
+- [ ] Jira fixtures checked against Atlassian's description — `specs/jira/` needs producing on a machine
+      that can reach developer.atlassian.com, and its redistribution terms checking first
+
 ## Outstanding verification
+
+None of the items below is closed by the schema work above. A vendor's description is not a vendor's
+server, and only the checks here have ever spoken to one.
 
 - [ ] Jira Connector against a real site. Built and tested against a local server standing in for
       Jira, and exercised end to end through Tower's whole path — binding, Collector, Connector,

@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>dev.tower</groupId>
+    <artifactId>tower-parent</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>tower-testkit</artifactId>
+  <name>tower-testkit</name>
+  <description>
+    Shared verification for Connectors (ADR-019).
+
+    Test support, never shipped: every module that uses it depends on it at test scope, and it is
+    not a dependency of tower-api. It holds what more than one Connector needs to be checked
+    against — a recording HTTP server, the conformance suite every Issue Tracking Connector must
+    pass, and validation of canned fixtures against the vendor's own published API description.
+
+    JUnit and AssertJ are compile-scope here because the conformance suite is main source in this
+    module: it is the artifact, not a test of it.
+  </description>
+
+  <dependencies>
+    <dependency>
+      <groupId>dev.tower</groupId>
+      <artifactId>tower-connector-api</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.assertj</groupId>
+      <artifactId>assertj-core</artifactId>
+    </dependency>
+    <!--
+      Reads an OpenAPI description and reports where a body departs from it.
+
+      Atlassian's, which is worth a word given that ADR-014 and ADR-018 both declined a vendor SDK.
+      Those decisions govern what production code compiles against and what ships; this is test
+      support that no production class can see. The alternative, a bare JSON Schema validator, would
+      mean owning OpenAPI 3.0's departures from JSON Schema — nullable, boolean exclusiveMinimum —
+      in our own code, which is the wrong thing to own.
+    -->
+    <dependency>
+      <groupId>com.atlassian.oai</groupId>
+      <artifactId>swagger-request-validator-core</artifactId>
+    </dependency>
+    <!-- Corrupting a fixture through its JSON tree, in this module's own tests.
+         Declared rather than taken transitively from the validator, so a change
+         there cannot quietly remove it. -->
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+</project>

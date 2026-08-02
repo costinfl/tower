@@ -42,6 +42,7 @@ The following selections are implementation decisions and do not alter the busin
 | Secret handling | Jasypt, encrypted configuration file |
 | User interface | React with TypeScript and Vite |
 | Architecture testing | ArchUnit |
+| Connector conformance and vendor schema checks | tower-testkit, vendored API descriptions under specs/ (ADR-019) |
 
 The domain module contains no framework dependencies.
 
@@ -147,6 +148,8 @@ tower/
 ├── tower-connector-k8s/
 ├── tower-connector-github/
 ├── tower-connector-jira/
+├── tower-testkit/
+├── tower-connector-jira/
 ├── tower-persistence/
 ├── tower-config/
 ├── tower-docgen/
@@ -242,6 +245,18 @@ A connector module is a runtime-scope dependency of tower-api, so its vendor cli
 The Deployment Platform Connector uses the fabric8 OpenShift client, which is a superset of the Kubernetes client and reads both Deployment and OpenShift DeploymentConfig from one dependency.
 
 Reading both matters: a namespace using only DeploymentConfig would otherwise report as empty, and under ADR-011 an empty report is indistinguishable from nothing being deployed.
+
+---
+
+## tower-testkit
+
+Shared verification for Connectors (ADR-019).
+
+Test support that never ships: every module using it depends on it at test scope, and it is not a dependency of tower-api.
+
+Holds a recording HTTP server, the conformance suite every Issue Tracking Connector must extend and pass, and the check that a Connector's canned fixtures match the vendor's own published API description.
+
+The package is `dev.tower.testkit`, not `dev.tower.connector.testkit`, because `connectors_expose_no_write_operation` forbids classes under `dev.tower.connector..` from calling any method named `write`, and serving a response body calls one.
 
 ---
 

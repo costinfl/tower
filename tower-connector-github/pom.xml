@@ -47,5 +47,14 @@
       <artifactId>assertj-core</artifactId>
       <scope>test</scope>
     </dependency>
+    <!-- The conformance suite every Issue Tracking Connector must pass, and the
+         check that its fixtures are shaped the way GitHub shapes them (ADR-019).
+         Test scope: none of it ships. -->
+    <dependency>
+      <groupId>dev.tower</groupId>
+      <artifactId>tower-testkit</artifactId>
+      <version>${project.version}</version>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 </project>

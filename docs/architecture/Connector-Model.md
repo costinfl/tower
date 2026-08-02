@@ -86,6 +86,30 @@ A Connector shall not:
 
 ---
 
+# How a Connector Is Verified
+
+A Connector's claims are checked three ways, and each establishes something the others cannot (ADR-019).
+
+**The conformance suite** holds every Connector in a category to what its service provider interface
+promises: absence is not an error, a status is never normalised, a credential never reaches a message.
+Extending it is how a Connector declares itself one of that category. It establishes that a Connector behaves
+as the interface says, and nothing about the vendor.
+
+**The vendor's own description** judges the canned responses a Connector is tested against. A fixture written
+by hand carries the same beliefs as the Connector that reads it, so a test built on one can only confirm that
+the two agree. The vendor's published OpenAPI description, sliced to the operations Tower reads and committed
+under `specs/`, is the cheapest independent opinion available. Where a real response can be recorded instead
+it is, because a recording outranks a description.
+
+**A live read against a real system** is the only one that establishes anything about the system. A
+description is not a server, and vendors' descriptions drift from their implementations. The live checks are
+tracked in CHECKLIST.md and are never closed by an automated suite going green.
+
+The order matters. A Connector can pass the first two and still be wrong about the vendor; that is the
+residue the third exists to remove.
+
+---
+
 # Collector Responsibilities
 
 Collectors receive information from Connectors.

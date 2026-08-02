@@ -29,6 +29,7 @@
     <module>tower-connector-k8s</module>
     <module>tower-connector-github</module>
     <module>tower-connector-jira</module>
+    <module>tower-testkit</module>
     <module>tower-persistence</module>
     <module>tower-config</module>
     <module>tower-docgen</module>
@@ -51,6 +52,11 @@
          rather than a vendor SDK, so one connector reads GitHub, GitLab, Bitbucket
          and a bare repository alike. -->
     <jgit.version>7.1.0.202411261347-r</jgit.version>
+    <!-- Validates a Connector's canned fixtures against the vendor's own published
+         API description (ADR-019). Test scope only, wherever it is used: no
+         production class can see it, which is what keeps it clear of ADR-014's and
+         ADR-018's refusal of vendor SDKs. -->
+    <swagger-request-validator.version>3.0.0</swagger-request-validator.version>
     <frontend-plugin.version>1.15.1</frontend-plugin.version>
     <node.version>v22.23.1</node.version>
   </properties>
@@ -68,6 +74,11 @@
         <groupId>com.tngtech.archunit</groupId>
         <artifactId>archunit-junit5</artifactId>
         <version>${archunit.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.atlassian.oai</groupId>
+        <artifactId>swagger-request-validator-core</artifactId>
+        <version>${swagger-request-validator.version}</version>
       </dependency>
       <dependency>
         <groupId>com.github.ulisesbocchio</groupId>
