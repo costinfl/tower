@@ -112,6 +112,14 @@ This checklist tracks the architectural documentation required before implementa
 - [ ] Jira fixtures checked against Atlassian's description — `specs/jira/` needs producing on a machine
       that can reach developer.atlassian.com, and its redistribution terms checking first
 
+## Defects found and fixed
+
+- [x] The credential store returned garbage instead of failing when the master key was wrong, about
+      once in every 286 reads (measured). First seen as an intermittent test failure and written off
+      as flakiness; it was an unauthenticated-cipher padding collision, and the consequence was a
+      Connector presenting random bytes as somebody's token. Fixed with a key check value, and the
+      regression test hammers the path 500 times rather than once.
+
 ## Outstanding verification
 
 None of the items below is closed by the schema work above. A vendor's description is not a vendor's

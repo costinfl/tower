@@ -19,6 +19,7 @@ import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import dev.tower.application.service.ApplicationException;
+import dev.tower.application.service.CredentialsUnreadableException;
 import dev.tower.application.service.InvalidRequestException;
 import dev.tower.application.service.NotFoundException;
 import dev.tower.domain.shared.DomainConflictException;
@@ -50,6 +51,30 @@ public class ApiExceptionHandler {
     public ResponseEntity<ErrorResponse> handleApplicationException(
             ApplicationException ex, HttpServletRequest request) {
         return build(HttpStatus.CONFLICT, ex.getMessage(), request);
+    }
+
+    /**
+     * Stored credentials that the key now in force cannot read.
+     *
+     * <p>The one 500 in this class that carries its own message. Everything else
+     * answering 500 is a fault the caller can do nothing about and whose detail
+     * belongs in the log; this one is a fault only the person running Tower can
+     * fix, and the message names both ways out. Hiding it behind "an unexpected
+     * error occurred" would leave somebody re-minting a token when what changed
+     * was their master key — the exact confusion the message exists to prevent.
+     *
+     * <p>500 rather than 409: the request was correct, and repeating it with
+     * different content would not help. It is the server that is in a state it
+     * cannot serve from.
+     *
+     * <p>Safe to show. NFR-028 governs this message like any other, and it names
+     * an environment variable and a file — nothing that was encrypted.
+     */
+    @ExceptionHandler(CredentialsUnreadableException.class)
+    public ResponseEntity<ErrorResponse> handleCredentialsUnreadable(
+            CredentialsUnreadableException ex, HttpServletRequest request) {
+        log.error("Stored credentials could not be read with the current key", ex);
+        return build(HttpStatus.INTERNAL_SERVER_ERROR, ex.getMessage(), request);
     }
 
     /**

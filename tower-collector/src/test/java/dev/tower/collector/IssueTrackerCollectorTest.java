@@ -176,6 +176,21 @@ class IssueTrackerCollectorTest {
         }
 
         @Test
+        void reports_credentials_it_cannot_decrypt_rather_than_failing_the_request() {
+            // A master key that no longer matches the credentials file. The
+            // screen asking "can you reach this tracker?" should say what is
+            // wrong, not answer with a server error that hides the reason.
+            bindTracker("acme/retail");
+            credentials.failToRead("The stored credential cannot be decrypted with the current key.");
+
+            var test = collector.checkConnection();
+
+            assertThat(test.reachable()).isFalse();
+            assertThat(test.message()).contains("cannot be decrypted");
+            assertThat(connector.locatorsAsked).isEmpty();
+        }
+
+        @Test
         void says_nothing_is_bound_rather_than_reporting_a_network_problem() {
             var test = collector.checkConnection();
 

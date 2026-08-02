@@ -104,6 +104,20 @@ It does not defend against anyone who can already read the data directory.
 
 It is the default because ADR-009 requires Tower to run on a developer's machine without ceremony, and the environment variable remains available to anyone who wants the stronger arrangement.
 
+A key check value is written into the credentials file, and a credential is not decrypted until it verifies.
+
+The algorithm is AES in CBC mode with PKCS#5 padding and no authentication, so a wrong key does not fail: it produces random bytes, and whether that looks like a failure depends on whether those bytes happen to end in valid padding.
+
+They do about once in every 256 attempts. Measured before this was fixed: 2000 reads with a wrong key threw 1993 times and returned garbage 7 times.
+
+That is why a padding failure is not a wrong-key detector. Without the check, roughly one read in three hundred would hand a Connector random bytes as somebody's bearer token, the External System would refuse them, and the user would be told their credential was rejected rather than that their master key had changed — which is the one thing they needed to know.
+
+The check is a fixed string encrypted under the key in force and compared on read for exact equality, so a wrong key is caught every time rather than most of the time.
+
+Storing a credential into a file an earlier key wrote is refused for the same reason: a file holding entries under one key beside a key check under another would put those older entries back on the same lottery, silently.
+
+A credentials file written before this existed carries no key check, and nothing can be verified about one until the next credential is stored.
+
 Credentials are stored in their own file rather than in the configuration file, which is read while the application environment is being built.
 
 The configuration file and the credentials file are both written with owner-only permissions.

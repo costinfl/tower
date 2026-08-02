@@ -92,7 +92,17 @@ public class IssueTrackerCollector implements WorkItemCollector {
         }
 
         String locator = bound.get().locator();
-        ConnectorCredential credential = credentialFor(locator);
+        ConnectorCredential credential;
+        try {
+            // Inside the try, because reading the stored credential can fail on
+            // its own — a master key that no longer matches the file. FR-061 asks
+            // what the state is, and "your credentials cannot be decrypted" is an
+            // answer to that question, not an accident on the way to asking it.
+            credential = credentialFor(locator);
+        } catch (RuntimeException e) {
+            return ConnectionTest.unreachable(
+                    connector.connectorId(), locator, WHOLE_TRACKER, describe(e));
+        }
         // Recorded before the call, because the credential is cleared by it.
         boolean presented = credential.isPresent();
         try {

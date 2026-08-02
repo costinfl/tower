@@ -301,6 +301,13 @@ final class CollectorFixtures {
 
         private final Map<String, char[]> stored = new HashMap<>();
 
+        /** Set when reading should fail the way a changed master key fails. */
+        private String unreadable;
+
+        void failToRead(String message) {
+            this.unreadable = message;
+        }
+
         @Override
         public void store(String connectorId, String target, char[] secret) {
             stored.put(connectorId + "@" + target, secret.clone());
@@ -308,6 +315,9 @@ final class CollectorFixtures {
 
         @Override
         public Optional<char[]> secretFor(String connectorId, String target) {
+            if (unreadable != null) {
+                throw new dev.tower.application.service.CredentialsUnreadableException(unreadable, null);
+            }
             return Optional.ofNullable(stored.get(connectorId + "@" + target)).map(char[]::clone);
         }
 
