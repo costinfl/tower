@@ -205,6 +205,22 @@ Typical information includes:
 - build status;
 - produced artifacts.
 
+A run of a **deployment** pipeline that succeeded produces an Observation, on the footing ADR-006
+established for manual entry: a fact from an identified source, carrying its provenance. A run that
+failed, was aborted or finished in a state Tower does not recognise is reported and not recorded — it
+is not evidence that anything reached an Environment.
+
+A run of a **build** pipeline produces a candidate Application Version instead, proposed and stored
+nowhere, on the footing ADR-014 established for a git ref.
+
+What such an Observation claims is narrower than what a Deployment Platform Connector claims, and
+ADR-020 records the difference: a pipeline says what was done at an instant, a platform says what is
+true now. Provenance and supersession keep the two apart without any special machinery — a later
+platform reading overrides an earlier pipeline record, and every Observation shows where it came from.
+
+The category's contribution is precision about *when* a deployment happened, which polling can only
+approximate, and reach into Environments Tower has no credentials for but the CI system does.
+
 ---
 
 ## Deployment Platform Connector
@@ -271,11 +287,23 @@ Deployment Unit Observed
 ```
 
 ```
-Pipeline Execution
+Deployment Pipeline Run (successful)
         │
         ▼
 Observation
 ```
+
+```
+Build Pipeline Run
+        │
+        ▼
+Candidate Application Version
+```
+
+The last of those is not an Observation, and this section said otherwise until ADR-020. It read
+"Pipeline Execution → Observation", undifferentiated, which would have recorded a build as though it
+had put a version into an Environment. A build says what was produced; only a deployment says where
+something went.
 
 Vendor-specific data never enters the Domain Model directly.
 

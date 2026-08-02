@@ -112,6 +112,17 @@ This checklist tracks the architectural documentation required before implementa
 - [ ] Jira fixtures checked against Atlassian's description — `specs/jira/` needs producing on a machine
       that can reach developer.atlassian.com, and its redistribution terms checking first
 
+## CI/CD Connector
+
+- [x] ADR-020-A-Deployment-Run-Is-An-Observation-A-Build-Run-Is-Not.md
+- [x] Connector-Model corrected: a build run is not an Observation
+- [ ] FRs for reading pipeline runs
+- [ ] CiCdConnector SPI (vendor-neutral, named for what CI systems generally offer)
+- [ ] Job bindings: which job deploys which Application to which Environment, and where the version is
+- [ ] Collector: successful deployment runs become Observations, builds become candidate versions
+- [ ] Jenkins implementation — deliberately last, and the only part that dies with Jenkins
+- [ ] Live verification against a real Jenkins (no host is reachable from the build environment)
+
 ## Defects found and fixed
 
 - [x] The credential store returned garbage instead of failing when the master key was wrong, about
