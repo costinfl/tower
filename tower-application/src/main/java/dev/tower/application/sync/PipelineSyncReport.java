@@ -19,6 +19,7 @@ import java.util.List;
  * are kept apart until somebody decides how a single history should describe
  * both (OQ-017).
  *
+ * @param id                   this report's identity
  * @param connectorId          which Connector read
  * @param startedAt            when Tower began reading
  * @param finishedAt           when it stopped
@@ -31,6 +32,7 @@ import java.util.List;
  *                             to show a user
  */
 public record PipelineSyncReport(
+        PipelineSyncReportId id,
         String connectorId,
         Instant startedAt,
         Instant finishedAt,

@@ -28,8 +28,11 @@ import dev.tower.application.service.SourceControlService;
 import dev.tower.application.service.PromotionPathService;
 import dev.tower.application.service.SynchronizationService;
 import dev.tower.application.service.DashboardService;
+import dev.tower.application.port.out.PipelineRunObservationCollector;
+import dev.tower.application.port.out.PipelineSyncReportRepository;
 import dev.tower.application.port.out.WorkItemCollector;
 import dev.tower.application.service.ObservationService;
+import dev.tower.application.service.PipelineSynchronizationService;
 import dev.tower.application.service.WorkItemService;
 import dev.tower.application.service.ReleasePackService;
 import dev.tower.docgen.DocxReleaseDocumentRenderer;
@@ -153,6 +156,20 @@ public class ApplicationServicesConfiguration {
             ReleasePackRepository releasePackRepository, ExternalBindingRepository externalBindingRepository,
             List<WorkItemCollector> workItemCollectors) {
         return new WorkItemService(releasePackRepository, externalBindingRepository, workItemCollectors);
+    }
+
+    /**
+     * Reading a CI system's runs (ADR-020).
+     *
+     * <p>Takes every PipelineRunObservationCollector Spring finds, which may be
+     * none: a Tower with no CI Connector installed is an ordinary state, and the
+     * report it returns says it read no jobs rather than failing.
+     */
+    @Bean
+    public PipelineSynchronizationService pipelineSynchronizationService(
+            List<PipelineRunObservationCollector> collectors,
+            PipelineSyncReportRepository reports) {
+        return new PipelineSynchronizationService(collectors, reports);
     }
 
     @Bean

@@ -18,6 +18,7 @@ import dev.tower.application.port.out.PipelineRunObservationCollector;
 import dev.tower.application.sync.ConnectionTest;
 import dev.tower.application.sync.NotRecordedRun;
 import dev.tower.application.sync.PipelineSyncReport;
+import dev.tower.application.sync.PipelineSyncReportId;
 import dev.tower.connector.api.CiCdConnector;
 import dev.tower.connector.api.ConnectorCredential;
 import dev.tower.connector.api.PipelineLocator;
@@ -105,7 +106,7 @@ public class PipelineRunCollector implements PipelineRunObservationCollector {
             collectJob(job, tally);
         }
 
-        return new PipelineSyncReport(connectorId, startedAt, clock.instant(),
+        return new PipelineSyncReport(PipelineSyncReportId.newId(), connectorId, startedAt, clock.instant(),
                 jobs.size(), tally.runsRead, tally.observationsAppended,
                 tally.notRecorded, tally.failures);
     }

@@ -120,7 +120,9 @@ This checklist tracks the architectural documentation required before implementa
 - [x] CiCdConnector SPI (vendor-neutral, named for what CI systems generally offer)
 - [x] Job bindings (V12): which job deploys which Application to which Environment, and where the version is
 - [x] Collector: successful runs become Observations on a timeline, unattributable runs reported
-- [ ] OQ-017: one synchronization history, or two — a CI read cannot claim what a platform read claims
+- [x] Reports persisted (V13), use case and API — kept apart from Sync Runs, which is OQ-017's first half
+- [ ] OQ-017's second half: how a reader sees both histories together
+- [ ] Connectors screen: job bindings and the report
 - [ ] Build runs as candidate Application Versions (ADR-020 decided it; deployment side came first)
 - [ ] Jenkins implementation — deliberately last, and the only part that dies with Jenkins
 - [ ] Live verification against a real Jenkins (no host is reachable from the build environment)
