@@ -128,6 +128,17 @@ This checklist tracks the architectural documentation required before implementa
 - [x] Pipeline job binding API, verified end to end against a stand-in Jenkins
 - [ ] Live verification against a real Jenkins (no host is reachable from the build environment)
 
+## Artifact Repository Connector
+
+- [x] ADR-021-An-Artifact-Is-Confirmed-Not-Recorded.md
+- [x] Connector-Model: a sixth category, producing no Observations and storing nothing
+- [ ] FRs for confirming artifacts
+- [ ] ArtifactRepositoryConnector SPI (vendor-neutral)
+- [ ] Coordinate templates on an Application, one per artifact kind
+- [ ] Resolution beside what Tower holds, and an accepted digest for documents
+- [ ] Artifactory implementation — GET only; its AQL search is a POST and ADR-001 forbids one
+- [ ] Live verification against a real Artifactory (no host is reachable from the build environment)
+
 ## Defects found and fixed
 
 - [x] The credential store returned garbage instead of failing when the master key was wrong, about

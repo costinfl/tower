@@ -223,6 +223,32 @@ approximate, and reach into Environments Tower has no credentials for but the CI
 
 ---
 
+## Artifact Repository Connector
+
+Confirms that the binaries an Application Version names are where they should be (ADR-021).
+
+Reads:
+
+- whether an artifact exists at a composed coordinate;
+- its immutable digest;
+- when the repository received it.
+
+Produces no Observations, and the reason is worth stating because the repository invites the opposite
+conclusion. An image in a repository named `docker-prod` is a file in a folder whose name says "prod";
+nothing about it says anything is running. Promotion between repositories is not promotion between
+Environments, and folding the two would put versions into Environments on the strength of a copy.
+
+Stores nothing either. The coordinate is composed from the Application Version — for a team that tags
+an image and a chart with the version and the short commit, it is a function of what Tower already
+holds — and the answer is shown beside what Tower holds rather than recorded. A tag is mutable, so
+what a document prints is what somebody accepted, exactly as ADR-018 requires for a work item's title.
+
+The binding carries a template rather than a pattern, which is ADR-012's shape running the other way:
+a version pattern extracts a version from a string the vendor produced, a coordinate template composes
+a string the vendor will recognise from a version Tower holds.
+
+---
+
 ## Deployment Platform Connector
 
 Provides deployment observations.
