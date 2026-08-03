@@ -550,6 +550,65 @@ of silence. It shall be labelled as such and never presented as a count of failu
 
 ---
 
+# CI/CD Connector
+
+## FR-076
+
+Tower shall read runs of a pipeline through a CI/CD Connector, without modifying the CI system.
+
+Reading a run is a read like every other Connector operation (ADR-001, CM-01). Tower shall never start, stop,
+retry or configure a pipeline.
+
+---
+
+## FR-077
+
+A successful run of a pipeline bound as a deployment shall produce an Observation.
+
+The Observation shall carry the instant the run reported, not the instant Tower read it, and shall identify the
+CI/CD Connector as its source (ADR-006, ADR-020).
+
+---
+
+## FR-078
+
+A run that did not succeed shall be reported and not recorded.
+
+A failed, aborted or cancelled run is not evidence that anything reached an Environment. A run whose outcome
+Tower does not recognise shall be treated the same way, rather than assumed successful (ADR-020, and the
+treatment FR-060 gives an unattributable workload).
+
+---
+
+## FR-079
+
+A pipeline job shall be bound to the Application and Environment its runs concern, and to where in a run the
+Application Version appears.
+
+The binding shall name the version's source — a build parameter, the run's own name, or the job's path — and
+carry a version pattern in the sense of FR-056. A Connector shall not infer any of these (ADR-012, ADR-020).
+
+---
+
+## FR-080
+
+Tower shall report a run it cannot attribute rather than discarding it.
+
+A run whose bound version source holds nothing, or whose pattern does not match what it holds, shall be
+reported with the reason. A user whose pattern is wrong needs to see what it failed on; a silently shorter
+list gives them nothing to work from (FR-060).
+
+---
+
+## FR-081
+
+Reading the same run twice shall record nothing the second time.
+
+Runs are identified by their job and run identifier. Where a re-read yields what Tower already holds, no
+Observation is appended, which is ADR-011 applied unchanged.
+
+---
+
 # Deferred
 
 ## FR-054

@@ -323,6 +323,52 @@ class WorkItemServiceTest {
             trackers.removeIf(b -> b.connectorId().equals(connectorId));
         }
 
+        // Pipeline job bindings (ADR-020). Kept in a map keyed the way the table
+        // is, so the fake enforces the same "one job per Environment, Application
+        // and Connector" rule the schema does.
+        private final java.util.Map<String, dev.tower.application.binding.PipelineJobBinding>
+                pipelineJobBindings = new java.util.HashMap<>();
+
+        @Override
+        public dev.tower.application.binding.PipelineJobBinding save(
+                dev.tower.application.binding.PipelineJobBinding binding) {
+            pipelineJobBindings.put(pipelineKey(
+                    binding.environmentId(), binding.applicationId(), binding.connectorId()), binding);
+            return binding;
+        }
+
+        @Override
+        public java.util.Optional<dev.tower.application.binding.PipelineJobBinding>
+                findPipelineJobBinding(EnvironmentId environmentId, ApplicationId applicationId,
+                                       String connectorId) {
+            return java.util.Optional.ofNullable(
+                    pipelineJobBindings.get(pipelineKey(environmentId, applicationId, connectorId)));
+        }
+
+        @Override
+        public java.util.List<dev.tower.application.binding.PipelineJobBinding>
+                findAllPipelineJobBindings(String connectorId) {
+            return pipelineJobBindings.values().stream()
+                    .filter(b -> b.connectorId().equals(connectorId)).toList();
+        }
+
+        @Override
+        public java.util.List<dev.tower.application.binding.PipelineJobBinding>
+                findAllPipelineJobBindings() {
+            return java.util.List.copyOf(pipelineJobBindings.values());
+        }
+
+        @Override
+        public void deletePipelineJobBinding(EnvironmentId environmentId, ApplicationId applicationId,
+                                             String connectorId) {
+            pipelineJobBindings.remove(pipelineKey(environmentId, applicationId, connectorId));
+        }
+
+        private static String pipelineKey(EnvironmentId environmentId, ApplicationId applicationId,
+                                          String connectorId) {
+            return environmentId + "|" + applicationId + "|" + connectorId;
+        }
+
         @Override
         public EnvironmentBinding save(EnvironmentBinding binding) {
             return binding;

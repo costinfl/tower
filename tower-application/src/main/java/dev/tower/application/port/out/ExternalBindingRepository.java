@@ -6,6 +6,7 @@ import java.util.Optional;
 import dev.tower.application.binding.ApplicationBinding;
 import dev.tower.application.binding.EnvironmentBinding;
 import dev.tower.application.binding.IssueTrackerBinding;
+import dev.tower.application.binding.PipelineJobBinding;
 import dev.tower.application.binding.RepositoryBinding;
 import dev.tower.domain.application.ApplicationId;
 import dev.tower.domain.environment.EnvironmentId;
@@ -70,4 +71,20 @@ public interface ExternalBindingRepository {
     List<IssueTrackerBinding> findAllIssueTrackerBindings();
 
     void deleteIssueTrackerBinding(String connectorId);
+
+    // Pipeline job bindings (ADR-020). Two Tower concepts on the left rather
+    // than one, because that is what a run of a deployment job asserts: this
+    // Application arrived in that Environment.
+    PipelineJobBinding save(PipelineJobBinding binding);
+
+    Optional<PipelineJobBinding> findPipelineJobBinding(
+            EnvironmentId environmentId, ApplicationId applicationId, String connectorId);
+
+    /** Every job one Connector is responsible for, which is what a run reads. */
+    List<PipelineJobBinding> findAllPipelineJobBindings(String connectorId);
+
+    List<PipelineJobBinding> findAllPipelineJobBindings();
+
+    void deletePipelineJobBinding(
+            EnvironmentId environmentId, ApplicationId applicationId, String connectorId);
 }

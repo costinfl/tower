@@ -12,6 +12,7 @@ import org.springframework.stereotype.Repository;
 import dev.tower.application.binding.ApplicationBinding;
 import dev.tower.application.binding.EnvironmentBinding;
 import dev.tower.application.binding.IssueTrackerBinding;
+import dev.tower.application.binding.PipelineJobBinding;
 import dev.tower.application.binding.RepositoryBinding;
 import dev.tower.application.port.out.ExternalBindingRepository;
 import dev.tower.domain.application.ApplicationId;
@@ -296,6 +297,118 @@ public class ExternalBindingJdbcRepository implements ExternalBindingRepository 
     private static IssueTrackerBinding mapIssueTrackerBinding(java.sql.ResultSet rs, int rowNum)
             throws java.sql.SQLException {
         return new IssueTrackerBinding(rs.getString("connector_id"), rs.getString("locator"));
+    }
+
+    /**
+     * Pipeline job bindings (ADR-020), keyed by Environment, Application and
+     * Connector together.
+     *
+     * <p>Three columns in the key rather than two, because a run of a deployment
+     * job asserts both ends: this Application arrived in that Environment. The
+     * table enforces one job per such pair, which is not fussiness — two jobs
+     * claiming the same pair would both claim to say when it arrived, and nothing
+     * would say which to believe.
+     */
+    @Override
+    public PipelineJobBinding save(PipelineJobBinding binding) {
+        int updated = jdbcClient.sql("""
+                        UPDATE pipeline_job_binding
+                        SET ci_system = :system, job = :job, version_source = :versionSource,
+                            version_key = :versionKey, version_pattern = :versionPattern
+                        WHERE environment_id = :environmentId AND application_id = :applicationId
+                          AND connector_id = :connectorId
+                        """)
+                .params(parametersOf(binding))
+                .update();
+        if (updated == 0) {
+            jdbcClient.sql("""
+                            INSERT INTO pipeline_job_binding (
+                                environment_id, application_id, connector_id, ci_system, job,
+                                version_source, version_key, version_pattern)
+                            VALUES (:environmentId, :applicationId, :connectorId, :system, :job,
+                                    :versionSource, :versionKey, :versionPattern)
+                            """)
+                    .params(parametersOf(binding))
+                    .update();
+        }
+        return binding;
+    }
+
+    private static java.util.Map<String, Object> parametersOf(PipelineJobBinding binding) {
+        return java.util.Map.of(
+                "environmentId", binding.environmentId().value(),
+                "applicationId", binding.applicationId().value(),
+                "connectorId", binding.connectorId(),
+                "system", binding.system(),
+                "job", binding.job(),
+                "versionSource", binding.versionSource().name(),
+                "versionKey", binding.versionKey(),
+                "versionPattern", binding.versionPattern());
+    }
+
+    @Override
+    public Optional<PipelineJobBinding> findPipelineJobBinding(
+            EnvironmentId environmentId, ApplicationId applicationId, String connectorId) {
+        return jdbcClient.sql(PIPELINE_JOB_COLUMNS + """
+                        WHERE environment_id = :environmentId AND application_id = :applicationId
+                          AND connector_id = :connectorId
+                        """)
+                .param("environmentId", environmentId.value())
+                .param("applicationId", applicationId.value())
+                .param("connectorId", connectorId)
+                .query(ExternalBindingJdbcRepository::mapPipelineJobBinding)
+                .optional();
+    }
+
+    @Override
+    public List<PipelineJobBinding> findAllPipelineJobBindings(String connectorId) {
+        return jdbcClient.sql(PIPELINE_JOB_COLUMNS + """
+                        WHERE connector_id = :connectorId ORDER BY job
+                        """)
+                .param("connectorId", connectorId)
+                .query(ExternalBindingJdbcRepository::mapPipelineJobBinding)
+                .list();
+    }
+
+    @Override
+    public List<PipelineJobBinding> findAllPipelineJobBindings() {
+        return jdbcClient.sql(PIPELINE_JOB_COLUMNS + " ORDER BY connector_id, job")
+                .query(ExternalBindingJdbcRepository::mapPipelineJobBinding)
+                .list();
+    }
+
+    @Override
+    public void deletePipelineJobBinding(
+            EnvironmentId environmentId, ApplicationId applicationId, String connectorId) {
+        jdbcClient.sql("""
+                        DELETE FROM pipeline_job_binding
+                        WHERE environment_id = :environmentId AND application_id = :applicationId
+                          AND connector_id = :connectorId
+                        """)
+                .param("environmentId", environmentId.value())
+                .param("applicationId", applicationId.value())
+                .param("connectorId", connectorId)
+                .update();
+    }
+
+    /** Every column, once, so the three reads above cannot drift apart. */
+    private static final String PIPELINE_JOB_COLUMNS = """
+            SELECT environment_id, application_id, connector_id, ci_system, job,
+                   version_source, version_key, version_pattern
+            FROM pipeline_job_binding
+            """;
+
+    private static PipelineJobBinding mapPipelineJobBinding(java.sql.ResultSet rs, int rowNum)
+            throws java.sql.SQLException {
+        return new PipelineJobBinding(
+                EnvironmentId.of(rs.getString("environment_id")),
+                ApplicationId.of(rs.getString("application_id")),
+                rs.getString("connector_id"),
+                rs.getString("ci_system"),
+                rs.getString("job"),
+                PipelineJobBinding.VersionSource.parse(rs.getString("version_source")),
+                rs.getString("version_key"),
+                rs.getString("version_pattern"));
     }
 
     @Override

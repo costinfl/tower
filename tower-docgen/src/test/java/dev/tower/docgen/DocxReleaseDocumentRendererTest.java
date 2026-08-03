@@ -43,8 +43,21 @@ import dev.tower.domain.releasepack.ReleasePackState;
 @DisplayName("The DOCX release document renderer")
 class DocxReleaseDocumentRendererTest {
 
-    private static final Instant MONDAY = Instant.parse("2026-08-03T09:00:00Z");
-    private static final Instant FRIDAY = Instant.parse("2026-08-07T17:00:00Z");
+    /**
+     * Fixture dates, and they must stay in the past.
+     *
+     * <p>They were 2026-08-03 and 2026-08-07 until the first of those arrived,
+     * and on that morning the build went red. Not for anything anybody had
+     * changed: {@code no_part_records_a_date_or_an_identifier} asserts that no
+     * part of the package contains today's date, and on 2026-08-03 an Iteration
+     * the fixture had always carried was legitimately printed as today's date.
+     *
+     * <p>A future-dated fixture in this class is therefore a timer, not a date.
+     * {@code fixture_dates_are_in_the_past} keeps the next one from being set
+     * silently.
+     */
+    private static final Instant MONDAY = Instant.parse("2024-08-05T09:00:00Z");
+    private static final Instant FRIDAY = Instant.parse("2024-08-09T17:00:00Z");
 
     private final DocxReleaseDocumentRenderer renderer = new DocxReleaseDocumentRenderer();
 
@@ -93,6 +106,18 @@ class DocxReleaseDocumentRendererTest {
                         .describedAs("timestamp of " + entry.getKey())
                         .isEqualTo(entryTimes(renderer.render(fullDocument())).get(entry.getKey()));
             }
+        }
+
+        @Test
+        void fixture_dates_are_in_the_past() {
+            // Guards the assertion below, which compares the rendered package
+            // against today's date and cannot tell a date the renderer stamped
+            // from one the fixture supplied. While every fixture date is in the
+            // past the two can never be confused; the day one of them becomes
+            // today, the build fails for a reason that has nothing to do with
+            // the change under test. That happened once. This says so first.
+            assertThat(MONDAY).isBefore(Instant.now());
+            assertThat(FRIDAY).isBefore(Instant.now());
         }
 
         @Test
