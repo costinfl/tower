@@ -297,7 +297,7 @@ final class CollectorFixtures {
 
     static final class InMemoryVersions implements ApplicationVersionRepository {
 
-        private final List<ApplicationVersion> stored = new ArrayList<>();
+        final List<ApplicationVersion> stored = new ArrayList<>();
 
         @Override
         public ApplicationVersion save(ApplicationVersion version) {

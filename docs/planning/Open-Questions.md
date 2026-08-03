@@ -273,6 +273,33 @@ Open
 
 ---
 
+## OQ-017
+
+Should one synchronization history describe both a Deployment Platform read and a CI/CD read?
+
+A SyncRun records that a Connector ran, what it read and what it appended, and the Connectors screen
+renders it. One line of that type does not survive the CI/CD Connector: `confirmsLiveness()` is true of
+any run that succeeded, and the screen turns it into "everything Tower already knew was confirmed still
+present at this time".
+
+That is true of a Deployment Platform, which reads what is running now. It is false of a CI system,
+which reads what happened. A successful read of a job with no new runs confirms only that nothing was
+deployed by that job since Tower last looked — narrower, and about a different subject.
+
+So the CI/CD Collector returns a PipelineSyncReport of its own rather than a SyncRun, which is correct
+and leaves two histories where a user wants one. The question is which way to close that: give SyncRun
+a way to say what a successful run establishes, or keep the two apart and show them as what they are.
+The first is a schema change to a table with history in it; the second means a user checks two places.
+
+Not decided under time pressure while the Connector was being built, which is why it is written down
+here instead.
+
+Status
+
+Open
+
+---
+
 # Future Capabilities
 
 The following ideas are intentionally outside Milestone 1.

@@ -116,10 +116,12 @@ This checklist tracks the architectural documentation required before implementa
 
 - [x] ADR-020-A-Deployment-Run-Is-An-Observation-A-Build-Run-Is-Not.md
 - [x] Connector-Model corrected: a build run is not an Observation
-- [ ] FRs for reading pipeline runs
-- [ ] CiCdConnector SPI (vendor-neutral, named for what CI systems generally offer)
-- [ ] Job bindings: which job deploys which Application to which Environment, and where the version is
-- [ ] Collector: successful deployment runs become Observations, builds become candidate versions
+- [x] FR-076 to FR-081
+- [x] CiCdConnector SPI (vendor-neutral, named for what CI systems generally offer)
+- [x] Job bindings (V12): which job deploys which Application to which Environment, and where the version is
+- [x] Collector: successful runs become Observations on a timeline, unattributable runs reported
+- [ ] OQ-017: one synchronization history, or two — a CI read cannot claim what a platform read claims
+- [ ] Build runs as candidate Application Versions (ADR-020 decided it; deployment side came first)
 - [ ] Jenkins implementation — deliberately last, and the only part that dies with Jenkins
 - [ ] Live verification against a real Jenkins (no host is reachable from the build environment)
 
