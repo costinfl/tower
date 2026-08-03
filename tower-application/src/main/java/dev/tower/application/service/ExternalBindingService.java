@@ -7,6 +7,7 @@ import java.util.Optional;
 import dev.tower.application.binding.ApplicationBinding;
 import dev.tower.application.binding.EnvironmentBinding;
 import dev.tower.application.binding.IssueTrackerBinding;
+import dev.tower.application.binding.PipelineJobBinding;
 import dev.tower.application.binding.RepositoryBinding;
 import dev.tower.application.port.in.ExternalBindingUseCases;
 import dev.tower.application.port.in.ExternalBindingUseCases.BindRepository;
@@ -136,6 +137,35 @@ public class ExternalBindingService implements ExternalBindingUseCases {
     @Override
     public void unbindIssueTracker(String connectorId) {
         bindings.deleteIssueTrackerBinding(connectorId);
+    }
+
+    /**
+     * Binds a job to the Environment and Application its runs concern (ADR-020).
+     *
+     * <p>Both are checked to exist, unlike an issue tracker binding: this one
+     * names Tower's own rows on the left, and a binding for an Environment that
+     * does not exist describes nothing.
+     */
+    @Override
+    public PipelineJobBinding bindPipelineJob(BindPipelineJob command) {
+        requireEnvironmentExists(command.environmentId());
+        requireApplicationExists(command.applicationId());
+        return bindings.save(new PipelineJobBinding(
+                command.environmentId(), command.applicationId(), command.connectorId(),
+                command.system(), command.job(),
+                PipelineJobBinding.VersionSource.parse(command.versionSource()),
+                command.versionKey(), command.versionPattern()));
+    }
+
+    @Override
+    public List<PipelineJobBinding> listPipelineJobBindings() {
+        return bindings.findAllPipelineJobBindings();
+    }
+
+    @Override
+    public void unbindPipelineJob(EnvironmentId environmentId, ApplicationId applicationId,
+                                  String connectorId) {
+        bindings.deletePipelineJobBinding(environmentId, applicationId, connectorId);
     }
 
     @Override

@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>dev.tower</groupId>
+    <artifactId>tower-parent</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>tower-connector-jenkins</artifactId>
+  <name>tower-connector-jenkins</name>
+  <description>
+    Reads pipeline runs from Jenkins (ADR-020).
+
+    The disposable module. ADR-020 was written for a Jenkins with a fair chance of being
+    decommissioned inside a year, and the whole shape of that decision is that the SPI, Collector,
+    bindings, persistence and API outlive it while this does not. If Jenkins goes, this module goes
+    and nothing else moves.
+
+    No Jenkins client library. Tower reads a build's number, result, timestamp and parameters —
+    four fields the JDK's own HTTP client reads in a few lines, from an API that has answered JSON
+    at the same paths for fifteen years. A client library would pull a dependency tree to save
+    nothing and would age worse than the four fields.
+  </description>
+
+  <dependencies>
+    <!-- Jackson for the response body only. java.net.http is in the JDK. -->
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+    </dependency>
+    <!-- @Component only; the connector holds no Spring behaviour beyond being a bean. -->
+    <dependency>
+      <groupId>org.springframework</groupId>
+      <artifactId>spring-context</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>dev.tower</groupId>
+      <artifactId>tower-connector-api</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.assertj</groupId>
+      <artifactId>assertj-core</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <!-- The recording HTTP server, so this Connector is tested against a real
+         socket rather than a mocked client (ADR-019). There is no conformance
+         suite for this category yet — there is one Connector in it — and no
+         published description to check fixtures against, which CHECKLIST.md
+         records as the gap it is. Test scope: none of it ships. -->
+    <dependency>
+      <groupId>dev.tower</groupId>
+      <artifactId>tower-testkit</artifactId>
+      <version>${project.version}</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+</project>

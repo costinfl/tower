@@ -100,6 +100,20 @@
       <version>${project.version}</version>
       <scope>runtime</scope>
     </dependency>
+    <!--
+      Jenkins (ADR-020). On this list for the reason stated above, and with more
+      at stake than the others: a Jenkins token that can read a job can usually
+      start one, so "this Connector only ever reads" is a claim that needs
+      enforcing rather than asserting. Being here is what puts it in front of
+      connectors_expose_no_write_operation and
+      connector_methods_are_not_named_for_mutation.
+    -->
+    <dependency>
+      <groupId>dev.tower</groupId>
+      <artifactId>tower-connector-jenkins</artifactId>
+      <version>${project.version}</version>
+      <scope>runtime</scope>
+    </dependency>
     <dependency>
       <groupId>dev.tower</groupId>
       <artifactId>tower-persistence</artifactId>

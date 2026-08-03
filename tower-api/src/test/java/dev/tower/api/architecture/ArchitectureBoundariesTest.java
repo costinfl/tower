@@ -160,21 +160,41 @@ class ArchitectureBoundariesTest {
                     .should().dependOnClassesThat().resideInAnyPackage("org.eclipse.jgit..")
                     .because("a vendor client terminates at its Connector (CM-05, FR-037, ADR-014)");
 
+    /** Written out rather than composed, so that what it excludes is readable. */
+    private static final com.tngtech.archunit.base.DescribedPredicate<
+            com.tngtech.archunit.core.domain.JavaCall<?>> NAMED_FOR_MUTATION =
+            new com.tngtech.archunit.base.DescribedPredicate<>(
+                    "a method named for mutation, declared outside java.util") {
+                @Override
+                public boolean test(com.tngtech.archunit.core.domain.JavaCall<?> call) {
+                    return call.getTarget().getName().matches(
+                            "(?i)^(create|update|delete|insert|put|post|patch|write|save"
+                                    + "|deploy|trigger|execute)$")
+                            && !call.getTargetOwner().getPackageName().startsWith("java.util");
+                }
+            };
+
     /**
      * ADR-001, CM-01, FR-036: Connectors observe and never modify. This is a
      * naming heuristic rather than a proof — it does not catch a write issued
      * through a method named for something else, such as scale. The Kubernetes
      * Connector's own tests assert the HTTP verbs actually put on the wire,
      * which is stronger, and the cluster's audit log is stronger still.
+     *
+     * <p>{@code java.util} is excluded, and the boundary of that exclusion is
+     * the point. A {@code Map.put} cannot reach an External System, and the
+     * Jenkins Connector building a map of a build's named values was failing
+     * this rule for it. Excluding all of {@code java..} would have been the
+     * obvious wider fix and would have been wrong: {@code HttpRequest.Builder}
+     * lives in {@code java.net.http}, and its {@code POST} is precisely the call
+     * this rule exists to catch. Collections cannot be written to; sockets can.
      */
     @ArchTest
     static final ArchRule connectors_expose_no_write_operation =
             noClasses().that().resideInAPackage(CONNECTORS)
-                    .should().callMethodWhere(
-                            com.tngtech.archunit.core.domain.JavaCall.Predicates.target(
-                                    com.tngtech.archunit.core.domain.properties.HasName.Predicates.nameMatching(
-                                            "(?i)^(create|update|delete|insert|put|post|patch|write|save|deploy|trigger|execute)$")))
+                    .should().callMethodWhere(NAMED_FOR_MUTATION)
                     .because("Connectors are read-only with respect to External Systems (ADR-001, CM-01, FR-036)");
+
 
     /**
      * ADR-001, FR-035, FR-036: Tower never executes deployments. A Connector

@@ -124,7 +124,8 @@ This checklist tracks the architectural documentation required before implementa
 - [ ] OQ-017's second half: how a reader sees both histories together
 - [ ] Connectors screen: job bindings and the report
 - [ ] Build runs as candidate Application Versions (ADR-020 decided it; deployment side came first)
-- [ ] Jenkins implementation — deliberately last, and the only part that dies with Jenkins
+- [x] Jenkins implementation — deliberately last, and the only part that dies with Jenkins
+- [x] Pipeline job binding API, verified end to end against a stand-in Jenkins
 - [ ] Live verification against a real Jenkins (no host is reachable from the build environment)
 
 ## Defects found and fixed

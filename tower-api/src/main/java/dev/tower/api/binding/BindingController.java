@@ -21,12 +21,15 @@ import dev.tower.api.binding.BindingRequests.EnvironmentBindingRequest;
 import dev.tower.api.binding.BindingRequests.EnvironmentBindingResponse;
 import dev.tower.api.binding.BindingRequests.IssueTrackerBindingRequest;
 import dev.tower.api.binding.BindingRequests.IssueTrackerBindingResponse;
+import dev.tower.api.binding.BindingRequests.PipelineJobBindingRequest;
+import dev.tower.api.binding.BindingRequests.PipelineJobBindingResponse;
 import dev.tower.api.binding.BindingRequests.RepositoryBindingRequest;
 import dev.tower.api.binding.BindingRequests.RepositoryBindingResponse;
 import dev.tower.application.port.in.ExternalBindingUseCases;
 import dev.tower.application.port.in.ExternalBindingUseCases.BindApplication;
 import dev.tower.application.port.in.ExternalBindingUseCases.BindEnvironment;
 import dev.tower.application.port.in.ExternalBindingUseCases.BindIssueTracker;
+import dev.tower.application.port.in.ExternalBindingUseCases.BindPipelineJob;
 import dev.tower.application.port.in.ExternalBindingUseCases.BindRepository;
 import dev.tower.application.binding.RepositoryBinding;
 import dev.tower.application.port.in.ExternalBindingUseCases.VersionPreview;
@@ -121,6 +124,38 @@ public class BindingController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void unbindIssueTracker(@PathVariable("connectorId") String connectorId) {
         bindings.unbindIssueTracker(connectorId);
+    }
+
+    /**
+     * Which job's runs say an Application reached an Environment (ADR-020).
+     *
+     * <p>The only binding whose path carries two Tower ids, because it is the
+     * only one that maps two concepts at once.
+     */
+    @GetMapping("/pipeline-jobs")
+    public List<PipelineJobBindingResponse> listPipelineJobBindings() {
+        return bindings.listPipelineJobBindings().stream()
+                .map(PipelineJobBindingResponse::from).toList();
+    }
+
+    @PutMapping("/pipeline-jobs")
+    public PipelineJobBindingResponse bindPipelineJob(
+            @Valid @RequestBody PipelineJobBindingRequest request) {
+        return PipelineJobBindingResponse.from(bindings.bindPipelineJob(new BindPipelineJob(
+                EnvironmentId.of(request.environmentId()),
+                ApplicationId.of(request.applicationId()),
+                request.connectorId(), request.system(), request.job(),
+                request.versionSource(), request.versionKey(), request.versionPattern())));
+    }
+
+    @DeleteMapping("/pipeline-jobs/{environmentId}/{applicationId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void unbindPipelineJob(
+            @PathVariable("environmentId") String environmentId,
+            @PathVariable("applicationId") String applicationId,
+            @RequestParam("connectorId") String connectorId) {
+        bindings.unbindPipelineJob(EnvironmentId.of(environmentId),
+                ApplicationId.of(applicationId), connectorId);
     }
 
     @GetMapping("/applications")

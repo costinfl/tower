@@ -29,6 +29,7 @@
     <module>tower-connector-k8s</module>
     <module>tower-connector-github</module>
     <module>tower-connector-jira</module>
+    <module>tower-connector-jenkins</module>
     <module>tower-testkit</module>
     <module>tower-persistence</module>
     <module>tower-config</module>

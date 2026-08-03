@@ -5,6 +5,7 @@ import jakarta.validation.constraints.NotBlank;
 import dev.tower.application.binding.ApplicationBinding;
 import dev.tower.application.binding.EnvironmentBinding;
 import dev.tower.application.binding.IssueTrackerBinding;
+import dev.tower.application.binding.PipelineJobBinding;
 import dev.tower.application.binding.RepositoryBinding;
 
 /** Request and response bodies for /api/bindings (issue #47). */
@@ -98,6 +99,40 @@ public final class BindingRequests {
 
         public static IssueTrackerBindingResponse from(IssueTrackerBinding binding) {
             return new IssueTrackerBindingResponse(binding.connectorId(), binding.locator());
+        }
+    }
+
+    /**
+     * Which job's runs say an Application reached an Environment (ADR-020).
+     *
+     * <p>{@code versionSource}, {@code versionKey} and {@code versionPattern} are
+     * all optional, and default to reading a build parameter whole. That is the
+     * arrangement a CI system used well has; the others exist because most are
+     * not used well, and Tower cannot infer which.
+     */
+    public record PipelineJobBindingRequest(
+            @NotBlank(message = "environmentId is required") String environmentId,
+            @NotBlank(message = "applicationId is required") String applicationId,
+            @NotBlank(message = "connectorId is required") String connectorId,
+            @NotBlank(message = "system is required") String system,
+            @NotBlank(message = "job is required") String job,
+            String versionSource,
+            String versionKey,
+            String versionPattern) {
+    }
+
+    public record PipelineJobBindingResponse(
+            String environmentId, String applicationId, String connectorId,
+            String system, String job, String versionSource, String versionKey,
+            String versionPattern) {
+
+        public static PipelineJobBindingResponse from(PipelineJobBinding binding) {
+            return new PipelineJobBindingResponse(
+                    binding.environmentId().value().toString(),
+                    binding.applicationId().value().toString(),
+                    binding.connectorId(), binding.system(), binding.job(),
+                    binding.versionSource().name(), binding.versionKey(),
+                    binding.versionPattern());
         }
     }
 }

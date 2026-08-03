@@ -6,6 +6,7 @@ import java.util.Optional;
 import dev.tower.application.binding.ApplicationBinding;
 import dev.tower.application.binding.EnvironmentBinding;
 import dev.tower.application.binding.IssueTrackerBinding;
+import dev.tower.application.binding.PipelineJobBinding;
 import dev.tower.application.binding.RepositoryBinding;
 import dev.tower.domain.application.ApplicationId;
 import dev.tower.domain.environment.EnvironmentId;
@@ -91,4 +92,24 @@ public interface ExternalBindingUseCases {
      *                the application layer may parse it.
      */
     record BindIssueTracker(String connectorId, String locator) {}
+
+    // Pipeline job bindings (ADR-020). Two Tower concepts on the left, because
+    // that is what a run of a deployment job asserts.
+
+    PipelineJobBinding bindPipelineJob(BindPipelineJob command);
+
+    List<PipelineJobBinding> listPipelineJobBindings();
+
+    void unbindPipelineJob(EnvironmentId environmentId, ApplicationId applicationId,
+                           String connectorId);
+
+    /**
+     * @param versionSource where in a run the version is written — PARAMETER,
+     *                      RUN_NAME or JOB_PATH. A CI system used as most of them
+     *                      actually are keeps it somewhere a Connector cannot
+     *                      infer, so it is configuration (ADR-020).
+     */
+    record BindPipelineJob(EnvironmentId environmentId, ApplicationId applicationId,
+                           String connectorId, String system, String job,
+                           String versionSource, String versionKey, String versionPattern) {}
 }
