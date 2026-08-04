@@ -1,13 +1,13 @@
 package dev.tower.application.binding;
 
 import java.util.LinkedHashSet;
-import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import dev.tower.application.service.InvalidRequestException;
+import dev.tower.domain.application.AcceptedArtifact;
 import dev.tower.domain.application.ApplicationId;
 import dev.tower.domain.application.ApplicationVersion;
 
@@ -212,9 +212,13 @@ public record ArtifactCoordinateBinding(
      * <p>Kinds are keys a person types twice — once when binding, once when
      * reading a report — and "Image" beside "image" would be two rows saying the
      * same thing.
+     *
+     * <p>Delegates to {@link AcceptedArtifact}, which owns the rule. Two
+     * definitions of "the same kind" would eventually disagree, and the one that
+     * decides whether a document finds its accepted digest is that one.
      */
     public static String normaliseKind(String kind) {
-        return kind == null ? "" : kind.trim().toLowerCase(Locale.ROOT);
+        return AcceptedArtifact.normaliseKind(kind);
     }
 
     private static String requireText(String value, String what) {

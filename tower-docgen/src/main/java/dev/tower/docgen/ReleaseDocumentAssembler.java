@@ -1,10 +1,12 @@
 package dev.tower.docgen;
 
 import dev.tower.application.port.in.ApplicationUseCases;
+import dev.tower.application.port.in.ArtifactUseCases;
 import dev.tower.application.port.in.EnvironmentUseCases;
 import dev.tower.application.port.in.ObservationUseCases;
 import dev.tower.application.port.in.PromotionPathUseCases;
 import dev.tower.application.port.in.ReleasePackUseCases;
+import dev.tower.domain.application.AcceptedArtifact;
 import dev.tower.domain.application.ApplicationVersion;
 import dev.tower.domain.application.ApplicationVersionId;
 import dev.tower.domain.environment.Environment;
@@ -47,17 +49,20 @@ public class ReleaseDocumentAssembler {
     private final PromotionPathUseCases promotionPaths;
     private final EnvironmentUseCases environments;
     private final ObservationUseCases observations;
+    private final ArtifactUseCases artifacts;
 
     public ReleaseDocumentAssembler(ReleasePackUseCases releasePacks,
                                     ApplicationUseCases applications,
                                     PromotionPathUseCases promotionPaths,
                                     EnvironmentUseCases environments,
-                                    ObservationUseCases observations) {
+                                    ObservationUseCases observations,
+                                    ArtifactUseCases artifacts) {
         this.releasePacks = Objects.requireNonNull(releasePacks);
         this.applications = Objects.requireNonNull(applications);
         this.promotionPaths = Objects.requireNonNull(promotionPaths);
         this.environments = Objects.requireNonNull(environments);
         this.observations = Objects.requireNonNull(observations);
+        this.artifacts = Objects.requireNonNull(artifacts);
     }
 
     public ReleaseDocument assemble(ReleasePackId releasePackId) {
@@ -77,6 +82,7 @@ public class ReleaseDocumentAssembler {
                 pack.isArchived(),
                 promotionPathSection(pack),
                 contents(pack, versionsById, applicationNames),
+                artifacts(pack, versionsById, applicationNames),
                 workItems(pack),
                 handoverSection(pack.handover()),
                 iterations(pack),
@@ -97,6 +103,43 @@ public class ReleaseDocumentAssembler {
                 .map(reference -> new ReleaseDocument.WorkItemEntry(
                         reference.identifier(), reference.title()))
                 .toList();
+    }
+
+    /**
+     * The artifact digests somebody accepted for this release's versions
+     * (ADR-021, FR-086).
+     *
+     * <p>Read from Tower and from nowhere else. No repository is consulted here,
+     * which is what lets an unchanged release regenerate byte-identically
+     * (NFR-025) however often a tag is pushed over afterwards — and a tag being
+     * pushed over is exactly why accepting a digest exists.
+     *
+     * <p>Ordered by Application name, then version, then kind, so the order comes
+     * from the release rather than from whatever order storage returned.
+     */
+    private List<ReleaseDocument.ArtifactEntry> artifacts(
+            ReleasePack pack,
+            Map<ApplicationVersionId, ApplicationVersion> versionsById,
+            Map<ApplicationVersionId, String> applicationNames) {
+
+        List<ApplicationVersionId> versionIds = pack.contents().stream()
+                .map(PackedVersion::versionId).toList();
+
+        return artifacts.acceptedArtifactsFor(versionIds).stream()
+                .map(accepted -> new ReleaseDocument.ArtifactEntry(
+                        applicationNames.getOrDefault(accepted.applicationVersionId(), ""),
+                        versionOf(versionsById, accepted),
+                        accepted.kind(), accepted.coordinate(), accepted.digest()))
+                .sorted(Comparator.comparing(ReleaseDocument.ArtifactEntry::applicationName)
+                        .thenComparing(ReleaseDocument.ArtifactEntry::version)
+                        .thenComparing(ReleaseDocument.ArtifactEntry::kind))
+                .toList();
+    }
+
+    private String versionOf(Map<ApplicationVersionId, ApplicationVersion> versionsById,
+                             AcceptedArtifact accepted) {
+        ApplicationVersion version = versionsById.get(accepted.applicationVersionId());
+        return version == null ? "" : version.version();
     }
 
     private Optional<ReleaseDocument.PromotionPathSection> promotionPathSection(ReleasePack pack) {

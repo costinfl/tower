@@ -238,10 +238,16 @@ conclusion. An image in a repository named `docker-prod` is a file in a folder w
 nothing about it says anything is running. Promotion between repositories is not promotion between
 Environments, and folding the two would put versions into Environments on the strength of a copy.
 
-Stores nothing either. The coordinate is composed from the Application Version — for a team that tags
-an image and a chart with the version and the short commit, it is a function of what Tower already
-holds — and the answer is shown beside what Tower holds rather than recorded. A tag is mutable, so
-what a document prints is what somebody accepted, exactly as ADR-018 requires for a work item's title.
+Stores nothing it reads. The coordinate is composed from the Application Version — for a team that
+tags an image and a chart with the version and the short commit, it is a function of what Tower
+already holds — and the answer is shown beside what Tower holds rather than recorded.
+
+One thing is stored, and it is not something this Connector read. A tag is mutable, so a document
+prints the digest a **person accepted** after looking at one, exactly as ADR-018 requires for a work
+item's title. Where the repository later reports different bytes under the same name, the difference
+is shown and nothing is corrected — a handover already given to another team does not change because
+somebody re-published an image. That comparison is the single most useful thing this category does:
+a re-pushed tag is a fact a team almost never learns any other way.
 
 The binding carries a template rather than a pattern, which is ADR-012's shape running the other way:
 a version pattern extracts a version from a string the vendor produced, a coordinate template composes

@@ -30,9 +30,17 @@ public enum DocumentSection {
             "The path this release follows, at the version it was pinned to."),
     CONTENTS("Contents",
             "The Application Versions the release contains."),
-    // After Contents deliberately: the same release described twice, first in
-    // the vocabulary of what is deployed and then in the vocabulary of what was
-    // asked for. The people receiving a handover recognise the second.
+    // Beside Contents, because it is the same subject at a different resolution:
+    // Contents names the versions, this names the bytes each one shipped. Only
+    // digests somebody accepted appear here (FR-086) — the repository is not
+    // consulted while a document is generated, because a document that read one
+    // would stop regenerating identically the day a tag was pushed over.
+    ARTIFACTS("Artifacts",
+            "The artifact digests accepted for this release's versions."),
+    // After Contents and Artifacts deliberately: the same release described
+    // twice, first in the vocabulary of what is deployed and then in the
+    // vocabulary of what was asked for. The people receiving a handover
+    // recognise the second.
     WORK_ITEMS("Work Items",
             "The work items this release delivers, as the team stated them."),
     HANDOVER("Handover",

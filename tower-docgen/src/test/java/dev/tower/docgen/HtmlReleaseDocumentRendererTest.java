@@ -30,6 +30,7 @@ class HtmlReleaseDocumentRendererTest {
                 List.of(new ReleaseDocument.ContentEntry(
                         "Customer API", "2.5.0", "release/2.5", "v2.5.0", "abc1234", "build-991")),
                 List.of(),
+                List.of(),
                 new ReleaseDocument.HandoverSection(
                         "Deploy customer-api first.", "kubectl rollout status deploy/customer-api",
                         "V37__add_index.sql", "Roll back orders-api first.",
@@ -42,6 +43,7 @@ class HtmlReleaseDocumentRendererTest {
     private ReleaseDocument emptyDocument() {
         return new ReleaseDocument("Release 2026.09", "", ReleasePackState.PLANNED, false,
                 Optional.empty(), List.of(),
+                List.of(),
                 List.of(),
                 new ReleaseDocument.HandoverSection("", "", "", "", "", "", false),
                 List.of(), List.of());
@@ -78,6 +80,7 @@ class HtmlReleaseDocumentRendererTest {
             var document = new ReleaseDocument("Release", "", ReleasePackState.PLANNED, false,
                     Optional.empty(), List.of(),
                     List.of(),
+                List.of(),
                 new ReleaseDocument.HandoverSection(
                             "run <script>alert(1)</script> & check", "cat a.txt > b.txt",
                             "", "", "", "", true),
@@ -98,6 +101,7 @@ class HtmlReleaseDocumentRendererTest {
             var document = new ReleaseDocument("R&D <urgent>", "", ReleasePackState.PLANNED, false,
                     Optional.empty(), List.of(),
                     List.of(),
+                List.of(),
                 new ReleaseDocument.HandoverSection("", "", "", "", "", "", false),
                     List.of(), List.of());
 
@@ -115,6 +119,7 @@ class HtmlReleaseDocumentRendererTest {
                     List.of(new ReleaseDocument.ContentEntry(
                             "A & B", "1.0", "feature/<x>", null, null, null)),
                     List.of(),
+                List.of(),
                 new ReleaseDocument.HandoverSection("", "", "", "", "", "", false),
                     List.of(), List.of());
 
@@ -151,6 +156,7 @@ class HtmlReleaseDocumentRendererTest {
             var document = new ReleaseDocument("Release", "", ReleasePackState.VALIDATION, false,
                     Optional.empty(), List.of(),
                     List.of(),
+                List.of(),
                 new ReleaseDocument.HandoverSection("", "", "", "", "", "", false),
                     List.of(new ReleaseDocument.IterationEntry("SIT 1", MONDAY, null, "")),
                     List.of());

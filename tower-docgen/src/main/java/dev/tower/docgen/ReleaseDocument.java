@@ -29,13 +29,26 @@ public record ReleaseDocument(
         boolean archived,
         Optional<PromotionPathSection> promotionPath,
         List<ContentEntry> contents,
+        List<ArtifactEntry> artifacts,
         List<WorkItemEntry> workItems,
         HandoverSection handover,
         List<IterationEntry> iterations,
         List<SightingEntry> sightings) {
 
+    /**
+     * What the Artifacts section says when nobody has accepted a digest.
+     *
+     * <p>Held once rather than written into each renderer, because three
+     * renderers and the demo's fourth must agree on it word for word — and this
+     * particular sentence is one a reader is meant to take at face value: it
+     * says nothing was accepted, not that nothing was built.
+     */
+    public static final String NO_ARTIFACTS_ACCEPTED =
+            "No artifact digests have been accepted for this release.";
+
     public ReleaseDocument {
         contents = List.copyOf(contents);
+        artifacts = List.copyOf(artifacts);
         workItems = List.copyOf(workItems);
         iterations = List.copyOf(iterations);
         sightings = List.copyOf(sightings);
@@ -62,6 +75,28 @@ public record ReleaseDocument(
             String tag,
             String commit,
             String buildIdentifier) {
+    }
+
+    /**
+     * One artifact digest somebody accepted for a version in this release
+     * (ADR-021, FR-086).
+     *
+     * <p>The digest is the one a person accepted, not what the repository holds
+     * now. Nothing here is read at generation time, which is what keeps NFR-025
+     * true: a tag pushed over does not change a document already handed over.
+     * The difference is shown in the Viewer, where somebody can decide whether to
+     * accept the newer bytes.
+     *
+     * <p>Only accepted digests appear. An artifact the repository holds that
+     * nobody has accepted is not in the document, for exactly the reason a
+     * tracker's current wording is not: Tower would be printing something it read
+     * rather than something a person stood behind.
+     *
+     * @param kind       the team's own word for what this is, never interpreted
+     * @param coordinate where it was found, so a digest is followable
+     */
+    public record ArtifactEntry(String applicationName, String version, String kind,
+                                String coordinate, String digest) {
     }
 
     /**

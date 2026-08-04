@@ -108,6 +108,7 @@ public class DocxReleaseDocumentRenderer {
                 case STATUS -> renderStatus(out, document);
                 case PROMOTION_PATH -> renderPromotionPath(out, document.promotionPath());
                 case CONTENTS -> renderContents(out, document.contents());
+                case ARTIFACTS -> renderArtifacts(out, document.artifacts());
                 case WORK_ITEMS -> renderWorkItems(out, document.workItems());
                 case HANDOVER -> renderHandover(out, document.handover());
                 case ITERATIONS -> renderIterations(out, document.iterations());
@@ -174,6 +175,21 @@ public class DocxReleaseDocumentRenderer {
     }
 
     /** What the release delivers, in the words the team accepted (ADR-018). */
+    /** The digests somebody accepted, never what the repository says now (FR-086). */
+    private void renderArtifacts(StringBuilder out, List<ReleaseDocument.ArtifactEntry> artifacts) {
+        heading(out, 2, "Artifacts");
+        if (artifacts.isEmpty()) {
+            paragraph(out, ReleaseDocument.NO_ARTIFACTS_ACCEPTED, "Quote");
+            return;
+        }
+        var rows = new java.util.ArrayList<List<String>>();
+        for (ReleaseDocument.ArtifactEntry entry : artifacts) {
+            rows.add(List.of(entry.applicationName(), entry.version(), entry.kind(),
+                    entry.coordinate(), entry.digest()));
+        }
+        table(out, List.of("Application", "Version", "Kind", "Coordinate", "Digest"), rows, true);
+    }
+
     private void renderWorkItems(StringBuilder out, List<ReleaseDocument.WorkItemEntry> workItems) {
         heading(out, 2, "Work Items");
         if (workItems.isEmpty()) {

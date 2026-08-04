@@ -87,6 +87,8 @@ const DOCUMENT_SECTIONS: { name: string; heading: string; description: string }[
     description: "The path this release follows, at the version it was pinned to." },
   { name: "CONTENTS", heading: "Contents",
     description: "The Application Versions the release contains." },
+  { name: "ARTIFACTS", heading: "Artifacts",
+    description: "The artifact digests accepted for this release's versions." },
   { name: "WORK_ITEMS", heading: "Work Items",
     description: "The work items this release delivers, as the team stated them." },
   { name: "HANDOVER", heading: "Handover",
@@ -571,6 +573,7 @@ function releaseMarkdown(packId: string, template: TemplateRec | null): string {
     if (section === "STATUS") status(out, p, derived);
     else if (section === "PROMOTION_PATH") promotionPath(out, view);
     else if (section === "CONTENTS") contents(out, view);
+    else if (section === "ARTIFACTS") artifacts(out);
     else if (section === "WORK_ITEMS") workItems(out, pack(packId)!);
     else if (section === "HANDOVER") handover(out, p);
     else if (section === "ITERATIONS") iterations(out, p);
@@ -627,6 +630,18 @@ function contents(out: string[], view: ReturnType<typeof packView>) {
     .forEach((c) => out.push(
       `| ${c.applicationName} | ${c.version} | ${dash(c.branch)} | ${dash(c.tag)} | ${dash(c.commit)} | ${dash(c.buildIdentifier)} |`));
   out.push("");
+}
+
+// Mirrors MarkdownReleaseDocumentRenderer.renderArtifacts (ADR-021, FR-086).
+//
+// The demo accepts no digests, so this always renders the empty state - and
+// that is the honest thing for it to render. A digest is something a person
+// accepted after looking at a repository, and the demo has no repository to
+// look at. Inventing one would put a fabricated sha256 in front of a visitor as
+// though Tower had confirmed it.
+function artifacts(out: string[]) {
+  out.push("## Artifacts\n");
+  out.push("_No artifact digests have been accepted for this release._\n");
 }
 
 // Mirrors MarkdownReleaseDocumentRenderer.renderWorkItems (ADR-018).

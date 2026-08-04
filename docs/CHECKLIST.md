@@ -131,19 +131,22 @@ This checklist tracks the architectural documentation required before implementa
 ## Artifact Repository Connector
 
 - [x] ADR-021-An-Artifact-Is-Confirmed-Not-Recorded.md
-- [x] Connector-Model: a sixth category, producing no Observations and storing nothing
+- [x] Connector-Model: a sixth category, producing no Observations and storing nothing it reads
 - [x] FR-082 to FR-086
 - [x] ArtifactRepositoryConnector SPI (vendor-neutral)
 - [x] Coordinate templates on an Application (V14), one per artifact kind — composing where every
       other binding extracts, and an unrecognised token refused rather than left to become a literal
 - [x] Confirmation beside what Tower holds: present, absent, not addressable, or unread — never a
       null standing in for two of them
-- [ ] An accepted digest for documents (FR-086's second half). What a document prints must be what
-      somebody accepted, because a tag is mutable and NFR-025 forbids a document that stops
-      regenerating identically the day one is pushed over.
+- [x] An accepted digest for documents (V15, FR-086). A document prints what somebody accepted;
+      where the repository later reports different bytes under the same name the difference is shown
+      and nothing is corrected. Divergence is a fifth state rather than a nullable field, for the
+      reason ADR-018 made it one for a work item's title.
+- [x] An Artifacts section in the release document, in all three renderers and the demo's fourth
 - [x] Artifactory implementation — GET only; its AQL search is a POST and ADR-001 forbids one
-- [x] Verified end to end against a stand-in Artifactory (`scripts/acceptance-artifacts.sh`, 30
-      checks), including that the repository saw nothing but GET
+- [x] Verified end to end against a stand-in Artifactory (`scripts/acceptance-artifacts.sh`, 49
+      checks), including that the repository saw nothing but GET, that a re-pushed tag is reported,
+      and that a document regenerates byte-identically after one
 - [ ] Live verification against a real Artifactory (no host is reachable from the build environment)
 
 ## Defects found and fixed

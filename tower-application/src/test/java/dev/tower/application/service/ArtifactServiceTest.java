@@ -3,7 +3,9 @@ package dev.tower.application.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -23,10 +25,12 @@ import dev.tower.application.binding.PipelineJobBinding;
 import dev.tower.application.binding.RepositoryBinding;
 import dev.tower.application.port.in.ArtifactUseCases.Confirmation;
 import dev.tower.application.port.in.ArtifactUseCases.State;
+import dev.tower.application.port.out.AcceptedArtifactRepository;
 import dev.tower.application.port.out.ApplicationVersionRepository;
 import dev.tower.application.port.out.ArtifactCollector;
 import dev.tower.application.port.out.ExternalBindingRepository;
 import dev.tower.application.sync.ConnectionTest;
+import dev.tower.domain.application.AcceptedArtifact;
 import dev.tower.domain.application.ApplicationId;
 import dev.tower.domain.application.ApplicationVersion;
 import dev.tower.domain.application.ApplicationVersionId;
@@ -44,8 +48,12 @@ class ArtifactServiceTest {
     private final ApplicationVersion version =
             ApplicationVersion.create(applicationId, "2.5.0", null, null, COMMIT, null);
 
+    private static final Clock CLOCK =
+            Clock.fixed(Instant.parse("2024-06-01T09:00:00Z"), ZoneOffset.UTC);
+
     private InMemoryVersions versions;
     private InMemoryBindings bindings;
+    private InMemoryAccepted accepted;
     private StubCollector collector;
 
     @BeforeEach
@@ -53,11 +61,12 @@ class ArtifactServiceTest {
         versions = new InMemoryVersions();
         versions.save(version);
         bindings = new InMemoryBindings();
+        accepted = new InMemoryAccepted();
         collector = new StubCollector();
     }
 
     private ArtifactService service() {
-        return new ArtifactService(versions, bindings, List.of(collector));
+        return new ArtifactService(versions, bindings, accepted, List.of(collector), CLOCK);
     }
 
     private void bind(String kind, String template) {
@@ -212,6 +221,119 @@ class ArtifactServiceTest {
     }
 
     @Nested
+    @DisplayName("shows what somebody accepted beside what the repository says")
+    class Acceptance {
+
+        @Test
+        void records_a_digest_a_person_accepted() {
+            bind("image", "docker-local/acme/api:{version}-{shortCommit}");
+            collector.holds(IMAGE, "sha256:1111");
+
+            service().accept(new dev.tower.application.port.in.ArtifactUseCases.AcceptDigest(
+                    version.id(), "image", IMAGE, "sha256:1111"));
+
+            var artifact = confirm().artifacts().get(0);
+            assertThat(artifact.acceptedDigest()).isEqualTo("sha256:1111");
+            assertThat(artifact.state()).isEqualTo(State.PRESENT);
+        }
+
+        @Test
+        void reports_a_tag_that_was_pushed_over() {
+            // The fact a team almost never learns any other way, and the reason
+            // an artifact is shown beside what Tower holds rather than merely
+            // looked up.
+            bind("image", "docker-local/acme/api:{version}-{shortCommit}");
+            service().accept(new dev.tower.application.port.in.ArtifactUseCases.AcceptDigest(
+                    version.id(), "image", IMAGE, "sha256:1111"));
+            collector.holds(IMAGE, "sha256:2222");
+
+            var artifact = confirm().artifacts().get(0);
+            assertThat(artifact.state()).isEqualTo(State.DIVERGED);
+            assertThat(artifact.hasDiverged()).isTrue();
+            assertThat(artifact.digest()).isEqualTo("sha256:2222");
+            assertThat(artifact.acceptedDigest()).isEqualTo("sha256:1111");
+        }
+
+        @Test
+        void does_not_correct_the_accepted_digest_when_the_repository_disagrees() {
+            // A handover already given to another team does not change because
+            // somebody re-published an image (ADR-018's rule, unchanged).
+            bind("image", "docker-local/acme/api:{version}-{shortCommit}");
+            service().accept(new dev.tower.application.port.in.ArtifactUseCases.AcceptDigest(
+                    version.id(), "image", IMAGE, "sha256:1111"));
+            collector.holds(IMAGE, "sha256:2222");
+
+            confirm();
+
+            assertThat(accepted.find(version.id(), "image")).get()
+                    .extracting(AcceptedArtifact::digest).isEqualTo("sha256:1111");
+        }
+
+        @Test
+        void claims_no_divergence_for_an_artifact_nobody_accepted() {
+            // Nothing to have drifted from, exactly as for a work item reference
+            // carrying no accepted title.
+            bind("image", "docker-local/acme/api:{version}-{shortCommit}");
+            collector.holds(IMAGE, "sha256:2222");
+
+            var artifact = confirm().artifacts().get(0);
+            assertThat(artifact.state()).isEqualTo(State.PRESENT);
+            assertThat(artifact.acceptedDigest()).isNull();
+        }
+
+        @Test
+        void shows_an_accepted_digest_even_when_the_repository_cannot_be_read() {
+            // What a document prints does not depend on a repository answering.
+            bind("image", "docker-local/acme/api:{version}-{shortCommit}");
+            service().accept(new dev.tower.application.port.in.ArtifactUseCases.AcceptDigest(
+                    version.id(), "image", IMAGE, "sha256:1111"));
+            collector.failsWith("connection refused");
+
+            var artifact = confirm().artifacts().get(0);
+            assertThat(artifact.state()).isEqualTo(State.UNREAD);
+            assertThat(artifact.acceptedDigest()).isEqualTo("sha256:1111");
+        }
+
+        @Test
+        void accepting_again_replaces_rather_than_appends() {
+            bind("image", "docker-local/acme/api:{version}-{shortCommit}");
+            service().accept(new dev.tower.application.port.in.ArtifactUseCases.AcceptDigest(
+                    version.id(), "image", IMAGE, "sha256:1111"));
+            service().accept(new dev.tower.application.port.in.ArtifactUseCases.AcceptDigest(
+                    version.id(), "image", IMAGE, "sha256:2222"));
+
+            assertThat(accepted.findAllFor(version.id())).hasSize(1);
+        }
+
+        @Test
+        void withdraws_an_acceptance_made_in_error() {
+            bind("image", "docker-local/acme/api:{version}-{shortCommit}");
+            service().accept(new dev.tower.application.port.in.ArtifactUseCases.AcceptDigest(
+                    version.id(), "image", IMAGE, "sha256:1111"));
+
+            service().withdrawAcceptance(version.id(), "Image");
+
+            assertThat(accepted.findAllFor(version.id())).isEmpty();
+        }
+
+        @Test
+        void refuses_a_digest_for_a_version_that_does_not_exist() {
+            assertThatThrownBy(() -> service().accept(new dev.tower.application.port.in.ArtifactUseCases.AcceptDigest(
+                    ApplicationVersionId.newId(), "image", IMAGE, "sha256:1111")))
+                    .isInstanceOf(NotFoundException.class);
+        }
+
+        @Test
+        void refuses_an_acceptance_carrying_no_digest() {
+            // A coordinate on its own names a tag, and a tag can be pushed over.
+            assertThatThrownBy(() -> service().accept(new dev.tower.application.port.in.ArtifactUseCases.AcceptDigest(
+                    version.id(), "image", IMAGE, "  ")))
+                    .isInstanceOf(RuntimeException.class)
+                    .hasMessageContaining("digest");
+        }
+    }
+
+    @Nested
     @DisplayName("tests a connection")
     class Connection {
 
@@ -229,6 +351,43 @@ class ArtifactServiceTest {
         void refuses_a_test_that_names_no_repository() {
             assertThatThrownBy(() -> service().testConnection("artifactory", " "))
                     .isInstanceOf(InvalidRequestException.class);
+        }
+    }
+
+    private static final class InMemoryAccepted implements AcceptedArtifactRepository {
+
+        private final Map<String, AcceptedArtifact> stored = new LinkedHashMap<>();
+
+        private static String key(ApplicationVersionId id, String kind) {
+            return id + "|" + AcceptedArtifact.normaliseKind(kind);
+        }
+
+        @Override
+        public AcceptedArtifact save(AcceptedArtifact one) {
+            stored.put(key(one.applicationVersionId(), one.kind()), one);
+            return one;
+        }
+
+        @Override
+        public Optional<AcceptedArtifact> find(ApplicationVersionId id, String kind) {
+            return Optional.ofNullable(stored.get(key(id, kind)));
+        }
+
+        @Override
+        public List<AcceptedArtifact> findAllFor(ApplicationVersionId id) {
+            return stored.values().stream()
+                    .filter(one -> one.applicationVersionId().equals(id)).toList();
+        }
+
+        @Override
+        public List<AcceptedArtifact> findAllFor(List<ApplicationVersionId> ids) {
+            return stored.values().stream()
+                    .filter(one -> ids.contains(one.applicationVersionId())).toList();
+        }
+
+        @Override
+        public void delete(ApplicationVersionId id, String kind) {
+            stored.remove(key(id, kind));
         }
     }
 

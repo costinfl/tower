@@ -28,6 +28,8 @@ class MarkdownReleaseDocumentRendererTest {
                         "Regular", 1, List.of("Dev1", "SIT1", "UAT", "Production"))),
                 List.of(new ReleaseDocument.ContentEntry(
                         "Customer API", "2.5.0", "release/2.5", "v2.5.0", "abc1234", "build-991")),
+                List.of(new ReleaseDocument.ArtifactEntry("Customer API", "2.5.0", "image",
+                        "docker-local/acme/customer-api:2.5.0-abc1234", "sha256:9f86d0")),
                 List.of(new ReleaseDocument.WorkItemEntry("PROJ-123", "Save basket"),
                         new ReleaseDocument.WorkItemEntry("PROJ-140", "")),
                 new ReleaseDocument.HandoverSection(
@@ -42,6 +44,7 @@ class MarkdownReleaseDocumentRendererTest {
     private ReleaseDocument emptyDocument() {
         return new ReleaseDocument("Release 2026.09", "", ReleasePackState.PLANNED, false,
                 Optional.empty(), List.of(),
+                List.of(),
                 List.of(),
                 new ReleaseDocument.HandoverSection("", "", "", "", "", "", false),
                 List.of(), List.of());
@@ -136,6 +139,7 @@ class MarkdownReleaseDocumentRendererTest {
                     Optional.empty(),
                     List.of(new ReleaseDocument.ContentEntry("Orders API", "1.0.0", null, null, null, null)),
                     List.of(),
+                List.of(),
                 new ReleaseDocument.HandoverSection("", "", "", "", "", "", false),
                     List.of(), List.of());
 
@@ -173,6 +177,7 @@ class MarkdownReleaseDocumentRendererTest {
             ReleaseDocument archived = new ReleaseDocument("R", "", ReleasePackState.PRODUCTION, true,
                     Optional.empty(), List.of(),
                     List.of(),
+                List.of(),
                 new ReleaseDocument.HandoverSection("", "", "", "", "", "", false),
                     List.of(), List.of());
 
@@ -192,6 +197,7 @@ class MarkdownReleaseDocumentRendererTest {
             ReleaseDocument document = new ReleaseDocument("R", "", ReleasePackState.PLANNED, false,
                     Optional.empty(), List.of(),
                     List.of(),
+                List.of(),
                 new ReleaseDocument.HandoverSection("", "", "", "", "", "", false),
                     List.of(new ReleaseDocument.IterationEntry(
                             "UAT", MONDAY, null, "passed | mostly\nsecond line")),
@@ -218,6 +224,7 @@ class MarkdownReleaseDocumentRendererTest {
             ReleaseDocument document = new ReleaseDocument("R", "", ReleasePackState.PLANNED, false,
                     Optional.empty(), List.of(),
                     List.of(),
+                List.of(),
                 new ReleaseDocument.HandoverSection("", "", "", "", "", "", false),
                     List.of(new ReleaseDocument.IterationEntry("UAT", MONDAY, null, "")),
                     List.of());

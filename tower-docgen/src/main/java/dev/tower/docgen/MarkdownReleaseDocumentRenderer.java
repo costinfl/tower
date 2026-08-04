@@ -57,6 +57,7 @@ public class MarkdownReleaseDocumentRenderer {
                 case STATUS -> renderStatus(out, document);
                 case PROMOTION_PATH -> renderPromotionPath(out, document.promotionPath());
                 case CONTENTS -> renderContents(out, document.contents());
+                case ARTIFACTS -> renderArtifacts(out, document.artifacts());
                 case WORK_ITEMS -> renderWorkItems(out, document.workItems());
                 case HANDOVER -> renderHandover(out, document.handover());
                 case ITERATIONS -> renderIterations(out, document.iterations());
@@ -122,6 +123,33 @@ public class MarkdownReleaseDocumentRenderer {
      * <p>Identifier and title only. No status: the tracker owns that, and a
      * status printed here would be stale before the page was read.
      */
+    /**
+     * The digests somebody accepted, and nothing the repository said this
+     * morning (ADR-021, FR-086).
+     *
+     * <p>The empty state is a sentence rather than an empty table, for the same
+     * reason every other section here says so: a heading followed by nothing
+     * reads as a rendering fault.
+     */
+    private void renderArtifacts(StringBuilder out, List<ReleaseDocument.ArtifactEntry> artifacts) {
+        out.append("## Artifacts\n\n");
+        if (artifacts.isEmpty()) {
+            out.append("_%s_\n\n".formatted(ReleaseDocument.NO_ARTIFACTS_ACCEPTED));
+            return;
+        }
+        out.append("| Application | Version | Kind | Coordinate | Digest |\n");
+        out.append("|---|---|---|---|---|\n");
+        for (ReleaseDocument.ArtifactEntry entry : artifacts) {
+            out.append("| ").append(entry.applicationName())
+                    .append(" | ").append(entry.version())
+                    .append(" | ").append(entry.kind())
+                    .append(" | `").append(entry.coordinate())
+                    .append("` | `").append(entry.digest())
+                    .append("` |\n");
+        }
+        out.append("\n");
+    }
+
     private void renderWorkItems(StringBuilder out, List<ReleaseDocument.WorkItemEntry> workItems) {
         out.append("## Work Items\n\n");
         if (workItems.isEmpty()) {

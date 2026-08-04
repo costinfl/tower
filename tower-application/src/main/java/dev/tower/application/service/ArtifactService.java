@@ -1,5 +1,7 @@
 package dev.tower.application.service;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -12,7 +14,9 @@ import dev.tower.application.port.in.ArtifactUseCases;
 import dev.tower.application.port.out.ApplicationVersionRepository;
 import dev.tower.application.port.out.ArtifactCollector;
 import dev.tower.application.port.out.ExternalBindingRepository;
+import dev.tower.application.port.out.AcceptedArtifactRepository;
 import dev.tower.application.sync.ConnectionTest;
+import dev.tower.domain.application.AcceptedArtifact;
 import dev.tower.domain.application.ApplicationVersion;
 import dev.tower.domain.application.ApplicationVersionId;
 
@@ -20,11 +24,16 @@ import dev.tower.domain.application.ApplicationVersionId;
  * Confirming an Application Version's artifacts against the repositories
  * (ADR-021).
  *
- * <p>Reads and shows; stores nothing, and there is nowhere for it to store
- * anything — no artifact table exists in the schema and FR-084 says none is
- * meant to. What a release document prints is an accepted digest, which somebody
- * stated; this only makes the repository's current answer visible so that
- * somebody can notice a tag was pushed over.
+ * <p>Reads and shows; stores nothing it read. No artifact table exists in the
+ * schema and FR-084 says none is meant to. The single write here is
+ * {@link #accept}, and what it writes is a digest a person accepted rather than
+ * one Tower found — the distinction ADR-018 draws between a tracker's current
+ * wording and a title somebody stood behind.
+ *
+ * <p>Which makes the comparison this service exists for possible: a document
+ * prints the accepted digest, the screen shows what the repository says now, and
+ * where they differ a tag was pushed over. That is a fact a team almost never
+ * learns any other way.
  *
  * <p>Every failure here is contained, exactly as it is in {@link WorkItemService}.
  * A repository that is unreachable or refusing the credential produces a
@@ -38,14 +47,20 @@ public class ArtifactService implements ArtifactUseCases {
 
     private final ApplicationVersionRepository versions;
     private final ExternalBindingRepository bindings;
+    private final AcceptedArtifactRepository accepted;
     private final List<ArtifactCollector> collectors;
+    private final Clock clock;
 
     public ArtifactService(ApplicationVersionRepository versions,
                            ExternalBindingRepository bindings,
-                           List<ArtifactCollector> collectors) {
+                           AcceptedArtifactRepository accepted,
+                           List<ArtifactCollector> collectors,
+                           Clock clock) {
         this.versions = Objects.requireNonNull(versions);
         this.bindings = Objects.requireNonNull(bindings);
+        this.accepted = Objects.requireNonNull(accepted);
         this.collectors = List.copyOf(collectors);
+        this.clock = Objects.requireNonNull(clock);
     }
 
     @Override
@@ -78,9 +93,15 @@ public class ArtifactService implements ArtifactUseCases {
             readGroup(group.getValue(), answers);
         }
 
+        Map<String, AcceptedArtifact> acceptedByKind = new LinkedHashMap<>();
+        for (AcceptedArtifact one : accepted.findAllFor(applicationVersionId)) {
+            acceptedByKind.put(one.kind(), one);
+        }
+
         List<ConfirmedArtifact> artifacts = new ArrayList<>();
         for (Composed entry : composed) {
-            artifacts.add(describe(entry, answers.get(entry.coordinateKey())));
+            artifacts.add(describe(entry, answers.get(entry.coordinateKey()),
+                    acceptedByKind.get(entry.template().kind())));
         }
 
         return new Confirmation(applicationVersionId.value().toString(),
@@ -130,36 +151,71 @@ public class ArtifactService implements ArtifactUseCases {
         }
     }
 
-    private ConfirmedArtifact describe(Composed entry, Answer answer) {
+    private ConfirmedArtifact describe(Composed entry, Answer answer, AcceptedArtifact accepted) {
         ArtifactCoordinateBinding template = entry.template();
+        String acceptedDigest = accepted == null ? null : accepted.digest();
 
         if (entry.coordinate() == null) {
             // The template wanted something this version does not carry. Only
             // the commit can be missing: a version string is required for an
             // Application Version to exist at all.
             return new ConfirmedArtifact(template.kind(), template.connectorId(), template.system(),
-                    null, null, null, 0, null, State.NOT_ADDRESSABLE,
+                    null, null, acceptedDigest, null, 0, null, State.NOT_ADDRESSABLE,
                     "This version carries no commit, and the template needs one: "
                             + template.coordinateTemplate());
         }
         if (answer == null || answer.state() == State.UNREAD) {
             return new ConfirmedArtifact(template.kind(), template.connectorId(), template.system(),
-                    entry.coordinate(), null, null, 0, null, State.UNREAD,
+                    entry.coordinate(), null, acceptedDigest, null, 0, null, State.UNREAD,
                     answer == null ? "The repository was not read." : answer.detail());
         }
         if (answer.state() == State.ABSENT) {
             return new ConfirmedArtifact(template.kind(), template.connectorId(), template.system(),
-                    entry.coordinate(), null, null, 0, null, State.ABSENT,
+                    entry.coordinate(), null, acceptedDigest, null, 0, null, State.ABSENT,
                     "The repository has nothing at this coordinate.");
         }
 
         ArtifactCollector.ConfirmedArtifact found = answer.artifact();
+        String digest = found.digest() == null || found.digest().isBlank() ? null : found.digest();
+
+        // Divergence is only ever claimed against something a person accepted.
+        // An artifact nobody has accepted a digest for has nothing to have
+        // drifted from, exactly as a work item reference with no accepted title
+        // cannot diverge from the tracker's.
+        boolean diverged = accepted != null && accepted.differsFrom(digest);
+
         return new ConfirmedArtifact(template.kind(), template.connectorId(), template.system(),
-                entry.coordinate(),
-                found.digest() == null || found.digest().isBlank() ? null : found.digest(),
+                entry.coordinate(), digest, acceptedDigest,
                 found.storedAt(), found.sizeBytes(),
                 found.url() == null || found.url().isBlank() ? null : found.url(),
-                State.PRESENT, null);
+                diverged ? State.DIVERGED : State.PRESENT,
+                diverged ? "The repository reports different bytes under this name than the ones"
+                        + " that were accepted. The tag was pushed over." : null);
+    }
+
+    @Override
+    public AcceptedArtifact accept(AcceptDigest command) {
+        InvalidRequestException.require(command != null, "Say what is being accepted.");
+        if (versions.findById(command.applicationVersionId()).isEmpty()) {
+            throw new NotFoundException(
+                    "Application Version " + command.applicationVersionId() + " does not exist.");
+        }
+        // Not checked against the repository, deliberately. A person is accepting
+        // what they looked at; re-reading first would accept whatever the
+        // repository says at this instant, which is the very thing that can have
+        // changed underneath them.
+        return accepted.save(new AcceptedArtifact(command.applicationVersionId(),
+                command.kind(), command.coordinate(), command.digest(), Instant.now(clock)));
+    }
+
+    @Override
+    public void withdrawAcceptance(ApplicationVersionId applicationVersionId, String kind) {
+        accepted.delete(applicationVersionId, kind);
+    }
+
+    @Override
+    public List<AcceptedArtifact> acceptedArtifactsFor(List<ApplicationVersionId> applicationVersionIds) {
+        return accepted.findAllFor(applicationVersionIds);
     }
 
     @Override

@@ -175,7 +175,7 @@ SECTIONS=$(curl -s "$B/api/document-templates/sections" | python3 -c '
 import json,sys
 print(",".join(sorted(s["name"] for s in json.load(sys.stdin))))')
 check "the sections a template may choose from are served" "$SECTIONS" \
-  "CONTENTS,HANDOVER,ITERATIONS,PROMOTION_PATH,SIGHTINGS,STATUS,WORK_ITEMS"
+  "ARTIFACTS,CONTENTS,HANDOVER,ITERATIONS,PROMOTION_PATH,SIGHTINGS,STATUS,WORK_ITEMS"
 
 BUILTIN=$(curl -s "$B/api/document-templates" | python3 -c 'import json,sys;d=json.load(sys.stdin);print(d[0]["builtIn"])')
 check "the complete document heads the list" "$BUILTIN" "True"
@@ -406,6 +406,13 @@ grep -qF "| PROJ-12 | Save the basket |" /tmp/doc_w.md \
 grep -qF "_no title accepted_" /tmp/doc_w.md \
   && ok "a reference with no accepted title says so rather than showing blank" \
   || bad "an unaccepted title renders as nothing"
+
+# The same rule for a digest (ADR-021, FR-086). A tag is mutable, so a document
+# prints what somebody accepted; nobody has accepted one here, and the section
+# says that rather than leaving a reader to guess whether anything was built.
+grep -qF "_No artifact digests have been accepted for this release._" /tmp/doc_w.md \
+  && ok "a release with no accepted digest says so rather than showing blank" \
+  || bad "the Artifacts section is missing or renders as nothing"
 
 echo
 echo "=============================================================="

@@ -42,6 +42,7 @@ class TemplatedRenderingTest {
                 List.of(new ReleaseDocument.ContentEntry(
                         "Customer API", "2.5.0", "release/2.5", "v2.5.0", "abc1234", "build-991")),
                 List.of(),
+                List.of(),
                 new ReleaseDocument.HandoverSection(
                         "Deploy customer-api first.", "kubectl rollout status deploy/customer-api",
                         "V37__add_index.sql", "Roll back orders-api first.",
@@ -143,7 +144,7 @@ class TemplatedRenderingTest {
             assertThat(out)
                     .contains("using the \"Handover only\" template")
                     .contains("which does not include Status, Promotion Path, Contents, "
-                            + "Work Items, Validation Iterations and "
+                            + "Artifacts, Work Items, Validation Iterations and "
                             + "Where this release has been observed");
         }
 
@@ -155,7 +156,7 @@ class TemplatedRenderingTest {
             assertThat(out)
                     .contains("using the &quot;Handover only&quot; template")
                     .contains("which does not include Status, Promotion Path, Contents, "
-                            + "Work Items, Validation Iterations and "
+                            + "Artifacts, Work Items, Validation Iterations and "
                             + "Where this release has been observed");
         }
 
@@ -163,7 +164,8 @@ class TemplatedRenderingTest {
         void a_reordered_but_complete_template_is_named_without_claiming_an_omission() {
             var everything = new DocumentTemplate(DocumentTemplateId.newId(), "House style",
                     List.of(DocumentSection.HANDOVER, DocumentSection.CONTENTS, DocumentSection.STATUS,
-                            DocumentSection.PROMOTION_PATH, DocumentSection.WORK_ITEMS,
+                            DocumentSection.PROMOTION_PATH, DocumentSection.ARTIFACTS,
+                            DocumentSection.WORK_ITEMS,
                             DocumentSection.ITERATIONS, DocumentSection.SIGHTINGS));
 
             String out = markdown.render(document(), everything);

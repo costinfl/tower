@@ -154,6 +154,82 @@ check "a template needing a commit is reported, not guessed at" \
   "$(kindf chart state)" NOT_ADDRESSABLE
 
 echo
+echo "--- accepted digests (FR-086) — what a document prints ---"
+
+check "accept the digest somebody looked at" \
+  "$(code PUT "$B/api/application-versions/$VER/artifacts/chart/accepted-digest" \
+    '{"coordinate":"helm-local/api-2.5.0-abc1234.tgz","digest":"sha256:ccc"}')" 200
+
+check "reject an acceptance carrying no digest" \
+  "$(code PUT "$B/api/application-versions/$VER/artifacts/chart/accepted-digest" \
+    '{"coordinate":"helm-local/api-2.5.0-abc1234.tgz","digest":""}')" 400
+
+STATUS=$(curl -s -o /tmp/_art -w '%{http_code}' "$B/api/application-versions/$VER/artifacts")
+check "the confirmation carries it" "$STATUS" 200
+check "the accepted digest is shown beside the repository's" "$(kindf chart acceptedDigest)" "sha256:ccc"
+check "and the two agree, so the state is unchanged" "$(kindf chart state)" PRESENT
+
+# Standing in for a tag pushed over. Accepting bytes the repository does not have
+# exercises exactly the comparison a re-push produces, and is the only way to
+# produce one against a stand-in that serves fixed bodies.
+check "accept a digest the repository no longer reports" \
+  "$(code PUT "$B/api/application-versions/$VER/artifacts/image/accepted-digest" \
+    '{"coordinate":"docker-local/acme/api:2.5.0-abc1234","digest":"sha256:the-bytes-we-shipped"}')" 200
+
+curl -s -o /tmp/_art "$B/api/application-versions/$VER/artifacts"
+check "a tag pushed over is reported" "$(kindf image state)" DIVERGED
+check "and the accepted digest is not quietly corrected" \
+  "$(kindf image acceptedDigest)" "sha256:the-bytes-we-shipped"
+check "while the repository's own answer is shown too" "$(kindf image digest)" "sha256:eee"
+
+check "withdraw an acceptance made in error" \
+  "$(code DELETE "$B/api/application-versions/$VER/artifacts/image/accepted-digest" "")" 204
+
+curl -s -o /tmp/_art "$B/api/application-versions/$VER/artifacts"
+check "nothing to have drifted from, so no divergence is claimed" "$(kindf image state)" PRESENT
+
+echo
+echo "--- what a release document prints (FR-086, NFR-025) ---"
+
+check "create a Release Pack for this version" "$(code POST $B/api/release-packs \
+  "{\"name\":\"Artifact Release $SUFFIX\",\"description\":\"artifact acceptance\"}")" 201
+PACK=$(jsonf "['id']")
+check "add the version to it" "$(code POST "$B/api/release-packs/$PACK/versions/$VER" "")" 200
+
+curl -s "$B/api/release-packs/$PACK/documentation/markdown" > /tmp/_art-doc-1.md
+if grep -qF "sha256:ccc" /tmp/_art-doc-1.md; then
+  ok "the document prints the digest somebody accepted"
+else
+  bad "the accepted digest is missing from the document"
+fi
+if grep -qF "helm-local/api-2.5.0-abc1234.tgz" /tmp/_art-doc-1.md; then
+  ok "and the coordinate it was found at, so the digest is followable"
+else
+  bad "the coordinate is missing from the document"
+fi
+
+# The whole reason a digest is accepted rather than read. A document that
+# consulted the repository would stop regenerating identically the day a tag was
+# pushed over - and one was pushed over above, on the image.
+if grep -qF "sha256:the-bytes-we-shipped" /tmp/_art-doc-1.md; then
+  bad "the document printed a withdrawn acceptance"
+else
+  ok "a withdrawn acceptance is not printed"
+fi
+if grep -qF "sha256:eee" /tmp/_art-doc-1.md; then
+  bad "the document printed what the repository says now rather than what was accepted"
+else
+  ok "the document prints nothing the repository merely reports"
+fi
+
+curl -s "$B/api/release-packs/$PACK/documentation/markdown" > /tmp/_art-doc-2.md
+if diff -q /tmp/_art-doc-1.md /tmp/_art-doc-2.md >/dev/null; then
+  ok "regenerating the document produces identical bytes (NFR-025)"
+else
+  bad "the document is not reproducible"
+fi
+
+echo
 echo "--- connection test (FR-061) — reads, never writes ---"
 
 STATUS=$(curl -s -o /tmp/_art -w '%{http_code}' \
@@ -202,6 +278,8 @@ fi
 
 echo
 echo "--- cleanup ---"
+check "withdraw the remaining acceptance" \
+  "$(code DELETE "$B/api/application-versions/$VER/artifacts/chart/accepted-digest" "")" 204
 check "unbind the chart template" \
   "$(code DELETE "$B/api/bindings/artifact-coordinates/$APP/chart?connectorId=artifactory" "")" 204
 check "unbind the image template" \

@@ -89,6 +89,7 @@ public class HtmlReleaseDocumentRenderer {
                 case STATUS -> renderStatus(out, document);
                 case PROMOTION_PATH -> renderPromotionPath(out, document.promotionPath());
                 case CONTENTS -> renderContents(out, document.contents());
+                case ARTIFACTS -> renderArtifacts(out, document.artifacts());
                 case WORK_ITEMS -> renderWorkItems(out, document.workItems());
                 case HANDOVER -> renderHandover(out, document.handover());
                 case ITERATIONS -> renderIterations(out, document.iterations());
@@ -154,6 +155,26 @@ public class HtmlReleaseDocumentRenderer {
     }
 
     /** What the release delivers, in the words the team accepted (ADR-018). */
+    /** The digests somebody accepted, never what the repository says now (FR-086). */
+    private void renderArtifacts(StringBuilder out, List<ReleaseDocument.ArtifactEntry> artifacts) {
+        out.append("<h2>Artifacts</h2>\n");
+        if (artifacts.isEmpty()) {
+            absent(out, ReleaseDocument.NO_ARTIFACTS_ACCEPTED);
+            return;
+        }
+        out.append("<table>\n<tr><th>Application</th><th>Version</th><th>Kind</th>")
+                .append("<th>Coordinate</th><th>Digest</th></tr>\n");
+        for (ReleaseDocument.ArtifactEntry entry : artifacts) {
+            out.append("<tr><td>").append(escape(entry.applicationName()))
+                    .append("</td><td>").append(escape(entry.version()))
+                    .append("</td><td>").append(escape(entry.kind()))
+                    .append("</td><td><code>").append(escape(entry.coordinate()))
+                    .append("</code></td><td><code>").append(escape(entry.digest()))
+                    .append("</code></td></tr>\n");
+        }
+        out.append("</table>\n");
+    }
+
     private void renderWorkItems(StringBuilder out, List<ReleaseDocument.WorkItemEntry> workItems) {
         out.append("<h2>Work Items</h2>\n");
         if (workItems.isEmpty()) {

@@ -69,9 +69,18 @@ Examples include:
 - Promotion Paths;
 - Handover information;
 - deployment notes;
-- release objectives.
+- release objectives;
+- accepted work item titles;
+- accepted artifact digests.
 
 Tower is the authoritative owner of this information.
+
+The last two are worth a sentence, because they arrive through a Connector and could be mistaken for
+information Tower read. They are not. A tracker's current wording and a repository's current digest
+are read, shown, and discarded; what is owned here is the wording and the digest a **person looked at
+and accepted**, and from that moment they are Tower's own (ADR-018, ADR-021). The distinction is what
+lets a generated document regenerate byte-identically (NFR-025) after somebody rewrites a ticket
+summary or pushes a tag over.
 
 ---
 

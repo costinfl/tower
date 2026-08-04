@@ -9,6 +9,7 @@ import org.springframework.context.annotation.Configuration;
 import dev.tower.application.port.out.EnvironmentRepository;
 import dev.tower.application.port.out.ApplicationRepository;
 import dev.tower.application.port.out.ApplicationVersionRepository;
+import dev.tower.application.port.out.AcceptedArtifactRepository;
 import dev.tower.application.port.out.ArtifactCollector;
 import dev.tower.application.port.out.PromotionPathRepository;
 import dev.tower.application.port.out.ManualObservationCollector;
@@ -171,9 +172,10 @@ public class ApplicationServicesConfiguration {
     public ArtifactService artifactService(
             ApplicationVersionRepository applicationVersionRepository,
             ExternalBindingRepository externalBindingRepository,
-            List<ArtifactCollector> artifactCollectors) {
-        return new ArtifactService(
-                applicationVersionRepository, externalBindingRepository, artifactCollectors);
+            AcceptedArtifactRepository acceptedArtifactRepository,
+            List<ArtifactCollector> artifactCollectors, Clock clock) {
+        return new ArtifactService(applicationVersionRepository, externalBindingRepository,
+                acceptedArtifactRepository, artifactCollectors, clock);
     }
 
     /**
@@ -194,9 +196,9 @@ public class ApplicationServicesConfiguration {
     public ReleaseDocumentAssembler releaseDocumentAssembler(
             ReleasePackService releasePackService, ApplicationService applicationService,
             PromotionPathService promotionPathService, EnvironmentService environmentService,
-            ObservationService observationService) {
+            ObservationService observationService, ArtifactService artifactService) {
         return new ReleaseDocumentAssembler(releasePackService, applicationService,
-                promotionPathService, environmentService, observationService);
+                promotionPathService, environmentService, observationService, artifactService);
     }
 
     @Bean
