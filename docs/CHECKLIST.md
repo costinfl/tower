@@ -143,10 +143,12 @@ This checklist tracks the architectural documentation required before implementa
       and nothing is corrected. Divergence is a fifth state rather than a nullable field, for the
       reason ADR-018 made it one for a work item's title.
 - [x] An Artifacts section in the release document, in all three renderers and the demo's fourth
-- [ ] Viewer: artifacts on an Application Version, the coordinate bindings on the Connectors screen,
-      and the button that accepts a digest. Everything below works through the API and is exercised
-      end to end, but until this exists the acceptance FR-086 turns on is a call somebody has to make
-      by hand — and the demo backend needs the same endpoints or the two drift.
+- [x] Viewer: artifacts on an Application Version, the coordinate bindings and the coordinate
+      preview on the Connectors screen, and the button that accepts a digest. Driven end to end in a
+      real browser: bind a template, preview it, confirm, accept, force a divergence, withdraw.
+- [x] The demo backend carries the same endpoints, and the parity check now compares an Artifacts
+      section with rows in it rather than only its empty state. Proven to bite: dropping the
+      backticks on one side reports drift.
 - [x] Artifactory implementation — GET only; its AQL search is a POST and ADR-001 forbids one
 - [x] Verified end to end against a stand-in Artifactory (`scripts/acceptance-artifacts.sh`, 49
       checks), including that the repository saw nothing but GET, that a re-pushed tag is reported,

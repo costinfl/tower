@@ -1192,6 +1192,156 @@ export function testIssueTrackerConnection(connectorId: string): Promise<IssueTr
   );
 }
 
+// --- Artifacts (ADR-021) ----------------------------------------------------
+
+// How to address one kind of artifact an Application Version produced.
+//
+// The template *composes* where every other binding's versionPattern
+// *extracts*: a pattern turns a vendor's string into a version, this turns a
+// version into a vendor's string. `{version}`, `{commit}` and `{shortCommit}`
+// stand in for what Tower already holds.
+//
+// `kind` is the team's own word — "image", "chart", "installer" — and Tower
+// never interprets it.
+export interface ArtifactCoordinateBinding {
+  applicationId: string;
+  connectorId: string;
+  kind: string;
+  system: string;
+  coordinateTemplate: string;
+  shortCommitLength: number;
+}
+
+// What a template would make of a version, without saving anything. The
+// counterpart of VersionPreview, and useful for a milder reason: a wrong
+// template only produces a false "not found", so this is how false absence is
+// told from real absence before somebody goes looking in the repository.
+export interface CoordinatePreview {
+  coordinateTemplate: string;
+  composed: string | null;
+  missing: string[];
+}
+
+// What the repository says right now, beside what Tower holds.
+//
+// Five distinct things, and none may be collapsed. ABSENT means the repository
+// was read and has nothing there; UNREAD means Tower could not ask, so nobody
+// knows. NOT_ADDRESSABLE means the template wants a commit this version does
+// not carry, which is a configuration answer rather than a fact about the
+// repository. DIVERGED means the bytes under the accepted name changed — a tag
+// was pushed over — and is the single most useful thing this screen reports.
+export type ArtifactState = "PRESENT" | "DIVERGED" | "ABSENT" | "NOT_ADDRESSABLE" | "UNREAD";
+
+export interface ConfirmedArtifact {
+  kind: string;
+  connectorId: string;
+  system: string;
+  coordinate: string | null;
+  digest: string | null;
+  acceptedDigest: string | null;
+  storedAt: string | null;
+  sizeBytes: number;
+  url: string | null;
+  state: ArtifactState;
+  detail: string | null;
+  diverged: boolean;
+}
+
+export interface ArtifactConfirmation {
+  applicationVersionId: string;
+  version: string;
+  commit: string | null;
+  artifacts: ConfirmedArtifact[];
+}
+
+export interface AcceptedArtifactDigest {
+  applicationVersionId: string;
+  kind: string;
+  coordinate: string;
+  digest: string;
+  acceptedAt: string;
+}
+
+export function listArtifactCoordinateBindings(): Promise<ArtifactCoordinateBinding[]> {
+  return getJson<ArtifactCoordinateBinding[]>("/api/bindings/artifact-coordinates");
+}
+
+export function bindArtifactCoordinate(
+  binding: ArtifactCoordinateBinding,
+): Promise<ArtifactCoordinateBinding> {
+  return putJson<ArtifactCoordinateBinding>("/api/bindings/artifact-coordinates", binding);
+}
+
+// The kind is in the path rather than the query, unlike every other unbind
+// here: it is part of the key, because an Application may have several
+// templates for one Connector.
+export function unbindArtifactCoordinate(
+  applicationId: string,
+  kind: string,
+  connectorId: string,
+): Promise<void> {
+  return deleteRequest(
+    `/api/bindings/artifact-coordinates/${encodeURIComponent(applicationId)}/${encodeURIComponent(kind)}` +
+      `?connectorId=${encodeURIComponent(connectorId)}`,
+  );
+}
+
+export function previewCoordinate(
+  coordinateTemplate: string,
+  shortCommitLength: number,
+  version: string,
+  commit: string,
+): Promise<CoordinatePreview> {
+  const commitQuery = commit ? `&commit=${encodeURIComponent(commit)}` : "";
+  return getJson<CoordinatePreview>(
+    `/api/bindings/coordinate-preview?coordinateTemplate=${encodeURIComponent(coordinateTemplate)}` +
+      `&shortCommitLength=${shortCommitLength}&version=${encodeURIComponent(version)}${commitQuery}`,
+  );
+}
+
+// Reads the repositories. Answers 200 even when one could not be reached — the
+// reason is on the artifact, and every bound template is still listed, marked
+// unread. A version does not become less true because a repository is down.
+export function confirmArtifacts(applicationVersionId: string): Promise<ArtifactConfirmation> {
+  return getJson<ArtifactConfirmation>(
+    `/api/application-versions/${encodeURIComponent(applicationVersionId)}/artifacts`,
+  );
+}
+
+// Takes a digest the person is looking at as Tower's own. Always an explicit
+// act, and always the digest they saw rather than whatever the repository says
+// at this instant — between looking and pressing the button a tag can be pushed
+// over, which is the exact situation this exists to make visible (FR-086).
+export function acceptArtifactDigest(
+  applicationVersionId: string,
+  kind: string,
+  coordinate: string,
+  digest: string,
+): Promise<AcceptedArtifactDigest> {
+  return putJson<AcceptedArtifactDigest>(
+    `/api/application-versions/${encodeURIComponent(applicationVersionId)}` +
+      `/artifacts/${encodeURIComponent(kind)}/accepted-digest`,
+    { coordinate, digest },
+  );
+}
+
+export function withdrawArtifactDigest(applicationVersionId: string, kind: string): Promise<void> {
+  return deleteRequest(
+    `/api/application-versions/${encodeURIComponent(applicationVersionId)}` +
+      `/artifacts/${encodeURIComponent(kind)}/accepted-digest`,
+  );
+}
+
+export function testArtifactRepositoryConnection(
+  connectorId: string,
+  system: string,
+): Promise<ConnectionTest> {
+  return getJson<ConnectionTest>(
+    `/api/artifacts/connection-test?connectorId=${encodeURIComponent(connectorId)}` +
+      `&system=${encodeURIComponent(system)}`,
+  );
+}
+
 export function getCredentialStatus(connectorId: string, target: string): Promise<CredentialStatus> {
   return getJson<CredentialStatus>(
     `/api/credentials?connectorId=${encodeURIComponent(connectorId)}&target=${encodeURIComponent(target)}`,

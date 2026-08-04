@@ -12,6 +12,7 @@ import {
   type ApplicationVersion,
   type VersionDiscovery,
 } from "../api/client";
+import ArtifactsPanel from "../components/ArtifactsPanel";
 import ErrorNote, { describeError } from "../components/ErrorNote";
 
 interface NewVersionForm {
@@ -297,6 +298,14 @@ export default function ApplicationsPage() {
                         >
                           {versionDeleteBusyId === v.id ? "Deleting…" : "Delete"}
                         </button>
+                        {/*
+                          Whether the binaries this version names are where it
+                          says they should be (ADR-021). Under the version
+                          rather than beside the Application, because a
+                          coordinate is composed from this version's own number
+                          and commit.
+                        */}
+                        <ArtifactsPanel applicationVersionId={v.id} version={v.version} />
                       </li>
                     ))}
                   </ul>

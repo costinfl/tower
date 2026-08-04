@@ -2,7 +2,9 @@ import { useCallback, useEffect, useState } from "react";
 import {
   ApplicationBinding,
   Application,
+  ArtifactCoordinateBinding,
   ConnectionTest,
+  CoordinatePreview,
   CredentialStatus,
   Environment,
   EnvironmentBinding,
@@ -12,6 +14,7 @@ import {
   RepositoryBinding,
   SyncRun,
   bindApplication,
+  bindArtifactCoordinate,
   bindIssueTracker,
   bindRepository,
   bindEnvironment,
@@ -20,17 +23,21 @@ import {
   getCredentialStatus,
   getEnvironments,
   listApplicationBindings,
+  listArtifactCoordinateBindings,
   listEnvironmentBindings,
   listIssueTrackerBindings,
   listSyncRuns,
+  previewCoordinate,
   previewVersion,
   storeCredential,
   synchronizeNow,
   testConnection,
   listRepositoryBindings,
+  testArtifactRepositoryConnection,
   testIssueTrackerConnection,
   testRepositoryConnection,
   unbindApplication,
+  unbindArtifactCoordinate,
   unbindIssueTracker,
   unbindRepository,
   unbindEnvironment,
@@ -48,12 +55,13 @@ export default function ConnectorsPage() {
   const [applicationBindings, setApplicationBindings] = useState<ApplicationBinding[]>([]);
   const [repositoryBindings, setRepositoryBindings] = useState<RepositoryBinding[]>([]);
   const [trackerBindings, setTrackerBindings] = useState<IssueTrackerBinding[]>([]);
+  const [artifactBindings, setArtifactBindings] = useState<ArtifactCoordinateBinding[]>([]);
   const [runs, setRuns] = useState<SyncRun[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
     try {
-      const [envs, apps, envBindings, appBindings, repoBindings, trackers, history] =
+      const [envs, apps, envBindings, appBindings, repoBindings, trackers, artifacts, history] =
         await Promise.all([
           getEnvironments(),
           getApplications(),
@@ -61,6 +69,7 @@ export default function ConnectorsPage() {
           listApplicationBindings(),
           listRepositoryBindings(),
           listIssueTrackerBindings(),
+          listArtifactCoordinateBindings(),
           listSyncRuns(10),
         ]);
       setEnvironments(envs);
@@ -69,6 +78,7 @@ export default function ConnectorsPage() {
       setApplicationBindings(appBindings);
       setRepositoryBindings(repoBindings);
       setTrackerBindings(trackers);
+      setArtifactBindings(artifacts);
       setRuns(history);
       setError(null);
     } catch (caught: unknown) {
@@ -116,6 +126,13 @@ export default function ConnectorsPage() {
 
       <IssueTrackerBindingsPanel
         bindings={trackerBindings}
+        onChanged={reload}
+        onError={setError}
+      />
+
+      <ArtifactCoordinateBindingsPanel
+        applications={applications}
+        bindings={artifactBindings}
         onChanged={reload}
         onError={setError}
       />
@@ -1021,6 +1038,361 @@ function IssueTrackerBindingRow({
         {credential?.configured
           ? "A token is stored for this tracker. It is encrypted at rest and is never shown again — replace it rather than reading it back."
           : tracker?.credentialHint ?? "No token is stored."}
+      </p>
+    </div>
+  );
+}
+
+// --- Artifact coordinates (ADR-021) ----------------------------------------
+
+// Where the binaries an Application Version names live.
+//
+// The mirror image of every other binding on this page, and the one thing worth
+// understanding before filling the form in. A version pattern above *extracts*
+// an Application Version out of a string a vendor produced; a coordinate
+// template *composes* a string a vendor will recognise out of a version Tower
+// already holds. That is only possible because a team tags an image and a chart
+// with the version and the short commit — and it is also what lets the Connector
+// read with a plain GET rather than a search.
+//
+// Several templates per Application is the ordinary case rather than an edge: a
+// build publishes the application, an image and a chart, and the kind is what
+// tells them apart. The kind is the team's own word and Tower never interprets
+// it.
+const ARTIFACT_CONNECTOR_ID = "artifactory";
+
+function ArtifactCoordinateBindingsPanel({
+  applications,
+  bindings,
+  onChanged,
+  onError,
+}: {
+  applications: Application[];
+  bindings: ArtifactCoordinateBinding[];
+  onChanged: () => Promise<void>;
+  onError: (message: string) => void;
+}) {
+  const [applicationId, setApplicationId] = useState("");
+  const [kind, setKind] = useState("");
+  const [system, setSystem] = useState("");
+  const [coordinateTemplate, setCoordinateTemplate] = useState("");
+  const [shortCommitLength, setShortCommitLength] = useState("7");
+  const [sampleVersion, setSampleVersion] = useState("");
+  const [sampleCommit, setSampleCommit] = useState("");
+  const [preview, setPreview] = useState<CoordinatePreview | null>(null);
+
+  async function save(event: React.FormEvent) {
+    event.preventDefault();
+    try {
+      await bindArtifactCoordinate({
+        applicationId,
+        connectorId: ARTIFACT_CONNECTOR_ID,
+        kind,
+        system,
+        coordinateTemplate,
+        shortCommitLength: Number(shortCommitLength) || 0,
+      });
+      setKind("");
+      setCoordinateTemplate("");
+      setPreview(null);
+      await onChanged();
+    } catch (caught: unknown) {
+      onError(describeError(caught));
+    }
+  }
+
+  // Tries the template before it is saved. A wrong template produces a false
+  // "not found" rather than a wrong fact, which is the mildest failure any
+  // binding here can cause — but it is still a failure that sends somebody
+  // looking in a repository for something that was never addressed correctly.
+  async function tryIt() {
+    try {
+      setPreview(
+        await previewCoordinate(
+          coordinateTemplate,
+          Number(shortCommitLength) || 0,
+          sampleVersion,
+          sampleCommit,
+        ),
+      );
+    } catch (caught: unknown) {
+      setPreview(null);
+      onError(describeError(caught));
+    }
+  }
+
+  async function remove(binding: ArtifactCoordinateBinding) {
+    try {
+      await unbindArtifactCoordinate(binding.applicationId, binding.kind, binding.connectorId);
+      await onChanged();
+    } catch (caught: unknown) {
+      onError(describeError(caught));
+    }
+  }
+
+  const nameOf = (id: string) => applications.find((a) => a.id === id)?.name ?? id;
+
+  // One credential and one connection test per repository address, not per
+  // template: the credential store is keyed by Connector and address, so one
+  // token serves every artifact in the same repository.
+  const systems = [...new Set(bindings.map((binding) => binding.system))].sort();
+
+  return (
+    <div className="panel">
+      <h3>Artifact repositories</h3>
+      <p className="hint">
+        How to address the image, the chart and anything else a build published, so Tower can
+        confirm they are where a version says they should be. It reads and nothing else: it never
+        uploads, never promotes, never re-tags and never deletes.
+      </p>
+      <p className="hint">
+        A template <em>composes</em> a coordinate where the version patterns above{" "}
+        <em>extract</em> a version. Write <code>{"{version}"}</code>, <code>{"{commit}"}</code> and{" "}
+        <code>{"{shortCommit}"}</code> where the build puts them — for example{" "}
+        <code>docker-local/acme/api:{"{version}"}-{"{shortCommit}"}</code>.
+      </p>
+      <p className="hint">
+        Nothing read from a repository is stored. What a release document prints is a digest
+        somebody accepted on the Applications page, which is why a re-pushed tag shows up as a
+        difference rather than quietly changing a document.
+      </p>
+
+      {bindings.length === 0 && <p className="hint">No artifact template is bound yet.</p>}
+
+      {bindings.length > 0 && (
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>Application</th>
+              <th>Kind</th>
+              <th>Repository</th>
+              <th>Coordinate template</th>
+              <th>Short commit</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {bindings.map((binding) => (
+              <tr key={`${binding.applicationId}-${binding.connectorId}-${binding.kind}`}>
+                <td>{nameOf(binding.applicationId)}</td>
+                <td>{binding.kind}</td>
+                <td className="mono">{binding.system}</td>
+                <td className="mono">{binding.coordinateTemplate}</td>
+                <td>{binding.shortCommitLength}</td>
+                <td>
+                  <button type="button" className="button-link" onClick={() => void remove(binding)}>
+                    Unbind
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      <form className="inline-form" onSubmit={(event) => void save(event)}>
+        <label>
+          Application
+          <select
+            value={applicationId}
+            onChange={(event) => setApplicationId(event.target.value)}
+            required
+          >
+            <option value="">Choose…</option>
+            {applications.map((application) => (
+              <option key={application.id} value={application.id}>
+                {application.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        {/* Free text rather than a fixed list: a Tower that decided which kinds
+            exist would be wrong for the first team that had a fourth. */}
+        <label>
+          Kind
+          <input
+            value={kind}
+            onChange={(event) => setKind(event.target.value)}
+            placeholder="image, chart, installer…"
+            required
+          />
+        </label>
+        <label>
+          Repository
+          <input
+            value={system}
+            onChange={(event) => setSystem(event.target.value)}
+            placeholder="https://acme.jfrog.io/artifactory"
+            required
+          />
+        </label>
+        <label>
+          Coordinate template
+          <input
+            value={coordinateTemplate}
+            onChange={(event) => setCoordinateTemplate(event.target.value)}
+            placeholder={"docker-local/acme/api:{version}-{shortCommit}"}
+            required
+          />
+        </label>
+        {/*
+          Seven is what git rev-parse --short gives by default, and that default
+          is not a guarantee: git lengthens it where seven would be ambiguous,
+          and a pipeline may have pinned another length years ago.
+        */}
+        <label>
+          Short commit
+          <input
+            type="number"
+            min={4}
+            max={40}
+            value={shortCommitLength}
+            onChange={(event) => setShortCommitLength(event.target.value)}
+          />
+        </label>
+        <button type="submit">Bind</button>
+      </form>
+
+      <form className="inline-form" onSubmit={(event) => { event.preventDefault(); void tryIt(); }}>
+        <label>
+          Try it against version
+          <input
+            value={sampleVersion}
+            onChange={(event) => setSampleVersion(event.target.value)}
+            placeholder="2.5.0"
+          />
+        </label>
+        <label>
+          and commit
+          <input
+            value={sampleCommit}
+            onChange={(event) => setSampleCommit(event.target.value)}
+            placeholder="abc1234def…"
+          />
+        </label>
+        <button type="submit" disabled={!coordinateTemplate || !sampleVersion}>
+          Preview
+        </button>
+      </form>
+
+      {preview !== null && preview.composed !== null && (
+        <p className="hint">
+          That template addresses <code className="mono">{preview.composed}</code>.
+        </p>
+      )}
+      {preview !== null && preview.composed === null && (
+        <p className="hint">
+          The template needs {preview.missing.join(", ")}, which that version does not carry. Tower
+          reports this rather than composing a coordinate with a hole in it — asking the repository
+          about an address no build ever wrote would answer &quot;not found&quot; for the wrong
+          reason.
+        </p>
+      )}
+
+      {systems.map((address) => (
+        <ArtifactRepositoryRow key={address} system={address} onError={onError} />
+      ))}
+    </div>
+  );
+}
+
+// One repository address: its credential, and whether it answers.
+//
+// Separate from the template rows above because a credential belongs to the
+// address rather than to any one artifact — the same arrangement the credential
+// store itself uses (NFR-028), so one token serves the image and the chart.
+function ArtifactRepositoryRow({
+  system,
+  onError,
+}: {
+  system: string;
+  onError: (message: string) => void;
+}) {
+  const [credential, setCredential] = useState<CredentialStatus | null>(null);
+  const [secret, setSecret] = useState("");
+  const [test, setTest] = useState<ConnectionTest | null>(null);
+
+  const refreshCredential = useCallback(async () => {
+    try {
+      setCredential(await getCredentialStatus(ARTIFACT_CONNECTOR_ID, system));
+    } catch (caught: unknown) {
+      onError(describeError(caught));
+    }
+  }, [system, onError]);
+
+  useEffect(() => {
+    void refreshCredential();
+  }, [refreshCredential]);
+
+  async function check() {
+    try {
+      setTest(await testArtifactRepositoryConnection(ARTIFACT_CONNECTOR_ID, system));
+    } catch (caught: unknown) {
+      onError(describeError(caught));
+    }
+  }
+
+  async function saveSecret(event: React.FormEvent) {
+    event.preventDefault();
+    try {
+      await storeCredential(ARTIFACT_CONNECTOR_ID, system, secret);
+      // Cleared as soon as it is sent, like every other token field here.
+      setSecret("");
+      await refreshCredential();
+    } catch (caught: unknown) {
+      onError(describeError(caught));
+    }
+  }
+
+  async function forget() {
+    try {
+      await forgetCredential(ARTIFACT_CONNECTOR_ID, system);
+      await refreshCredential();
+    } catch (caught: unknown) {
+      onError(describeError(caught));
+    }
+  }
+
+  return (
+    <div className="binding">
+      <div className="binding__header">
+        <span className="mono">{system}</span>
+        <button type="button" onClick={() => void check()}>
+          Test connection
+        </button>
+      </div>
+
+      {test && (
+        <p className="connection-test" data-reachable={test.reachable}>
+          {test.reachable ? "✓ " : "✗ "}
+          {test.message}
+        </p>
+      )}
+
+      <form className="inline-form" onSubmit={(event) => void saveSecret(event)}>
+        <label>
+          Token
+          <input
+            type="password"
+            value={secret}
+            onChange={(event) => setSecret(event.target.value)}
+            placeholder={credential?.configured ? "A token is stored" : "Only if the repository is private"}
+            autoComplete="off"
+            required
+          />
+        </label>
+        <button type="submit">{credential?.configured ? "Replace" : "Save"}</button>
+        {credential?.configured && (
+          <button type="button" className="button-link" onClick={() => void forget()}>
+            Forget
+          </button>
+        )}
+      </form>
+
+      <p className="hint">
+        {credential?.configured
+          ? "A token is stored for this repository. It is encrypted at rest and is never shown again — replace it rather than reading it back."
+          : "An access token on its own, or a user name and an API key written as name:key. A repository that allows anonymous read needs neither."}
       </p>
     </div>
   );

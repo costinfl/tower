@@ -166,6 +166,22 @@ async function buildFixture(api) {
     notes: "",
   });
 
+  // An accepted artifact digest on one version and not the other (ADR-021,
+  // FR-086). Both cases reach the Artifacts section: a row that prints, and a
+  // version with nothing accepted that must not.
+  //
+  // Accepted rather than confirmed, deliberately. Confirming reads a repository
+  // and neither side has one; what a document prints is what somebody accepted,
+  // and that is exactly the value both implementations must agree on.
+  await api("PUT", `/api/application-versions/${customerVersion.id}/artifacts/image/accepted-digest`, {
+    coordinate: "docker-local/acme/customer-api:2.5.0-abc1234",
+    digest: "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+  });
+  await api("PUT", `/api/application-versions/${customerVersion.id}/artifacts/chart/accepted-digest`, {
+    coordinate: "helm-local/customer-api-2.5.0-abc1234.tgz",
+    digest: "sha1:2fd4e1c67a2d28fced849ee1bb76e7391b93eb12",
+  });
+
   const observe = async (environmentId, applicationVersionId, observedAt) => {
     const observation = await api("POST", "/api/observations", {
       environmentId,

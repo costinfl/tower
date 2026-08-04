@@ -64,6 +64,22 @@ interface RepoBinding {
   applicationId: string; connectorId: string; repositoryUrl: string;
   refSelection: "TAGS" | "BRANCHES" | "ALL"; versionPattern: string;
 }
+// ADR-021. The mirror image of RepoBinding above: that carries a versionPattern
+// which extracts a version from a string a vendor produced, this carries a
+// template which composes a string a vendor will recognise out of a version
+// Tower already holds. Several per Application, told apart by kind.
+interface ArtifactBinding {
+  applicationId: string; connectorId: string; kind: string; system: string;
+  coordinateTemplate: string; shortCommitLength: number;
+}
+
+// FR-086. The one thing this whole Connector category writes, and it writes it
+// because a person stated it rather than because Tower read it.
+interface AcceptedArtifact {
+  applicationVersionId: string; kind: string; coordinate: string;
+  digest: string; acceptedAt: string;
+}
+
 interface RunRec {
   id: string; connectorId: string; startedAt: string; finishedAt: string;
   outcome: "SUCCEEDED" | "PARTIALLY_SUCCEEDED" | "FAILED";
@@ -108,6 +124,8 @@ const state: {
   environmentBindings: EnvBinding[]; applicationBindings: AppBinding[];
   repositoryBindings: RepoBinding[];
   issueTrackerBindings: { connectorId: string; locator: string }[];
+  artifactBindings: ArtifactBinding[];
+  acceptedArtifacts: AcceptedArtifact[];
   credentials: Record<string, string>; runs: RunRec[];
   documentTemplates: TemplateRec[];
   handoverRevisions: HandoverRev[];
@@ -131,6 +149,15 @@ const state: {
   // looked configured while every item stayed unresolved would read as Tower
   // having lost them.
   issueTrackerBindings: [],
+  // Empty on purpose, for the reason the tracker bindings above are (ADR-021):
+  // the demo reaches no repository, and a template that looked configured while
+  // every artifact stayed unread would read as Tower having lost them.
+  artifactBindings: [],
+  // Empty for a stronger reason. A digest is something a person accepted after
+  // looking at a repository, and this demonstration has none to look at.
+  // Seeding one would put a fabricated sha256 in front of a visitor as though
+  // Tower had confirmed it.
+  acceptedArtifacts: [],
   credentials: { ...seed.credentials },
   runs: seed.syncRuns.map((r) => ({
     ...r,
@@ -573,7 +600,7 @@ function releaseMarkdown(packId: string, template: TemplateRec | null): string {
     if (section === "STATUS") status(out, p, derived);
     else if (section === "PROMOTION_PATH") promotionPath(out, view);
     else if (section === "CONTENTS") contents(out, view);
-    else if (section === "ARTIFACTS") artifacts(out);
+    else if (section === "ARTIFACTS") artifacts(out, view);
     else if (section === "WORK_ITEMS") workItems(out, pack(packId)!);
     else if (section === "HANDOVER") handover(out, p);
     else if (section === "ITERATIONS") iterations(out, p);
@@ -634,14 +661,45 @@ function contents(out: string[], view: ReturnType<typeof packView>) {
 
 // Mirrors MarkdownReleaseDocumentRenderer.renderArtifacts (ADR-021, FR-086).
 //
-// The demo accepts no digests, so this always renders the empty state - and
-// that is the honest thing for it to render. A digest is something a person
-// accepted after looking at a repository, and the demo has no repository to
-// look at. Inventing one would put a fabricated sha256 in front of a visitor as
-// though Tower had confirmed it.
-function artifacts(out: string[]) {
+// Accepted digests only, never what a repository reports. That is the whole
+// point of accepting one: a tag is mutable, and a document that printed the
+// live digest would stop regenerating identically the day somebody re-pushed.
+//
+// The demo seeds none, and renders the empty state until a visitor accepts one
+// on the Applications page. That is the honest default rather than an oversight
+// - a digest is something a person accepted after looking at a repository, and
+// this demonstration has none to look at.
+function artifacts(out: string[], view: ReturnType<typeof packView>) {
   out.push("## Artifacts\n");
-  out.push("_No artifact digests have been accepted for this release._\n");
+
+  const versionIds = new Set(view.contents.map((c) => c.versionId));
+  const rows = state.acceptedArtifacts
+    .filter((one) => versionIds.has(one.applicationVersionId))
+    .map((one) => {
+      const content = view.contents.find((c) => c.versionId === one.applicationVersionId);
+      return {
+        applicationName: content?.applicationName ?? "",
+        version: content?.version ?? "",
+        kind: one.kind,
+        coordinate: one.coordinate,
+        digest: one.digest,
+      };
+    })
+    .sort((a, b) =>
+      a.applicationName.localeCompare(b.applicationName)
+      || a.version.localeCompare(b.version)
+      || a.kind.localeCompare(b.kind));
+
+  if (!rows.length) {
+    out.push("_No artifact digests have been accepted for this release._\n");
+    return;
+  }
+
+  out.push("| Application | Version | Kind | Coordinate | Digest |");
+  out.push("|---|---|---|---|---|");
+  rows.forEach((r) => out.push(
+    `| ${r.applicationName} | ${r.version} | ${r.kind} | \`${r.coordinate}\` | \`${r.digest}\` |`));
+  out.push("");
 }
 
 // Mirrors MarkdownReleaseDocumentRenderer.renderWorkItems (ADR-018).
@@ -834,6 +892,104 @@ function discoverVersions(applicationId: string) {
 
 const seg = (p: string) => p.split("?")[0].split("/").filter(Boolean);
 
+// --- Artifacts (ADR-021) ----------------------------------------------------
+
+// Composes a coordinate the way ArtifactCoordinateBinding does, and refuses an
+// unrecognised token for the same reason: written with a small c,
+// {shortcommit} would become a literal, the repository would truthfully answer
+// that no such artifact exists, and the report would be useless.
+const ARTIFACT_TOKENS = ["version", "commit", "shortCommit"];
+
+function composeCoordinate(
+  template: string, shortCommitLength: number, version: string, commit: string | null,
+): { composed: string | null; missing: string[] } {
+  const length = shortCommitLength || 7;
+  const missing: string[] = [];
+  let failed = false;
+
+  const composed = template.replace(/\{([^{}]*)\}/g, (_whole, token: string) => {
+    if (token === "version") return version;
+    if (token === "commit") {
+      if (!commit) { missing.push("commit"); failed = true; return ""; }
+      return commit;
+    }
+    if (token === "shortCommit") {
+      if (!commit) { missing.push("shortCommit"); failed = true; return ""; }
+      return commit.slice(0, length);
+    }
+    failed = true;
+    return "";
+  });
+
+  return { composed: failed ? null : composed, missing };
+}
+
+function validArtifactTemplate(template: string): string {
+  const trimmed = String(template ?? "").trim();
+  if (!trimmed) {
+    throw badRequest("An artifact coordinate binding must carry a template,"
+      + " for example docker-local/acme/api:{version}-{shortCommit}.");
+  }
+  const found = [...trimmed.matchAll(/\{([^{}]*)\}/g)].map((m) => m[1]);
+  const unknown = found.filter((token) => !ARTIFACT_TOKENS.includes(token));
+  if (unknown.length) {
+    throw badRequest(`The coordinate template uses ${unknown.map((t) => `{${t}}`).join(", ")}`
+      + " Tower does not recognise. Use {version}, {commit} or {shortCommit}.");
+  }
+  if (!found.length) {
+    throw badRequest("The coordinate template names no part of the version, so every version would"
+      + " resolve to the same artifact. Use at least one of {version}, {commit} or {shortCommit}.");
+  }
+  return trimmed;
+}
+
+// What the repositories say about one version's artifacts, and what somebody
+// accepted, side by side.
+//
+// Every template is reported including the ones that found nothing, and nothing
+// here is PRESENT: the demo reaches no repository, so every addressable
+// coordinate comes back UNREAD with the reason stated. A demonstration that
+// answered "in the repository" would be inventing a confirmation.
+function confirmArtifactsFor(applicationVersionId: string): unknown {
+  const v = version(applicationVersionId);
+  if (!v) throw notFound(`Application Version ${applicationVersionId} does not exist.`);
+
+  const templates = state.artifactBindings
+    .filter((binding) => binding.applicationId === v.applicationId)
+    .sort((x, y) => x.kind.localeCompare(y.kind));
+
+  const artifacts = templates.map((binding) => {
+    const accepted = state.acceptedArtifacts.find(
+      (one) => one.applicationVersionId === applicationVersionId && one.kind === binding.kind);
+    const { composed, missing } = composeCoordinate(
+      binding.coordinateTemplate, binding.shortCommitLength, v.version, v.commit);
+
+    if (composed === null) {
+      return {
+        kind: binding.kind, connectorId: binding.connectorId, system: binding.system,
+        coordinate: null, digest: null, acceptedDigest: accepted?.digest ?? null,
+        storedAt: null, sizeBytes: 0, url: null, state: "NOT_ADDRESSABLE",
+        detail: `This version carries no ${missing.join(" or ")}, and the template needs one: `
+          + binding.coordinateTemplate,
+        diverged: false,
+      };
+    }
+
+    return {
+      kind: binding.kind, connectorId: binding.connectorId, system: binding.system,
+      coordinate: composed, digest: null, acceptedDigest: accepted?.digest ?? null,
+      storedAt: null, sizeBytes: 0, url: null, state: "UNREAD",
+      detail: "This demonstration has no network access, so no repository can be read."
+        + " Against a real Tower this says whether those bytes are there and what their digest is.",
+      diverged: false,
+    };
+  });
+
+  return {
+    applicationVersionId, version: v.version, commit: v.commit, artifacts,
+  };
+}
+
 export function handle(pathname: string, method: string, body: Json | null): unknown {
   const s = seg(pathname);
   if (s[0] !== "api") throw notFound(`No route for ${pathname}`);
@@ -932,6 +1088,54 @@ export function handle(pathname: string, method: string, body: Json | null): unk
         return null;
       }
     }
+    // How to address the artifacts an Application Version produced (ADR-021).
+    // The only binding here an Application may have several of for one
+    // Connector, so the key carries the kind and so does the delete path.
+    if (a === "artifact-coordinates") {
+      if (method === "GET") return state.artifactBindings;
+      if (method === "PUT") {
+        const incoming = body as unknown as ArtifactBinding;
+        const applicationId = String(incoming?.applicationId ?? "").trim();
+        const connectorId = String(incoming?.connectorId ?? "").trim();
+        const kind = String(incoming?.kind ?? "").trim().toLowerCase();
+        const system = String(incoming?.system ?? "").trim();
+        if (!applicationId) throw badRequest("An artifact coordinate binding must name the Application"
+          + " whose artifacts these are.");
+        if (!connectorId) throw badRequest("An artifact coordinate binding must name its connectorId.");
+        if (!kind) throw badRequest("An artifact coordinate binding must name its artifact kind.");
+        if (!system) throw badRequest("An artifact coordinate binding must name its repository system.");
+        const shortCommitLength = Number(incoming?.shortCommitLength) || 7;
+        if (shortCommitLength < 4 || shortCommitLength > 40) {
+          throw badRequest("The short commit length must be between 4 and 40 characters.");
+        }
+        const saved: ArtifactBinding = {
+          applicationId, connectorId, kind, system,
+          coordinateTemplate: validArtifactTemplate(incoming?.coordinateTemplate),
+          shortCommitLength,
+        };
+        state.artifactBindings = state.artifactBindings.filter(
+          (x) => !(x.applicationId === applicationId && x.connectorId === connectorId && x.kind === kind));
+        state.artifactBindings.push(saved);
+        return saved;
+      }
+      if (method === "DELETE") {
+        const kind = String(c ?? "").toLowerCase();
+        state.artifactBindings = state.artifactBindings.filter(
+          (x) => !(x.applicationId === b && x.kind === kind));
+        return null;
+      }
+    }
+
+    if (a === "coordinate-preview") {
+      const params = new URLSearchParams(pathname.split("?")[1] ?? "");
+      const template = validArtifactTemplate(params.get("coordinateTemplate") ?? "");
+      const version_ = params.get("version") ?? "";
+      if (!version_) throw badRequest("Supply a version to compose the coordinate from.");
+      const { composed, missing } = composeCoordinate(
+        template, Number(params.get("shortCommitLength")) || 0, version_, params.get("commit"));
+      return { coordinateTemplate: template, composed, missing };
+    }
+
     if (a === "version-preview") {
       const params = new URLSearchParams(pathname.split("?")[1] ?? "");
       const imageTag = params.get("imageTag") ?? "";
@@ -1011,6 +1215,18 @@ export function handle(pathname: string, method: string, body: Json | null): unk
     return { connectorId, locator: bound.locator, reachable: false,
       message: "This demonstration has no network access, so no tracker can be read."
         + " Against a real Tower this reports whether the tracker answered." };
+  }
+
+  if (area === "artifacts" && a === "connection-test") {
+    const params = new URLSearchParams(pathname.split("?")[1] ?? "");
+    // No network here either, and said plainly rather than answered with a
+    // reassuring tick a visitor could not tell from a real one.
+    return {
+      connectorId: params.get("connectorId"), target: params.get("system"),
+      scope: "whole repository", reachable: false,
+      message: "This demonstration has no network access, so no repository can be read."
+        + " Against a real Tower this reports whether the repository answered.",
+    };
   }
 
   if (area === "credentials") {
@@ -1177,6 +1393,34 @@ export function handle(pathname: string, method: string, body: Json | null): unk
           + `${holding.map((p) => p.name).sort().join(", ")}. Remove it from them before deleting it.`);
       state.versions = state.versions.filter((v) => v.id !== a);
       return null;
+    }
+    // Confirming artifacts, and accepting a digest (ADR-021, FR-086).
+    if (a && b === "artifacts" && !c) return confirmArtifactsFor(a);
+    if (a && b === "artifacts" && c && d === "accepted-digest") {
+      const kind = c.toLowerCase();
+      if (!version(a)) throw notFound(`Application Version ${a} does not exist.`);
+      if (method === "PUT") {
+        const coordinate = String((body as { coordinate?: string })?.coordinate ?? "").trim();
+        const digest = String((body as { digest?: string })?.digest ?? "").trim();
+        if (!coordinate) throw badRequest("coordinate is required");
+        // A coordinate on its own names a tag, and a tag can be pushed over.
+        if (!digest) throw badRequest("digest is required");
+        const accepted = {
+          applicationVersionId: a, kind, coordinate, digest,
+          acceptedAt: new Date().toISOString(),
+        };
+        // Replaced rather than appended: what a release shipped is the digest
+        // somebody stands behind, not the sequence of times they looked.
+        state.acceptedArtifacts = state.acceptedArtifacts.filter(
+          (one) => !(one.applicationVersionId === a && one.kind === kind));
+        state.acceptedArtifacts.push(accepted);
+        return accepted;
+      }
+      if (method === "DELETE") {
+        state.acceptedArtifacts = state.acceptedArtifacts.filter(
+          (one) => !(one.applicationVersionId === a && one.kind === kind));
+        return null;
+      }
     }
     if (a) return version(a) ?? (() => { throw notFound(`Application Version ${a} does not exist.`); })();
   }

@@ -1550,3 +1550,94 @@ select {
 .work-items__check {
   margin-bottom: 1rem;
 }
+
+/* --- Artifacts (ADR-021) ------------------------------------------------ */
+
+/* The panel sits inside .version-item, which is a flex row, so it has to claim
+   a line of its own rather than squeeze in beside the commit chips. */
+.artifacts {
+  flex-basis: 100%;
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px dashed var(--border);
+}
+
+.artifact-list {
+  list-style: none;
+  margin: 0.6rem 0 0.4rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.artifact {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+}
+
+.artifact__header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.artifact__kind {
+  font-weight: 600;
+}
+
+/* A coordinate is long and unbreakable, and a repository path with no spaces in
+   it is wider than the space left on the line. Wrapping it inside itself keeps
+   the row the same shape as its neighbours. */
+.artifact__coordinate {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+.artifact__link {
+  font-size: 0.8rem;
+  margin-left: auto;
+}
+
+.artifact__detail {
+  margin: 0.35rem 0 0;
+}
+
+/* What Tower holds beside what the repository says, kept visually subordinate
+   in the same way a tracker's title is under a work item. The accepted digest
+   is what documents print; the repository's line is a comparison rather than a
+   correction. */
+.artifact__digests {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-top: 0.35rem;
+  font-size: 0.8rem;
+}
+
+.artifact__digest code {
+  overflow-wrap: anywhere;
+}
+
+.artifact__digest--reported {
+  opacity: 0.85;
+}
+
+.artifact__attr {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+/* Two link-buttons with nothing between them run together into one word, which
+   is how "Accept the repository's newer digestWithdraw" happens. */
+.artifact__actions {
+  display: flex;
+  gap: 0.9rem;
+  flex-wrap: wrap;
+  margin-top: 0.35rem;
+}
