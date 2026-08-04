@@ -132,11 +132,18 @@ This checklist tracks the architectural documentation required before implementa
 
 - [x] ADR-021-An-Artifact-Is-Confirmed-Not-Recorded.md
 - [x] Connector-Model: a sixth category, producing no Observations and storing nothing
-- [ ] FRs for confirming artifacts
-- [ ] ArtifactRepositoryConnector SPI (vendor-neutral)
-- [ ] Coordinate templates on an Application, one per artifact kind
-- [ ] Resolution beside what Tower holds, and an accepted digest for documents
-- [ ] Artifactory implementation — GET only; its AQL search is a POST and ADR-001 forbids one
+- [x] FR-082 to FR-086
+- [x] ArtifactRepositoryConnector SPI (vendor-neutral)
+- [x] Coordinate templates on an Application (V14), one per artifact kind — composing where every
+      other binding extracts, and an unrecognised token refused rather than left to become a literal
+- [x] Confirmation beside what Tower holds: present, absent, not addressable, or unread — never a
+      null standing in for two of them
+- [ ] An accepted digest for documents (FR-086's second half). What a document prints must be what
+      somebody accepted, because a tag is mutable and NFR-025 forbids a document that stops
+      regenerating identically the day one is pushed over.
+- [x] Artifactory implementation — GET only; its AQL search is a POST and ADR-001 forbids one
+- [x] Verified end to end against a stand-in Artifactory (`scripts/acceptance-artifacts.sh`, 30
+      checks), including that the repository saw nothing but GET
 - [ ] Live verification against a real Artifactory (no host is reachable from the build environment)
 
 ## Defects found and fixed
@@ -157,6 +164,13 @@ server, and only the checks here have ever spoken to one.
       HTTP — but no Atlassian host is reachable from the environment this was built in, so nothing
       here has yet spoken to a real Jira. This is the condition to clear before a scheduler is
       considered.
+- [ ] Jenkins Connector against a real Jenkins. Same position as Jira: built and exercised end to
+      end against a local server standing in for it, with no reachable host to try.
+- [ ] Artifactory Connector against a real Artifactory. Weaker footing than either of the above,
+      and worth stating rather than leaving to be inferred: JFrog publishes no OpenAPI description,
+      so ADR-019's schema check has nothing to bite on and the stand-in's bodies are written from
+      knowledge of the API rather than recorded off an instance. Nothing here is evidence about
+      Artifactory.
 - [ ] A generated DOCX opened in Word.
 - [ ] The six real-cluster M2 exit checks.
 

@@ -162,8 +162,9 @@ tower/
 ├── tower-connector-k8s/
 ├── tower-connector-github/
 ├── tower-connector-jira/
+├── tower-connector-jenkins/
+├── tower-connector-artifactory/
 ├── tower-testkit/
-├── tower-connector-jira/
 ├── tower-persistence/
 ├── tower-config/
 ├── tower-docgen/
@@ -297,6 +298,36 @@ Asks for `fields=summary,status` rather than the issue. A Jira issue document ca
 Takes Jira's own status category, not the status name, as the answer to whether an item is finished. The site's administrator decides which statuses are done, and reading the name would have Tower deciding that for them.
 
 Carries no Atlassian SDK, for the reason tower-connector-github carries no GitHub SDK.
+
+---
+
+## tower-connector-jenkins
+
+The CI/CD Connector for Jenkins, and the module written to be thrown away.
+
+ADR-020 was decided for a Jenkins with a fair chance of being decommissioned inside a year, and the whole shape of that decision is that the SPI, the Collector, the bindings, the persistence and the API outlive it while this does not. If Jenkins goes, this module goes and nothing else moves.
+
+Carries no Jenkins client library. Tower reads a build's number, result, timestamp, name and parameters — five fields from an API that has answered JSON at the same paths for fifteen years, and that the JDK's own HTTP client reads in a few lines.
+
+Merges build parameters over environment variables, because to a CI system they are one thing and a team asked where their version lives will say either. Parameters win where both carry a name: they are what somebody chose for that build.
+
+Reads no console log, which ADR-020 refuses outright. It would make Tower's correctness depend on log formatting, and a wrong parse produces Observations that are immutable and therefore permanent.
+
+---
+
+## tower-connector-artifactory
+
+The Artifact Repository Connector for JFrog Artifactory (ADR-021).
+
+Confirms and stores nothing. An artifact has no Environment, so there is no Observation to make, and nobody stated it, so it is not User-Owned Information; FR-084 says the answer is shown beside what Tower holds and recorded nowhere.
+
+Issues nothing but GET, and that is what the design bought rather than restraint that might slip. Artifactory's capable read is AQL, which is `POST /api/search/aql`, and the architecture rule enforcing ADR-001 forbids a Connector from calling anything named `post`. It is not needed: because the team tags an image and a chart with the version and the short commit, the coordinate is a function of what Tower already holds, so the Connector asks a direct question at a direct address.
+
+One endpoint does all of it. `/api/storage/{path}` gives a file's checksums, size, download address and the instant the repository received it, and answers 404 for a path it does not have — which is the whole of "absent".
+
+Knows one piece of Artifactory's own shape and keeps it here: a container image tag is stored as a folder with the manifest inside it, so `docker-local/acme/api:2.5.0-abc1234` is read at `docker-local/acme/api/2.5.0-abc1234/manifest.json`. Nothing above the Connector may know that, exactly as nothing above tower-connector-jenkins may know that a Jenkins job path has `/job/` between its segments.
+
+Carries no JFrog SDK, for the reason tower-connector-github carries no GitHub SDK.
 
 ---
 

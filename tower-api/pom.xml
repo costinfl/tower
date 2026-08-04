@@ -114,6 +114,19 @@
       <version>${project.version}</version>
       <scope>runtime</scope>
     </dependency>
+    <!--
+      Artifactory (ADR-021). Here for the same reason as the others, and the
+      reason bites hardest on this one: ADR-021 turned down AQL because its
+      search is a POST, and being on this list is what puts that decision in
+      front of connectors_expose_no_write_operation rather than leaving it as a
+      sentence in a document.
+    -->
+    <dependency>
+      <groupId>dev.tower</groupId>
+      <artifactId>tower-connector-artifactory</artifactId>
+      <version>${project.version}</version>
+      <scope>runtime</scope>
+    </dependency>
     <dependency>
       <groupId>dev.tower</groupId>
       <artifactId>tower-persistence</artifactId>

@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>dev.tower</groupId>
+    <artifactId>tower-parent</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>tower-connector-artifactory</artifactId>
+  <name>tower-connector-artifactory</name>
+  <description>
+    Confirms artifacts in JFrog Artifactory (ADR-021).
+
+    GET only, and that is not restraint — it is what the design bought. Artifactory's capable
+    search is AQL, which is POST /api/search/aql, and ADR-001's structural form forbids a Connector
+    from calling anything named post. Because the team tags an image and a chart with the version
+    and the short commit, the coordinate is a function of what Tower already holds, so this asks a
+    direct question at a direct address and never searches.
+
+    No JFrog client library. Tower reads whether a path exists, its checksum, its size and when the
+    repository received it — four fields the JDK's own HTTP client reads in a few lines. A client
+    library would pull a dependency tree to save nothing.
+
+    Not verifiable from where Tower is built. No JFrog host is reachable from this environment and
+    Artifactory publishes no OpenAPI description for ADR-019's schema check, so this Connector
+    stands where Jenkins and Jira stand: tested against a local server, with the live check
+    outstanding in CHECKLIST.md. The API shapes it reads are written from knowledge rather than
+    recorded off a real instance, which is a weaker footing than the GitHub Connector's and is
+    recorded as such.
+  </description>
+
+  <dependencies>
+    <!-- Jackson for the response body only. java.net.http is in the JDK. -->
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+    </dependency>
+    <!-- @Component only; the connector holds no Spring behaviour beyond being a bean. -->
+    <dependency>
+      <groupId>org.springframework</groupId>
+      <artifactId>spring-context</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>dev.tower</groupId>
+      <artifactId>tower-connector-api</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.assertj</groupId>
+      <artifactId>assertj-core</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <!-- The recording HTTP server, so this Connector is tested against a real
+         socket rather than a mocked client (ADR-019). That is what makes the
+         "GET only" assertion mean something: it is checked from the far side of
+         the wire, where a POST would be visible however it was issued. Test
+         scope: none of it ships. -->
+    <dependency>
+      <groupId>dev.tower</groupId>
+      <artifactId>tower-testkit</artifactId>
+      <version>${project.version}</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+</project>
