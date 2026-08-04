@@ -17,6 +17,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import dev.tower.api.binding.BindingRequests.ApplicationBindingRequest;
 import dev.tower.api.binding.BindingRequests.ApplicationBindingResponse;
+import dev.tower.api.binding.BindingRequests.ArtifactCoordinateBindingRequest;
+import dev.tower.api.binding.BindingRequests.ArtifactCoordinateBindingResponse;
 import dev.tower.api.binding.BindingRequests.EnvironmentBindingRequest;
 import dev.tower.api.binding.BindingRequests.EnvironmentBindingResponse;
 import dev.tower.api.binding.BindingRequests.IssueTrackerBindingRequest;
@@ -27,6 +29,8 @@ import dev.tower.api.binding.BindingRequests.RepositoryBindingRequest;
 import dev.tower.api.binding.BindingRequests.RepositoryBindingResponse;
 import dev.tower.application.port.in.ExternalBindingUseCases;
 import dev.tower.application.port.in.ExternalBindingUseCases.BindApplication;
+import dev.tower.application.port.in.ExternalBindingUseCases.BindArtifactCoordinate;
+import dev.tower.application.port.in.ExternalBindingUseCases.CoordinatePreview;
 import dev.tower.application.port.in.ExternalBindingUseCases.BindEnvironment;
 import dev.tower.application.port.in.ExternalBindingUseCases.BindIssueTracker;
 import dev.tower.application.port.in.ExternalBindingUseCases.BindPipelineJob;
@@ -156,6 +160,57 @@ public class BindingController {
             @RequestParam("connectorId") String connectorId) {
         bindings.unbindPipelineJob(EnvironmentId.of(environmentId),
                 ApplicationId.of(applicationId), connectorId);
+    }
+
+    /**
+     * How to address the artifacts an Application Version produced (ADR-021).
+     *
+     * <p>The only binding an Application may have several of for one Connector,
+     * so the delete path carries a kind as well. A build publishes an image and a
+     * chart, and nothing but the kind tells the two templates apart.
+     */
+    @GetMapping("/artifact-coordinates")
+    public List<ArtifactCoordinateBindingResponse> listArtifactCoordinateBindings() {
+        return bindings.listArtifactCoordinateBindings().stream()
+                .map(ArtifactCoordinateBindingResponse::from).toList();
+    }
+
+    @PutMapping("/artifact-coordinates")
+    public ArtifactCoordinateBindingResponse bindArtifactCoordinate(
+            @Valid @RequestBody ArtifactCoordinateBindingRequest request) {
+        return ArtifactCoordinateBindingResponse.from(bindings.bindArtifactCoordinate(
+                new BindArtifactCoordinate(
+                        ApplicationId.of(request.applicationId()), request.connectorId(),
+                        request.kind(), request.system(), request.coordinateTemplate(),
+                        request.shortCommitLength())));
+    }
+
+    @DeleteMapping("/artifact-coordinates/{applicationId}/{kind}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void unbindArtifactCoordinate(
+            @PathVariable("applicationId") String applicationId,
+            @PathVariable("kind") String kind,
+            @RequestParam("connectorId") String connectorId) {
+        bindings.unbindArtifactCoordinate(ApplicationId.of(applicationId), connectorId, kind);
+    }
+
+    /**
+     * Tries a coordinate template against a version and commit without saving
+     * anything.
+     *
+     * <p>The counterpart of {@code /version-preview}, and useful for a milder
+     * reason: a wrong template produces a false "not found" rather than wrong
+     * Observations (ADR-021). This is how somebody tells false absence from real
+     * absence before going to look in the repository for something that was never
+     * addressed correctly.
+     */
+    @GetMapping("/coordinate-preview")
+    public CoordinatePreview previewCoordinate(
+            @RequestParam("coordinateTemplate") String coordinateTemplate,
+            @RequestParam(name = "shortCommitLength", defaultValue = "0") int shortCommitLength,
+            @RequestParam("version") String version,
+            @RequestParam(name = "commit", required = false) String commit) {
+        return bindings.previewCoordinate(coordinateTemplate, shortCommitLength, version, commit);
     }
 
     @GetMapping("/applications")

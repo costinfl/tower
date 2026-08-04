@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Optional;
 
 import dev.tower.application.binding.ApplicationBinding;
+import dev.tower.application.binding.ArtifactCoordinateBinding;
 import dev.tower.application.binding.EnvironmentBinding;
 import dev.tower.application.binding.IssueTrackerBinding;
 import dev.tower.application.binding.PipelineJobBinding;
@@ -87,4 +88,23 @@ public interface ExternalBindingRepository {
 
     void deletePipelineJobBinding(
             EnvironmentId environmentId, ApplicationId applicationId, String connectorId);
+
+    // Artifact coordinate bindings (ADR-021). One Application on the left, as in
+    // an application or repository binding, but several rows per Application:
+    // the kind is part of the key because a build publishes an image and a chart
+    // and nothing but the kind tells the two templates apart.
+    ArtifactCoordinateBinding save(ArtifactCoordinateBinding binding);
+
+    Optional<ArtifactCoordinateBinding> findArtifactCoordinateBinding(
+            ApplicationId applicationId, String connectorId, String kind);
+
+    /** Every template for one Application, which is what confirming a version reads. */
+    List<ArtifactCoordinateBinding> findArtifactCoordinateBindings(ApplicationId applicationId);
+
+    List<ArtifactCoordinateBinding> findAllArtifactCoordinateBindings(String connectorId);
+
+    List<ArtifactCoordinateBinding> findAllArtifactCoordinateBindings();
+
+    void deleteArtifactCoordinateBinding(
+            ApplicationId applicationId, String connectorId, String kind);
 }

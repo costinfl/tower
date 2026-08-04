@@ -195,6 +195,58 @@ class ExternalBindingServiceTest {
             pipelineJobBindings.remove(pipelineKey(environmentId, applicationId, connectorId));
         }
 
+        // Artifact coordinate bindings (ADR-021). Several rows per Application
+        // and Connector, unlike every other binding here, so the key carries the
+        // kind - which is exactly what V14's primary key does.
+        private final java.util.Map<String, dev.tower.application.binding.ArtifactCoordinateBinding>
+                artifactCoordinateBindings = new java.util.LinkedHashMap<>();
+
+        @Override
+        public dev.tower.application.binding.ArtifactCoordinateBinding save(
+                dev.tower.application.binding.ArtifactCoordinateBinding binding) {
+            artifactCoordinateBindings.put(
+                    artifactKey(binding.applicationId(), binding.connectorId(), binding.kind()), binding);
+            return binding;
+        }
+
+        @Override
+        public java.util.Optional<dev.tower.application.binding.ArtifactCoordinateBinding>
+                findArtifactCoordinateBinding(ApplicationId applicationId, String connectorId, String kind) {
+            return java.util.Optional.ofNullable(
+                    artifactCoordinateBindings.get(artifactKey(applicationId, connectorId, kind)));
+        }
+
+        @Override
+        public java.util.List<dev.tower.application.binding.ArtifactCoordinateBinding>
+                findArtifactCoordinateBindings(ApplicationId applicationId) {
+            return artifactCoordinateBindings.values().stream()
+                    .filter(b -> b.applicationId().equals(applicationId)).toList();
+        }
+
+        @Override
+        public java.util.List<dev.tower.application.binding.ArtifactCoordinateBinding>
+                findAllArtifactCoordinateBindings(String connectorId) {
+            return artifactCoordinateBindings.values().stream()
+                    .filter(b -> b.connectorId().equals(connectorId)).toList();
+        }
+
+        @Override
+        public java.util.List<dev.tower.application.binding.ArtifactCoordinateBinding>
+                findAllArtifactCoordinateBindings() {
+            return java.util.List.copyOf(artifactCoordinateBindings.values());
+        }
+
+        @Override
+        public void deleteArtifactCoordinateBinding(ApplicationId applicationId, String connectorId,
+                                                    String kind) {
+            artifactCoordinateBindings.remove(artifactKey(applicationId, connectorId, kind));
+        }
+
+        private static String artifactKey(ApplicationId applicationId, String connectorId, String kind) {
+            return applicationId + "|" + connectorId + "|"
+                    + dev.tower.application.binding.ArtifactCoordinateBinding.normaliseKind(kind);
+        }
+
         private static String pipelineKey(EnvironmentId environmentId, ApplicationId applicationId,
                                           String connectorId) {
             return environmentId + "|" + applicationId + "|" + connectorId;

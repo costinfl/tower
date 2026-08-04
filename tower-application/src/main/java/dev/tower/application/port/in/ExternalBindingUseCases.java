@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Optional;
 
 import dev.tower.application.binding.ApplicationBinding;
+import dev.tower.application.binding.ArtifactCoordinateBinding;
 import dev.tower.application.binding.EnvironmentBinding;
 import dev.tower.application.binding.IssueTrackerBinding;
 import dev.tower.application.binding.PipelineJobBinding;
@@ -112,4 +113,58 @@ public interface ExternalBindingUseCases {
     record BindPipelineJob(EnvironmentId environmentId, ApplicationId applicationId,
                            String connectorId, String system, String job,
                            String versionSource, String versionKey, String versionPattern) {}
+
+    // Artifact coordinate bindings (ADR-021). The only binding a single
+    // Application may have several of for one Connector, because a build
+    // publishes an image and a chart and the kind is what tells them apart.
+
+    ArtifactCoordinateBinding bindArtifactCoordinate(BindArtifactCoordinate command);
+
+    List<ArtifactCoordinateBinding> listArtifactCoordinateBindings();
+
+    void unbindArtifactCoordinate(ApplicationId applicationId, String connectorId, String kind);
+
+    /**
+     * @param kind               the team's own word for what this addresses —
+     *                           "image", "chart", "installer". Never interpreted
+     *                           (FR-083)
+     * @param coordinateTemplate the vendor locator with {@code {version}},
+     *                           {@code {commit}} and {@code {shortCommit}}
+     *                           standing in for what Tower holds. Composes where
+     *                           a version pattern extracts, which is ADR-012's
+     *                           shape running the other way
+     * @param shortCommitLength  0 to take the default of seven
+     */
+    record BindArtifactCoordinate(ApplicationId applicationId, String connectorId, String kind,
+                                  String system, String coordinateTemplate, int shortCommitLength) {}
+
+    /**
+     * What a template would make of a version, without saving anything.
+     *
+     * <p>The counterpart of {@link #previewVersion}, and useful for a milder
+     * reason. A wrong version pattern writes wrong Observations that outlive the
+     * correction; a wrong template only produces a false "not found" (ADR-021).
+     * This exists so that false absence can be told apart from real absence
+     * before somebody goes looking in the repository for something that was never
+     * addressed correctly.
+     */
+    CoordinatePreview previewCoordinate(String coordinateTemplate, int shortCommitLength,
+                                        String version, String commit);
+
+    /**
+     * @param composed the coordinate the template yields, or null when the
+     *                 version does not carry what the template asks for
+     * @param missing  which of {@code version}, {@code commit} or
+     *                 {@code shortCommit} was wanted and absent
+     */
+    record CoordinatePreview(String coordinateTemplate, String composed, List<String> missing) {
+
+        public CoordinatePreview {
+            missing = List.copyOf(missing);
+        }
+
+        public boolean wasComposed() {
+            return composed != null;
+        }
+    }
 }

@@ -609,6 +609,67 @@ Observation is appended, which is ADR-011 applied unchanged.
 
 ---
 
+# Artifact Repository Connector
+
+## FR-082
+
+Tower shall confirm through an Artifact Repository Connector that the binaries an Application Version names are
+present, without modifying the repository.
+
+Confirming is a read like every other Connector operation (ADR-001, CM-01). Tower shall never upload, copy,
+promote, re-tag or delete an artifact, and shall never treat the repository an artifact sits in as an
+Environment (ADR-021).
+
+---
+
+## FR-083
+
+An artifact's coordinate shall be composed from a template bound to the Application, one template per artifact
+kind.
+
+The template composes the vendor's locator from what Tower already holds — the version and the commit of an
+Application Version — where FR-056's version pattern extracts a version from what the vendor produced. Both are
+External Bindings in the sense of ADR-012; they run in opposite directions, and ADR-021 records why.
+
+The kind is the team's own word for what the template addresses — an image, a chart, an installer. Tower shall
+not interpret it, in the same way that a work item's status is the tracker's word and not Tower's (ADR-018).
+
+---
+
+## FR-084
+
+Nothing an Artifact Repository Connector reads shall be stored.
+
+An artifact has no Environment, so it is not an Observation; nobody stated it, so it is not User-Owned
+Information. It shall be shown beside what Tower holds and recorded nowhere (ADR-021, IA-05).
+
+---
+
+## FR-085
+
+An artifact the repository does not hold shall be reported as absent, and distinguished from a repository that
+could not be read.
+
+An artifact that is not there yet is an ordinary situation. A repository that refused the credential or did not
+answer is a different one, and Tower shall never present either as the other (the treatment ADR-018 gives an
+unknown work item identifier).
+
+---
+
+## FR-086
+
+A digest a release document prints shall be one a person accepted.
+
+A tag is mutable, and the bytes beneath it can change. A document that printed whatever the repository said at
+the moment of rendering would stop regenerating byte-identically (NFR-025), so what a document carries shall be
+an accepted digest, held by Tower and changed only by a person accepting a newer one — the rule ADR-018 sets
+for a work item's title, applied unchanged.
+
+Where the repository now reports a different digest under a coordinate Tower has an accepted digest for, that
+difference shall be shown. It is the one way a team learns that a tag was pushed over.
+
+---
+
 # Deferred
 
 ## FR-054
@@ -632,5 +693,7 @@ FR-062 to FR-067 define what Milestone 3 adds.
 FR-068 to FR-070 define what Milestone 4 adds.
 
 FR-071 to FR-075 define what Milestone 5 adds.
+
+FR-076 to FR-081 define the CI/CD Connector, and FR-082 to FR-086 the Artifact Repository Connector.
 
 Capabilities beyond these requirements shall be evaluated in future milestones.

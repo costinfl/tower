@@ -9,12 +9,14 @@ import org.springframework.context.annotation.Configuration;
 import dev.tower.application.port.out.EnvironmentRepository;
 import dev.tower.application.port.out.ApplicationRepository;
 import dev.tower.application.port.out.ApplicationVersionRepository;
+import dev.tower.application.port.out.ArtifactCollector;
 import dev.tower.application.port.out.PromotionPathRepository;
 import dev.tower.application.port.out.ManualObservationCollector;
 import dev.tower.application.port.out.ObservationRepository;
 import dev.tower.application.port.out.PromotionPathRepository;
 import dev.tower.application.port.out.ReleasePackRepository;
 import dev.tower.application.service.ApplicationService;
+import dev.tower.application.service.ArtifactService;
 import dev.tower.application.port.out.DeploymentObservationCollector;
 import dev.tower.application.port.out.DocumentTemplateRepository;
 import dev.tower.application.port.out.ExternalBindingRepository;
@@ -156,6 +158,22 @@ public class ApplicationServicesConfiguration {
             ReleasePackRepository releasePackRepository, ExternalBindingRepository externalBindingRepository,
             List<WorkItemCollector> workItemCollectors) {
         return new WorkItemService(releasePackRepository, externalBindingRepository, workItemCollectors);
+    }
+
+    /**
+     * Confirming artifacts (ADR-021).
+     *
+     * <p>Takes every ArtifactCollector Spring finds, which may be none: an
+     * Application Version is still a version with no repository configured, and
+     * the confirmation it returns says so rather than failing.
+     */
+    @Bean
+    public ArtifactService artifactService(
+            ApplicationVersionRepository applicationVersionRepository,
+            ExternalBindingRepository externalBindingRepository,
+            List<ArtifactCollector> artifactCollectors) {
+        return new ArtifactService(
+                applicationVersionRepository, externalBindingRepository, artifactCollectors);
     }
 
     /**

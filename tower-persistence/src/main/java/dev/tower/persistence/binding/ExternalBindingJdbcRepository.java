@@ -10,6 +10,7 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
 import dev.tower.application.binding.ApplicationBinding;
+import dev.tower.application.binding.ArtifactCoordinateBinding;
 import dev.tower.application.binding.EnvironmentBinding;
 import dev.tower.application.binding.IssueTrackerBinding;
 import dev.tower.application.binding.PipelineJobBinding;
@@ -436,6 +437,125 @@ public class ExternalBindingJdbcRepository implements ExternalBindingRepository 
                 rs.getString("connector_id"),
                 rs.getString("image"),
                 rs.getString("version_pattern"));
+    }
+
+    /**
+     * Artifact coordinate bindings (ADR-021), keyed by Application, Connector and
+     * kind (V14__artifact_coordinate_bindings.sql).
+     *
+     * <p>The only binding here with more than one row per Application and
+     * Connector. A build publishes an image and a chart, and nothing but the kind
+     * tells the two templates apart, so the kind is in the key rather than being
+     * a field a second row would overwrite.
+     */
+    @Override
+    public ArtifactCoordinateBinding save(ArtifactCoordinateBinding binding) {
+        int updated = jdbcClient.sql("""
+                        UPDATE artifact_coordinate_binding
+                        SET repository_system = :system, coordinate_template = :template,
+                            short_commit_length = :shortCommitLength
+                        WHERE application_id = :applicationId AND connector_id = :connectorId
+                          AND kind = :kind
+                        """)
+                .params(parametersOf(binding))
+                .update();
+        if (updated == 0) {
+            jdbcClient.sql("""
+                            INSERT INTO artifact_coordinate_binding (
+                                application_id, connector_id, kind, repository_system,
+                                coordinate_template, short_commit_length)
+                            VALUES (:applicationId, :connectorId, :kind, :system,
+                                    :template, :shortCommitLength)
+                            """)
+                    .params(parametersOf(binding))
+                    .update();
+        }
+        return binding;
+    }
+
+    private static java.util.Map<String, Object> parametersOf(ArtifactCoordinateBinding binding) {
+        return java.util.Map.of(
+                "applicationId", binding.applicationId().value(),
+                "connectorId", binding.connectorId(),
+                "kind", binding.kind(),
+                "system", binding.system(),
+                "template", binding.coordinateTemplate(),
+                "shortCommitLength", binding.shortCommitLength());
+    }
+
+    @Override
+    public Optional<ArtifactCoordinateBinding> findArtifactCoordinateBinding(
+            ApplicationId applicationId, String connectorId, String kind) {
+        return jdbcClient.sql(ARTIFACT_COORDINATE_COLUMNS + """
+                        WHERE application_id = :applicationId AND connector_id = :connectorId
+                          AND kind = :kind
+                        """)
+                .param("applicationId", applicationId.value())
+                .param("connectorId", connectorId)
+                // Normalised on the way in as well as on the way out, so a lookup
+                // for "Image" finds the row bound as "image".
+                .param("kind", ArtifactCoordinateBinding.normaliseKind(kind))
+                .query(ExternalBindingJdbcRepository::mapArtifactCoordinateBinding)
+                .optional();
+    }
+
+    @Override
+    public List<ArtifactCoordinateBinding> findArtifactCoordinateBindings(ApplicationId applicationId) {
+        return jdbcClient.sql(ARTIFACT_COORDINATE_COLUMNS + """
+                        WHERE application_id = :applicationId ORDER BY connector_id, kind
+                        """)
+                .param("applicationId", applicationId.value())
+                .query(ExternalBindingJdbcRepository::mapArtifactCoordinateBinding)
+                .list();
+    }
+
+    @Override
+    public List<ArtifactCoordinateBinding> findAllArtifactCoordinateBindings(String connectorId) {
+        return jdbcClient.sql(ARTIFACT_COORDINATE_COLUMNS + """
+                        WHERE connector_id = :connectorId ORDER BY kind
+                        """)
+                .param("connectorId", connectorId)
+                .query(ExternalBindingJdbcRepository::mapArtifactCoordinateBinding)
+                .list();
+    }
+
+    @Override
+    public List<ArtifactCoordinateBinding> findAllArtifactCoordinateBindings() {
+        return jdbcClient.sql(ARTIFACT_COORDINATE_COLUMNS + " ORDER BY connector_id, kind")
+                .query(ExternalBindingJdbcRepository::mapArtifactCoordinateBinding)
+                .list();
+    }
+
+    @Override
+    public void deleteArtifactCoordinateBinding(
+            ApplicationId applicationId, String connectorId, String kind) {
+        jdbcClient.sql("""
+                        DELETE FROM artifact_coordinate_binding
+                        WHERE application_id = :applicationId AND connector_id = :connectorId
+                          AND kind = :kind
+                        """)
+                .param("applicationId", applicationId.value())
+                .param("connectorId", connectorId)
+                .param("kind", ArtifactCoordinateBinding.normaliseKind(kind))
+                .update();
+    }
+
+    /** Every column, once, so the four reads above cannot drift apart. */
+    private static final String ARTIFACT_COORDINATE_COLUMNS = """
+            SELECT application_id, connector_id, kind, repository_system,
+                   coordinate_template, short_commit_length
+            FROM artifact_coordinate_binding
+            """;
+
+    private static ArtifactCoordinateBinding mapArtifactCoordinateBinding(ResultSet rs, int rowNum)
+            throws SQLException {
+        return new ArtifactCoordinateBinding(
+                new ApplicationId(rs.getObject("application_id", UUID.class)),
+                rs.getString("connector_id"),
+                rs.getString("kind"),
+                rs.getString("repository_system"),
+                rs.getString("coordinate_template"),
+                rs.getInt("short_commit_length"));
     }
 
     private static RepositoryBinding mapRepositoryBinding(ResultSet rs, int rowNum) throws SQLException {

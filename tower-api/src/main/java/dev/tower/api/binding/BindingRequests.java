@@ -3,6 +3,7 @@ package dev.tower.api.binding;
 import jakarta.validation.constraints.NotBlank;
 
 import dev.tower.application.binding.ApplicationBinding;
+import dev.tower.application.binding.ArtifactCoordinateBinding;
 import dev.tower.application.binding.EnvironmentBinding;
 import dev.tower.application.binding.IssueTrackerBinding;
 import dev.tower.application.binding.PipelineJobBinding;
@@ -119,6 +120,40 @@ public final class BindingRequests {
             String versionSource,
             String versionKey,
             String versionPattern) {
+    }
+
+    /**
+     * How to address one kind of artifact an Application Version produced
+     * (ADR-021, FR-083).
+     *
+     * <p>{@code kind} is the team's own word and is never interpreted — "image",
+     * "chart", "installer". {@code shortCommitLength} may be omitted, and 0 means
+     * the default of seven.
+     *
+     * <p>{@code coordinateTemplate} composes where every other binding's
+     * {@code versionPattern} extracts. That is deliberate and is the one thing
+     * about this request worth reading twice: a pattern turns a vendor's string
+     * into a version, a template turns a version into a vendor's string.
+     */
+    public record ArtifactCoordinateBindingRequest(
+            @NotBlank(message = "applicationId is required") String applicationId,
+            @NotBlank(message = "connectorId is required") String connectorId,
+            @NotBlank(message = "kind is required") String kind,
+            @NotBlank(message = "system is required") String system,
+            @NotBlank(message = "coordinateTemplate is required") String coordinateTemplate,
+            int shortCommitLength) {
+    }
+
+    public record ArtifactCoordinateBindingResponse(
+            String applicationId, String connectorId, String kind, String system,
+            String coordinateTemplate, int shortCommitLength) {
+
+        public static ArtifactCoordinateBindingResponse from(ArtifactCoordinateBinding binding) {
+            return new ArtifactCoordinateBindingResponse(
+                    binding.applicationId().value().toString(),
+                    binding.connectorId(), binding.kind(), binding.system(),
+                    binding.coordinateTemplate(), binding.shortCommitLength());
+        }
     }
 
     public record PipelineJobBindingResponse(

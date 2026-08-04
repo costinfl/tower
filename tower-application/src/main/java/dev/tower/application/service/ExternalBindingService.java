@@ -5,6 +5,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 import dev.tower.application.binding.ApplicationBinding;
+import dev.tower.application.binding.ArtifactCoordinateBinding;
 import dev.tower.application.binding.EnvironmentBinding;
 import dev.tower.application.binding.IssueTrackerBinding;
 import dev.tower.application.binding.PipelineJobBinding;
@@ -166,6 +167,63 @@ public class ExternalBindingService implements ExternalBindingUseCases {
     public void unbindPipelineJob(EnvironmentId environmentId, ApplicationId applicationId,
                                   String connectorId) {
         bindings.deletePipelineJobBinding(environmentId, applicationId, connectorId);
+    }
+
+    @Override
+    public ArtifactCoordinateBinding bindArtifactCoordinate(BindArtifactCoordinate command) {
+        requireApplicationExists(command.applicationId());
+        return bindings.save(new ArtifactCoordinateBinding(
+                command.applicationId(), command.connectorId(), command.kind(),
+                command.system(), command.coordinateTemplate(), command.shortCommitLength()));
+    }
+
+    @Override
+    public List<ArtifactCoordinateBinding> listArtifactCoordinateBindings() {
+        return bindings.findAllArtifactCoordinateBindings();
+    }
+
+    @Override
+    public void unbindArtifactCoordinate(ApplicationId applicationId, String connectorId, String kind) {
+        bindings.deleteArtifactCoordinateBinding(applicationId, connectorId, kind);
+    }
+
+    @Override
+    public CoordinatePreview previewCoordinate(String coordinateTemplate, int shortCommitLength,
+                                               String version, String commit) {
+        InvalidRequestException.require(version != null && !version.isBlank(),
+                "Supply a version to compose the coordinate from.");
+
+        // Built through the binding for the same reason previewVersion is: a
+        // preview that agreed with a separate implementation rather than the one
+        // a real confirmation uses would be worse than none.
+        var candidate = new ArtifactCoordinateBinding(
+                ApplicationId.newId(), "preview", "preview", "preview",
+                coordinateTemplate, shortCommitLength);
+        var pretend = dev.tower.domain.application.ApplicationVersion.create(
+                ApplicationId.newId(), version.trim(), null, null, commit, null);
+
+        return candidate.compose(pretend)
+                .map(composed -> new CoordinatePreview(
+                        candidate.coordinateTemplate(), composed, List.of()))
+                .orElseGet(() -> new CoordinatePreview(candidate.coordinateTemplate(), null,
+                        missingFields(candidate, pretend)));
+    }
+
+    /**
+     * Which token the template wanted and the version does not carry.
+     *
+     * <p>Only reached when composing failed, and only {@code commit} can be
+     * absent: a version is required for an Application Version to exist at all.
+     */
+    private List<String> missingFields(ArtifactCoordinateBinding binding,
+                                       dev.tower.domain.application.ApplicationVersion version) {
+        if (version.commit() != null) {
+            return List.of();
+        }
+        return binding.requiredFields().stream()
+                .filter(field -> field.equals(ArtifactCoordinateBinding.COMMIT)
+                        || field.equals(ArtifactCoordinateBinding.SHORT_COMMIT))
+                .toList();
     }
 
     @Override
