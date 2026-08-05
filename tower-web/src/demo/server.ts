@@ -64,6 +64,28 @@ interface RepoBinding {
   applicationId: string; connectorId: string; repositoryUrl: string;
   refSelection: "TAGS" | "BRANCHES" | "ALL"; versionPattern: string;
 }
+// ADR-020. The widest binding here and the only one naming two Tower concepts,
+// because that is what a run of a deployment job asserts: this Application
+// arrived in that Environment.
+interface PipelineBinding {
+  environmentId: string; applicationId: string; connectorId: string;
+  system: string; job: string;
+  versionSource: "PARAMETER" | "RUN_NAME" | "JOB_PATH";
+  versionKey: string; versionPattern: string;
+}
+
+// What a pipeline read produced. Carries confirmsNothingWasDeployed rather than
+// a confirmsLiveness, and the difference is the whole of ADR-020: a CI system
+// reads what happened, so a clean read licenses only "nothing was deployed by
+// these jobs since Tower last looked".
+interface PipelineReportRec {
+  id: string; connectorId: string; startedAt: string; finishedAt: string;
+  jobsRead: number; runsRead: number; observationsAppended: number;
+  readEverything: boolean; confirmsNothingWasDeployed: boolean;
+  notRecorded: { job: string; runId: string; outcome: string; reason: string }[];
+  failures: string[];
+}
+
 // ADR-021. The mirror image of RepoBinding above: that carries a versionPattern
 // which extracts a version from a string a vendor produced, this carries a
 // template which composes a string a vendor will recognise out of a version
@@ -124,6 +146,8 @@ const state: {
   environmentBindings: EnvBinding[]; applicationBindings: AppBinding[];
   repositoryBindings: RepoBinding[];
   issueTrackerBindings: { connectorId: string; locator: string }[];
+  pipelineBindings: PipelineBinding[];
+  pipelineReports: PipelineReportRec[];
   artifactBindings: ArtifactBinding[];
   acceptedArtifacts: AcceptedArtifact[];
   credentials: Record<string, string>; runs: RunRec[];
@@ -149,6 +173,11 @@ const state: {
   // looked configured while every item stayed unresolved would read as Tower
   // having lost them.
   issueTrackerBindings: [],
+  // Empty on purpose, for the reason the tracker bindings above are (ADR-020):
+  // the demo reaches no CI system, and a job that looked bound while every read
+  // failed would read as Tower having lost the runs.
+  pipelineBindings: [],
+  pipelineReports: [],
   // Empty on purpose, for the reason the tracker bindings above are (ADR-021):
   // the demo reaches no repository, and a template that looked configured while
   // every artifact stayed unread would read as Tower having lost them.
@@ -1091,6 +1120,61 @@ export function handle(pathname: string, method: string, body: Json | null): unk
     // How to address the artifacts an Application Version produced (ADR-021).
     // The only binding here an Application may have several of for one
     // Connector, so the key carries the kind and so does the delete path.
+    // Which job's runs mean an Application reached an Environment (ADR-020).
+    // Two Tower ids in the key, so the delete path carries both.
+    if (a === "pipeline-jobs") {
+      if (method === "GET") return state.pipelineBindings;
+      if (method === "PUT") {
+        const incoming = body as unknown as PipelineBinding;
+        const environmentId = String(incoming?.environmentId ?? "").trim();
+        const applicationId = String(incoming?.applicationId ?? "").trim();
+        const connectorId = String(incoming?.connectorId ?? "").trim();
+        const system = String(incoming?.system ?? "").trim();
+        const jobPath = String(incoming?.job ?? "").trim();
+        if (!environmentId) throw badRequest("A pipeline job binding must name the Environment"
+          + " its runs concern.");
+        if (!applicationId) throw badRequest("A pipeline job binding must name the Application"
+          + " its runs concern.");
+        if (!connectorId) throw badRequest("A pipeline job binding must name its connectorId.");
+        if (!system) throw badRequest("A pipeline job binding must name the CI server to read.");
+        if (!jobPath) throw badRequest("A pipeline job binding must name the job to read.");
+        const versionSource = (incoming?.versionSource ?? "PARAMETER");
+        if (!["PARAMETER", "RUN_NAME", "JOB_PATH"].includes(versionSource)) {
+          throw badRequest(`'${versionSource}' is not a version source. Use PARAMETER, RUN_NAME`
+            + " or JOB_PATH.");
+        }
+        const pattern = incoming?.versionPattern?.trim() || "^(.+)$";
+        try {
+          const compiled = new RegExp(pattern);
+          if (new RegExp(compiled.source + "|").exec("")!.length - 1 < 1) {
+            throw badRequest("The version pattern must contain a capturing group marking the"
+              + " version, for example ^release-(.+)$. Use ^(.+)$ to take the whole value.");
+          }
+        } catch (e) {
+          if (e instanceof ApiFailure) throw e;
+          throw badRequest("The version pattern is not a valid regular expression.");
+        }
+        // Empty except when the version comes from a parameter: an absent name
+        // and an empty one mean the same thing here.
+        const versionKey = versionSource === "PARAMETER"
+          ? String(incoming?.versionKey ?? "").trim() : "";
+        const saved: PipelineBinding = {
+          environmentId, applicationId, connectorId, system, job: jobPath,
+          versionSource, versionKey, versionPattern: pattern,
+        };
+        state.pipelineBindings = state.pipelineBindings.filter(
+          (x) => !(x.environmentId === environmentId && x.applicationId === applicationId
+            && x.connectorId === connectorId));
+        state.pipelineBindings.push(saved);
+        return saved;
+      }
+      if (method === "DELETE") {
+        state.pipelineBindings = state.pipelineBindings.filter(
+          (x) => !(x.environmentId === b && x.applicationId === c));
+        return null;
+      }
+    }
+
     if (a === "artifact-coordinates") {
       if (method === "GET") return state.artifactBindings;
       if (method === "PUT") {
@@ -1250,6 +1334,39 @@ export function handle(pathname: string, method: string, body: Json | null): unk
     if (method === "DELETE") {
       delete state.credentials[key];
       return null;
+    }
+  }
+
+  // Reading a CI system's runs (ADR-020). Its own path rather than more verbs
+  // under /api/sync, matching the separation the reports themselves keep: what
+  // the two read, and what a clean read of each establishes, are different
+  // things.
+  if (area === "pipeline-sync") {
+    if (a === "reports") return state.pipelineReports.slice(0, 10);
+    if (a === "connection-test") {
+      const params = new URLSearchParams(pathname.split("?")[1] ?? "");
+      return {
+        connectorId: params.get("connectorId"), target: params.get("system"),
+        scope: params.get("job"), reachable: false,
+        message: "This is the demonstration. No CI system is contacted, so no connection can be"
+          + " made. Against a real Tower this reports whether the job could be read.",
+      };
+    }
+    if (method === "POST") {
+      const report: PipelineReportRec = {
+        id: newId("pipeline-report"), connectorId: "jenkins",
+        startedAt: new Date().toISOString(), finishedAt: new Date().toISOString(),
+        jobsRead: 0, runsRead: 0, observationsAppended: 0,
+        // Neither claim is made: nothing was read, so nothing is established.
+        // Saying "nothing was deployed" here would be the demo asserting a fact
+        // it has no basis for.
+        readEverything: false, confirmsNothingWasDeployed: false,
+        notRecorded: [],
+        failures: ["This is the demonstration. No CI system was contacted and nothing was"
+          + " recorded."],
+      };
+      state.pipelineReports.unshift(report);
+      return [report];
     }
   }
 

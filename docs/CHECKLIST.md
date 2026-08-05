@@ -121,8 +121,11 @@ This checklist tracks the architectural documentation required before implementa
 - [x] Job bindings (V12): which job deploys which Application to which Environment, and where the version is
 - [x] Collector: successful runs become Observations on a timeline, unattributable runs reported
 - [x] Reports persisted (V13), use case and API — kept apart from Sync Runs, which is OQ-017's first half
-- [ ] OQ-017's second half: how a reader sees both histories together
-- [ ] Connectors screen: job bindings and the report
+- [x] OQ-017 answered: the two histories stay apart, and the Connectors screen shows both, each
+      stating what its own clean read establishes. Merging them would need one of the two to claim
+      something Tower does not know.
+- [x] Connectors screen: job bindings, the credential and connection test per CI server, and the
+      report — including the runs read and deliberately not recorded
 - [ ] Build runs as candidate Application Versions (ADR-020 decided it; deployment side came first)
 - [x] Jenkins implementation — deliberately last, and the only part that dies with Jenkins
 - [x] Pipeline job binding API, verified end to end against a stand-in Jenkins

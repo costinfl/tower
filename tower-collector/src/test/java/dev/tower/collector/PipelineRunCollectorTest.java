@@ -228,7 +228,7 @@ class PipelineRunCollectorTest {
             assertThat(report.notRecorded()).singleElement().satisfies(run -> {
                 assertThat(run.runId()).isEqualTo("1");
                 assertThat(run.outcome()).isEqualTo("FAILURE");
-                assertThat(run.reason()).contains("did not succeed");
+                assertThat(run.reason()).contains("did not report success");
             });
         }
 

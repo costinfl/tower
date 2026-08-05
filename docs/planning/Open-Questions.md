@@ -296,7 +296,28 @@ here instead.
 
 Status
 
-Open
+Answered — kept apart, and shown as what they are.
+
+The two histories stay separate, and the Connectors screen shows both: Synchronization, then Pipeline
+runs, each stating what its own clean read establishes. A Deployment Platform's clean run says
+"everything Tower already knew was confirmed still present at this time". A pipeline's clean read says
+"these jobs deployed nothing since Tower last looked — which says nothing about what is running now".
+
+The alternative was rejected on what it would cost to say. Giving SyncRun a field for what a
+successful run establishes is a schema change to a table that already holds history, and every row
+written before it would have to be assigned a meaning nobody recorded. Worse, the merged line has to
+be worded for both subjects at once, and there is no sentence that is true of "what is running" and
+"what happened" together — one of the two would end up claiming something Tower does not know, which
+is the failure this whole question exists to prevent.
+
+Against that, the cost of keeping them apart turned out to be smaller than it looked when this was
+written. "A user checks two places" is really "a user reads one screen with two sections on it", and
+the two sections are worth distinguishing anyway: a team whose CI system is untidy reads the second
+one closely and the first one hardly at all.
+
+The one thing this leaves is a reader who wants a single chronological list of everything Tower did.
+That is a different feature from a synchronization record, and if it is ever wanted it should be built
+as one rather than by flattening two kinds of evidence into a shape that fits neither.
 
 ---
 

@@ -25,10 +25,20 @@ package dev.tower.application.sync;
  */
 public record NotRecordedRun(String job, String runId, String outcome, String reason) {
 
-    /** The run did not succeed, so it is not evidence of a deployment (FR-078). */
+    /**
+     * The run did not report success, so it is not evidence of a deployment
+     * (FR-078).
+     *
+     * <p>"Did not report success" rather than "failed", because three different
+     * situations arrive here and only one of them is a failure: a run that
+     * failed, a run that was aborted, and a run still going. Telling a reader
+     * their in-progress deployment failed would be worse than telling them
+     * nothing. The outcome carried beside this says which it was, in the CI
+     * system's own word.
+     */
     public static NotRecordedRun didNotSucceed(String job, String runId, String outcome) {
         return new NotRecordedRun(job, runId, outcome,
-                "The run did not succeed, so it is not evidence that anything was deployed.");
+                "The run did not report success, so it is not evidence that anything was deployed.");
     }
 
     /** The place the binding says the version lives held nothing. */

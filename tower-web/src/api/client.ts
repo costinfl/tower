@@ -1192,6 +1192,109 @@ export function testIssueTrackerConnection(connectorId: string): Promise<IssueTr
   );
 }
 
+// --- CI/CD (ADR-020) --------------------------------------------------------
+
+// Which job's runs mean an Application reached an Environment.
+//
+// The widest binding in Tower and the only one naming two Tower concepts,
+// because that is what a run of a deployment job actually asserts.
+//
+// versionSource says where in a run the version lives. A CI system used as most
+// of them actually are does not record it anywhere a Connector could guess, and
+// ADR-020 refuses to read the console log to find it — a wrong parse there would
+// produce Observations that are immutable and therefore permanent. So the place
+// is configuration.
+export type VersionSource = "PARAMETER" | "RUN_NAME" | "JOB_PATH";
+
+export interface PipelineJobBinding {
+  environmentId: string;
+  applicationId: string;
+  connectorId: string;
+  system: string;
+  job: string;
+  versionSource: VersionSource;
+  versionKey: string;
+  versionPattern: string;
+}
+
+// A run Tower read and deliberately did not record (FR-078, FR-080).
+//
+// Two different things arrive here and both are reported rather than dropped: a
+// run that did not succeed is not evidence anything was deployed, and a run
+// whose version could not be found or recognised cannot be attributed without
+// guessing.
+export interface NotRecordedRun {
+  job: string;
+  runId: string;
+  outcome: string;
+  reason: string;
+}
+
+// What a pipeline read produced.
+//
+// Carries confirmsNothingWasDeployed rather than a confirmsLiveness, and the
+// difference is the whole of ADR-020. A Deployment Platform reads what is
+// running, so a clean run licenses "still present as of". A CI system reads what
+// happened, so a clean read licenses only "nothing was deployed by these jobs
+// since Tower last looked" — narrower, and about a different subject. A screen
+// given the first would say something Tower does not know.
+export interface PipelineSyncReport {
+  id: string;
+  connectorId: string;
+  startedAt: string;
+  finishedAt: string;
+  jobsRead: number;
+  runsRead: number;
+  observationsAppended: number;
+  readEverything: boolean;
+  confirmsNothingWasDeployed: boolean;
+  notRecorded: NotRecordedRun[];
+  failures: string[];
+}
+
+export function listPipelineJobBindings(): Promise<PipelineJobBinding[]> {
+  return getJson<PipelineJobBinding[]>("/api/bindings/pipeline-jobs");
+}
+
+export function bindPipelineJob(binding: PipelineJobBinding): Promise<PipelineJobBinding> {
+  return putJson<PipelineJobBinding>("/api/bindings/pipeline-jobs", binding);
+}
+
+// Two Tower ids in the path, because both are part of the key: one job per
+// Application per Environment per Connector.
+export function unbindPipelineJob(
+  environmentId: string,
+  applicationId: string,
+  connectorId: string,
+): Promise<void> {
+  return deleteRequest(
+    `/api/bindings/pipeline-jobs/${encodeURIComponent(environmentId)}/${encodeURIComponent(applicationId)}` +
+      `?connectorId=${encodeURIComponent(connectorId)}`,
+  );
+}
+
+export function synchronizePipelinesNow(): Promise<PipelineSyncReport[]> {
+  return postJson<PipelineSyncReport[]>("/api/pipeline-sync", undefined);
+}
+
+export function listPipelineSyncReports(limit: number): Promise<PipelineSyncReport[]> {
+  return getJson<PipelineSyncReport[]>(`/api/pipeline-sync/reports?limit=${limit}`);
+}
+
+// Takes a job as well as a system: a credential that reaches the server may
+// still not see the job, and a test that only asked about the server would pass
+// while every read failed.
+export function testPipelineConnection(
+  connectorId: string,
+  system: string,
+  job: string,
+): Promise<ConnectionTest> {
+  return getJson<ConnectionTest>(
+    `/api/pipeline-sync/connection-test?connectorId=${encodeURIComponent(connectorId)}` +
+      `&system=${encodeURIComponent(system)}&job=${encodeURIComponent(job)}`,
+  );
+}
+
 // --- Artifacts (ADR-021) ----------------------------------------------------
 
 // How to address one kind of artifact an Application Version produced.

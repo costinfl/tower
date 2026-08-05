@@ -10,12 +10,16 @@ import {
   EnvironmentBinding,
   IssueTrackerBinding,
   IssueTrackerConnectionReport,
+  PipelineJobBinding,
+  PipelineSyncReport,
   RefSelection,
+  VersionSource,
   RepositoryBinding,
   SyncRun,
   bindApplication,
   bindArtifactCoordinate,
   bindIssueTracker,
+  bindPipelineJob,
   bindRepository,
   bindEnvironment,
   forgetCredential,
@@ -26,19 +30,24 @@ import {
   listArtifactCoordinateBindings,
   listEnvironmentBindings,
   listIssueTrackerBindings,
+  listPipelineJobBindings,
+  listPipelineSyncReports,
   listSyncRuns,
   previewCoordinate,
   previewVersion,
   storeCredential,
   synchronizeNow,
+  synchronizePipelinesNow,
   testConnection,
   listRepositoryBindings,
   testArtifactRepositoryConnection,
   testIssueTrackerConnection,
+  testPipelineConnection,
   testRepositoryConnection,
   unbindApplication,
   unbindArtifactCoordinate,
   unbindIssueTracker,
+  unbindPipelineJob,
   unbindRepository,
   unbindEnvironment,
 } from "../api/client";
@@ -56,12 +65,15 @@ export default function ConnectorsPage() {
   const [repositoryBindings, setRepositoryBindings] = useState<RepositoryBinding[]>([]);
   const [trackerBindings, setTrackerBindings] = useState<IssueTrackerBinding[]>([]);
   const [artifactBindings, setArtifactBindings] = useState<ArtifactCoordinateBinding[]>([]);
+  const [pipelineBindings, setPipelineBindings] = useState<PipelineJobBinding[]>([]);
+  const [pipelineReports, setPipelineReports] = useState<PipelineSyncReport[]>([]);
   const [runs, setRuns] = useState<SyncRun[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
     try {
-      const [envs, apps, envBindings, appBindings, repoBindings, trackers, artifacts, history] =
+      const [envs, apps, envBindings, appBindings, repoBindings, trackers, artifacts,
+             pipelines, reports, history] =
         await Promise.all([
           getEnvironments(),
           getApplications(),
@@ -70,6 +82,8 @@ export default function ConnectorsPage() {
           listRepositoryBindings(),
           listIssueTrackerBindings(),
           listArtifactCoordinateBindings(),
+          listPipelineJobBindings(),
+          listPipelineSyncReports(10),
           listSyncRuns(10),
         ]);
       setEnvironments(envs);
@@ -79,6 +93,8 @@ export default function ConnectorsPage() {
       setRepositoryBindings(repoBindings);
       setTrackerBindings(trackers);
       setArtifactBindings(artifacts);
+      setPipelineBindings(pipelines);
+      setPipelineReports(reports);
       setRuns(history);
       setError(null);
     } catch (caught: unknown) {
@@ -129,6 +145,21 @@ export default function ConnectorsPage() {
         onChanged={reload}
         onError={setError}
       />
+
+      {/*
+        The CI/CD pair sits together: the jobs, then what reading them produced.
+        Deliberately not merged into the Synchronization panel above — OQ-017
+        records why, and PipelineSyncPanel says it on the screen.
+      */}
+      <PipelineJobBindingsPanel
+        environments={environments}
+        applications={applications}
+        bindings={pipelineBindings}
+        onChanged={reload}
+        onError={setError}
+      />
+
+      <PipelineSyncPanel reports={pipelineReports} onDone={reload} onError={setError} />
 
       <ArtifactCoordinateBindingsPanel
         applications={applications}
@@ -1394,6 +1425,499 @@ function ArtifactRepositoryRow({
           ? "A token is stored for this repository. It is encrypted at rest and is never shown again — replace it rather than reading it back."
           : "An access token on its own, or a user name and an API key written as name:key. A repository that allows anonymous read needs neither."}
       </p>
+    </div>
+  );
+}
+
+// --- Pipeline jobs (ADR-020) ------------------------------------------------
+
+// Which job's runs mean an Application reached an Environment.
+//
+// The widest binding on this page, and it has to be: the panels above map an
+// Environment to a namespace, or an Application to an image or a repository.
+// This maps both at once, because that is what a run of a deployment job
+// actually asserts — this Application arrived in that Environment.
+//
+// Only deployment jobs belong here. A build job produces a candidate version,
+// not an Observation, and ADR-020 keeps the two apart precisely so that a build
+// is never recorded as though it had put something into an Environment.
+const CI_CONNECTOR_ID = "jenkins";
+
+// Where in a run the version lives. A CI system used as most of them actually
+// are does not record it anywhere a Connector could guess, and ADR-020 refuses
+// to read the console log to find it: correctness would then depend on log
+// formatting, and a wrong parse writes Observations that cannot be edited.
+const VERSION_SOURCES: { value: VersionSource; label: string; hint: string }[] = [
+  {
+    value: "PARAMETER",
+    label: "A build parameter",
+    hint: "Name the parameter or environment variable the run carried, for example VERSION.",
+  },
+  {
+    value: "RUN_NAME",
+    label: "The run's own name",
+    hint: "For a job whose display name is set to the version being deployed. No key is needed.",
+  },
+  {
+    value: "JOB_PATH",
+    label: "The job's path",
+    hint: "For a job per version, where the path itself names it. No key is needed.",
+  },
+];
+
+function PipelineJobBindingsPanel({
+  environments,
+  applications,
+  bindings,
+  onChanged,
+  onError,
+}: {
+  environments: Environment[];
+  applications: Application[];
+  bindings: PipelineJobBinding[];
+  onChanged: () => Promise<void>;
+  onError: (message: string) => void;
+}) {
+  const [environmentId, setEnvironmentId] = useState("");
+  const [applicationId, setApplicationId] = useState("");
+  const [system, setSystem] = useState("");
+  const [job, setJob] = useState("");
+  const [versionSource, setVersionSource] = useState<VersionSource>("PARAMETER");
+  const [versionKey, setVersionKey] = useState("");
+  const [versionPattern, setVersionPattern] = useState("");
+
+  const chosenSource = VERSION_SOURCES.find((s) => s.value === versionSource) ?? VERSION_SOURCES[0];
+
+  async function save(event: React.FormEvent) {
+    event.preventDefault();
+    try {
+      await bindPipelineJob({
+        environmentId,
+        applicationId,
+        connectorId: CI_CONNECTOR_ID,
+        system,
+        job,
+        versionSource,
+        versionKey,
+        versionPattern,
+      });
+      setJob("");
+      await onChanged();
+    } catch (caught: unknown) {
+      onError(describeError(caught));
+    }
+  }
+
+  async function remove(binding: PipelineJobBinding) {
+    try {
+      await unbindPipelineJob(binding.environmentId, binding.applicationId, binding.connectorId);
+      await onChanged();
+    } catch (caught: unknown) {
+      onError(describeError(caught));
+    }
+  }
+
+  const environmentName = (id: string) => environments.find((e) => e.id === id)?.name ?? id;
+  const applicationName = (id: string) => applications.find((a) => a.id === id)?.name ?? id;
+  const sourceLabel = (source: VersionSource) =>
+    VERSION_SOURCES.find((s) => s.value === source)?.label ?? source;
+
+  // One credential and one connection test per CI server, not per job: the
+  // credential store is keyed by Connector and server address, so one token
+  // serves every job on the same Jenkins.
+  const servers = [...new Set(bindings.map((binding) => binding.system))].sort();
+
+  return (
+    <div className="panel">
+      <h3>Pipeline jobs</h3>
+      <p className="hint">
+        Which job&apos;s runs mean an Application reached an Environment. Tower reads runs and
+        nothing else: it never starts a job, never stops one, never retries one and never changes a
+        configuration.
+      </p>
+      <p className="hint">
+        Only <strong>deployment</strong> jobs belong here. A successful run of one becomes an
+        Observation carrying the instant the run reported; a run that failed, was aborted or ended
+        in a state Tower does not recognise is reported and not recorded, because it is not
+        evidence that anything reached an Environment.
+      </p>
+      <p className="hint">
+        Tower will not read a console log to find the version. Correctness would then depend on log
+        formatting, and a wrong parse writes Observations that cannot be edited afterwards — so
+        where the version lives is configuration rather than a guess.
+      </p>
+
+      {bindings.length === 0 && <p className="hint">No pipeline job is bound yet.</p>}
+
+      {bindings.length > 0 && (
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>Environment</th>
+              <th>Application</th>
+              <th>CI server</th>
+              <th>Job</th>
+              <th>Version from</th>
+              <th>Key</th>
+              <th>Version pattern</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {bindings.map((binding) => (
+              <tr key={`${binding.environmentId}-${binding.applicationId}-${binding.connectorId}`}>
+                <td>{environmentName(binding.environmentId)}</td>
+                <td>{applicationName(binding.applicationId)}</td>
+                <td className="mono">{binding.system}</td>
+                <td className="mono">{binding.job}</td>
+                <td>{sourceLabel(binding.versionSource)}</td>
+                {/* An em dash rather than a blank cell: a key is meaningless
+                    unless the version comes from a parameter, and an empty cell
+                    reads as something somebody forgot. */}
+                <td className="mono">{binding.versionKey || "—"}</td>
+                <td className="mono">{binding.versionPattern}</td>
+                <td>
+                  <button type="button" className="button-link" onClick={() => void remove(binding)}>
+                    Unbind
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      <form className="inline-form" onSubmit={(event) => void save(event)}>
+        <label>
+          Environment
+          <select
+            value={environmentId}
+            onChange={(event) => setEnvironmentId(event.target.value)}
+            required
+          >
+            <option value="">Choose…</option>
+            {environments.map((environment) => (
+              <option key={environment.id} value={environment.id}>
+                {environment.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Application
+          <select
+            value={applicationId}
+            onChange={(event) => setApplicationId(event.target.value)}
+            required
+          >
+            <option value="">Choose…</option>
+            {applications.map((application) => (
+              <option key={application.id} value={application.id}>
+                {application.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          CI server
+          <input
+            value={system}
+            onChange={(event) => setSystem(event.target.value)}
+            placeholder="https://ci.acme.example"
+            required
+          />
+        </label>
+        {/* A job inside a folder is written with each folder in the path. How
+            that becomes a URL is the Connector's business alone. */}
+        <label>
+          Job
+          <input
+            value={job}
+            onChange={(event) => setJob(event.target.value)}
+            placeholder="team/deploy-uat"
+            required
+          />
+        </label>
+        <label>
+          Version from
+          <select
+            value={versionSource}
+            onChange={(event) => setVersionSource(event.target.value as VersionSource)}
+          >
+            {VERSION_SOURCES.map((source) => (
+              <option key={source.value} value={source.value}>
+                {source.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Key
+          <input
+            value={versionKey}
+            onChange={(event) => setVersionKey(event.target.value)}
+            placeholder={versionSource === "PARAMETER" ? "VERSION" : "not used"}
+            disabled={versionSource !== "PARAMETER"}
+          />
+        </label>
+        <label>
+          Version pattern
+          <input
+            value={versionPattern}
+            onChange={(event) => setVersionPattern(event.target.value)}
+            placeholder="^(.+)$ — the whole value"
+          />
+        </label>
+        <button type="submit">Bind</button>
+      </form>
+      <p className="field-hint">{chosenSource.hint}</p>
+
+      {servers.map((address) => (
+        <PipelineServerRow
+          key={address}
+          system={address}
+          job={bindings.find((binding) => binding.system === address)?.job ?? ""}
+          onError={onError}
+        />
+      ))}
+    </div>
+  );
+}
+
+// One CI server: its credential, and whether a job on it can be read.
+//
+// The test takes a job as well as the server, because a credential that reaches
+// Jenkins may still not see the job — a test that only asked about the server
+// would pass while every read failed.
+function PipelineServerRow({
+  system,
+  job,
+  onError,
+}: {
+  system: string;
+  job: string;
+  onError: (message: string) => void;
+}) {
+  const [credential, setCredential] = useState<CredentialStatus | null>(null);
+  const [secret, setSecret] = useState("");
+  const [test, setTest] = useState<ConnectionTest | null>(null);
+
+  const refreshCredential = useCallback(async () => {
+    try {
+      setCredential(await getCredentialStatus(CI_CONNECTOR_ID, system));
+    } catch (caught: unknown) {
+      onError(describeError(caught));
+    }
+  }, [system, onError]);
+
+  useEffect(() => {
+    void refreshCredential();
+  }, [refreshCredential]);
+
+  async function check() {
+    try {
+      setTest(await testPipelineConnection(CI_CONNECTOR_ID, system, job));
+    } catch (caught: unknown) {
+      onError(describeError(caught));
+    }
+  }
+
+  async function saveSecret(event: React.FormEvent) {
+    event.preventDefault();
+    try {
+      await storeCredential(CI_CONNECTOR_ID, system, secret);
+      // Cleared as soon as it is sent, like every other token field here.
+      setSecret("");
+      await refreshCredential();
+    } catch (caught: unknown) {
+      onError(describeError(caught));
+    }
+  }
+
+  async function forget() {
+    try {
+      await forgetCredential(CI_CONNECTOR_ID, system);
+      await refreshCredential();
+    } catch (caught: unknown) {
+      onError(describeError(caught));
+    }
+  }
+
+  return (
+    <div className="binding">
+      <div className="binding__header">
+        <span className="mono">{system}</span>
+        {/* Tested against a job this server actually has, because reaching
+            Jenkins and being allowed to read a job are different permissions. */}
+        <button type="button" onClick={() => void check()} disabled={!job}>
+          Test connection
+        </button>
+      </div>
+
+      {test && (
+        <p className="connection-test" data-reachable={test.reachable}>
+          {test.reachable ? "✓ " : "✗ "}
+          {test.message}
+        </p>
+      )}
+
+      <form className="inline-form" onSubmit={(event) => void saveSecret(event)}>
+        <label>
+          Token
+          <input
+            type="password"
+            value={secret}
+            onChange={(event) => setSecret(event.target.value)}
+            placeholder={credential?.configured ? "A token is stored" : "user-name:api-token"}
+            autoComplete="off"
+            required
+          />
+        </label>
+        <button type="submit">{credential?.configured ? "Replace" : "Save"}</button>
+        {credential?.configured && (
+          <button type="button" className="button-link" onClick={() => void forget()}>
+            Forget
+          </button>
+        )}
+      </form>
+
+      <p className="hint">
+        {credential?.configured
+          ? "A token is stored for this server. It is encrypted at rest and is never shown again — replace it rather than reading it back."
+          : "Your user name, a colon, then an API token from your Jenkins user page — not your password."}
+      </p>
+    </div>
+  );
+}
+
+// What reading the pipelines produced (ADR-020, OQ-017).
+//
+// A second history beside Synchronization above, and kept apart deliberately.
+// The two answer different questions and one line cannot say both: a Deployment
+// Platform reads what is running, so a clean run means "everything Tower knew is
+// still there". A CI system reads what happened, so a clean read means only
+// "nothing was deployed by these jobs since Tower last looked".
+//
+// Merging them would need one of the two to say something it does not know.
+// OQ-017 weighed that against a user checking two places and chose this: two
+// sections on one screen, each stating what its own clean read establishes.
+function PipelineSyncPanel({
+  reports,
+  onDone,
+  onError,
+}: {
+  reports: PipelineSyncReport[];
+  onDone: () => Promise<void>;
+  onError: (message: string) => void;
+}) {
+  const [running, setRunning] = useState(false);
+  const latest = reports[0];
+
+  async function run() {
+    setRunning(true);
+    try {
+      await synchronizePipelinesNow();
+      await onDone();
+    } catch (caught: unknown) {
+      onError(describeError(caught));
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  return (
+    <div className="panel">
+      <div className="panel__header">
+        <h3>Pipeline runs</h3>
+        <button type="button" onClick={() => void run()} disabled={running}>
+          {running ? "Reading runs…" : "Read pipeline runs now"}
+        </button>
+      </div>
+
+      <p className="hint">
+        Kept apart from Synchronization above, because the two establish different things. That one
+        reads what is running now; this reads what happened. A screen that merged them would have
+        to make one of them claim something Tower does not know.
+      </p>
+
+      {!latest && <p className="hint">Tower has not read any pipeline runs yet.</p>}
+
+      {latest && (
+        <>
+          <p
+            className="sync-outcome"
+            data-outcome={latest.readEverything ? "SUCCEEDED" : "PARTIALLY_SUCCEEDED"}
+          >
+            <strong>{latest.readEverything ? "read everything" : "partly read"}</strong> —{" "}
+            {latest.jobsRead} job{latest.jobsRead === 1 ? "" : "s"}, {latest.runsRead} run
+            {latest.runsRead === 1 ? "" : "s"}, {latest.observationsAppended} new observation
+            {latest.observationsAppended === 1 ? "" : "s"} at{" "}
+            {new Date(latest.finishedAt).toLocaleString()}.
+          </p>
+
+          {/*
+            Narrower than the Deployment Platform's equivalent, and worded so the
+            difference carries. This is the whole of ADR-020 on one line.
+          */}
+          {latest.confirmsNothingWasDeployed && (
+            <p className="hint">
+              Nothing new was recorded. These jobs deployed nothing since Tower last looked — which
+              says nothing about what is running now.
+            </p>
+          )}
+
+          {latest.failures.length > 0 && (
+            <div className="sync-failures">
+              <h4>Could not be read</h4>
+              <ul>
+                {latest.failures.map((failure) => (
+                  <li key={failure}>{failure}</li>
+                ))}
+              </ul>
+              <p className="hint">
+                Observations recorded before this read remain valid. A job Tower could not read
+                simply produced no new facts.
+              </p>
+            </div>
+          )}
+
+          {/*
+            The part a team with an untidy CI system will look at most, and the
+            reason it exists: a run silently dropped would leave somebody
+            wondering why a deployment they watched happen is not here.
+          */}
+          {latest.notRecorded.length > 0 && (
+            <div className="sync-unrecognized">
+              <h4>Read, and deliberately not recorded</h4>
+              <p className="hint">
+                A run that did not succeed is not evidence anything was deployed. A run whose
+                version could not be found, or did not match the pattern, cannot be attributed
+                without guessing — and Tower will not guess.
+              </p>
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Job</th>
+                    <th>Run</th>
+                    <th>Outcome</th>
+                    <th>Why</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {latest.notRecorded.map((notRecorded) => (
+                    <tr key={`${notRecorded.job}#${notRecorded.runId}`}>
+                      <td className="mono">{notRecorded.job}</td>
+                      <td className="mono">{notRecorded.runId}</td>
+                      <td>{notRecorded.outcome}</td>
+                      <td>{notRecorded.reason}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }
