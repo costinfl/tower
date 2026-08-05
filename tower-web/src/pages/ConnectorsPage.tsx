@@ -3,6 +3,7 @@ import {
   ApplicationBinding,
   Application,
   ArtifactCoordinateBinding,
+  BuildJobBinding,
   ConnectionTest,
   CoordinatePreview,
   CredentialStatus,
@@ -18,6 +19,7 @@ import {
   SyncRun,
   bindApplication,
   bindArtifactCoordinate,
+  bindBuildJob,
   bindIssueTracker,
   bindPipelineJob,
   bindRepository,
@@ -28,6 +30,7 @@ import {
   getEnvironments,
   listApplicationBindings,
   listArtifactCoordinateBindings,
+  listBuildJobBindings,
   listEnvironmentBindings,
   listIssueTrackerBindings,
   listPipelineJobBindings,
@@ -46,6 +49,7 @@ import {
   testRepositoryConnection,
   unbindApplication,
   unbindArtifactCoordinate,
+  unbindBuildJob,
   unbindIssueTracker,
   unbindPipelineJob,
   unbindRepository,
@@ -67,13 +71,14 @@ export default function ConnectorsPage() {
   const [artifactBindings, setArtifactBindings] = useState<ArtifactCoordinateBinding[]>([]);
   const [pipelineBindings, setPipelineBindings] = useState<PipelineJobBinding[]>([]);
   const [pipelineReports, setPipelineReports] = useState<PipelineSyncReport[]>([]);
+  const [buildBindings, setBuildBindings] = useState<BuildJobBinding[]>([]);
   const [runs, setRuns] = useState<SyncRun[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
     try {
       const [envs, apps, envBindings, appBindings, repoBindings, trackers, artifacts,
-             pipelines, reports, history] =
+             pipelines, builds, reports, history] =
         await Promise.all([
           getEnvironments(),
           getApplications(),
@@ -83,6 +88,7 @@ export default function ConnectorsPage() {
           listIssueTrackerBindings(),
           listArtifactCoordinateBindings(),
           listPipelineJobBindings(),
+          listBuildJobBindings(),
           listPipelineSyncReports(10),
           listSyncRuns(10),
         ]);
@@ -94,6 +100,7 @@ export default function ConnectorsPage() {
       setTrackerBindings(trackers);
       setArtifactBindings(artifacts);
       setPipelineBindings(pipelines);
+      setBuildBindings(builds);
       setPipelineReports(reports);
       setRuns(history);
       setError(null);
@@ -155,6 +162,13 @@ export default function ConnectorsPage() {
         environments={environments}
         applications={applications}
         bindings={pipelineBindings}
+        onChanged={reload}
+        onError={setError}
+      />
+
+      <BuildJobBindingsPanel
+        applications={applications}
+        bindings={buildBindings}
         onChanged={reload}
         onError={setError}
       />
@@ -1918,6 +1932,198 @@ function PipelineSyncPanel({
           )}
         </>
       )}
+    </div>
+  );
+}
+
+// --- Build jobs (ADR-020) ---------------------------------------------------
+
+// Which job's runs build an Application.
+//
+// The sibling of the pipeline jobs above, and the difference between them is
+// the whole of ADR-020: that panel names an Environment, this one does not. A
+// build says what was produced, not where it went, so a run of one of these
+// proposes a candidate Application Version instead of recording an Observation.
+//
+// Which makes this the mildest binding on the page. A wrong version pattern on a
+// deployment job writes Observations that are immutable and outlive the
+// correction; a wrong one here produces a candidate nobody accepts, or none at
+// all, and nothing is written either way.
+function BuildJobBindingsPanel({
+  applications,
+  bindings,
+  onChanged,
+  onError,
+}: {
+  applications: Application[];
+  bindings: BuildJobBinding[];
+  onChanged: () => Promise<void>;
+  onError: (message: string) => void;
+}) {
+  const [applicationId, setApplicationId] = useState("");
+  const [system, setSystem] = useState("");
+  const [job, setJob] = useState("");
+  const [versionSource, setVersionSource] = useState<VersionSource>("PARAMETER");
+  const [versionKey, setVersionKey] = useState("");
+  const [versionPattern, setVersionPattern] = useState("");
+
+  async function save(event: React.FormEvent) {
+    event.preventDefault();
+    try {
+      await bindBuildJob({
+        applicationId,
+        connectorId: CI_CONNECTOR_ID,
+        system,
+        job,
+        versionSource,
+        versionKey,
+        versionPattern,
+      });
+      setJob("");
+      await onChanged();
+    } catch (caught: unknown) {
+      onError(describeError(caught));
+    }
+  }
+
+  async function remove(binding: BuildJobBinding) {
+    try {
+      await unbindBuildJob(binding.applicationId, binding.connectorId, binding.job);
+      await onChanged();
+    } catch (caught: unknown) {
+      onError(describeError(caught));
+    }
+  }
+
+  const applicationName = (id: string) => applications.find((a) => a.id === id)?.name ?? id;
+  const sourceLabel = (source: VersionSource) =>
+    VERSION_SOURCES.find((s) => s.value === source)?.label ?? source;
+
+  return (
+    <div className="panel">
+      <h3>Build jobs</h3>
+      <p className="hint">
+        Which job&apos;s runs build an Application. No Environment here, and that is the point: a
+        build says what was produced, not where it went.
+      </p>
+      <p className="hint">
+        A successful run of one of these <strong>proposes</strong> a version on the Applications
+        page, beside the ones source control offers. Nothing is registered by discovering it —
+        whether a candidate becomes an Application Version stays a person&apos;s decision, taken
+        through the ordinary form.
+      </p>
+      <p className="hint">
+        More than one build job per Application is allowed here, unlike a deployment job per
+        Environment: a team may build a service and its migrations separately, and both propose
+        versions worth seeing.
+      </p>
+
+      {bindings.length === 0 && <p className="hint">No build job is bound yet.</p>}
+
+      {bindings.length > 0 && (
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>Application</th>
+              <th>CI server</th>
+              <th>Job</th>
+              <th>Version from</th>
+              <th>Key</th>
+              <th>Version pattern</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {bindings.map((binding) => (
+              <tr key={`${binding.applicationId}-${binding.connectorId}-${binding.job}`}>
+                <td>{applicationName(binding.applicationId)}</td>
+                <td className="mono">{binding.system}</td>
+                <td className="mono">{binding.job}</td>
+                <td>{sourceLabel(binding.versionSource)}</td>
+                <td className="mono">{binding.versionKey || "—"}</td>
+                <td className="mono">{binding.versionPattern}</td>
+                <td>
+                  <button type="button" className="button-link" onClick={() => void remove(binding)}>
+                    Unbind
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      <form className="inline-form" onSubmit={(event) => void save(event)}>
+        <label>
+          Application
+          <select
+            value={applicationId}
+            onChange={(event) => setApplicationId(event.target.value)}
+            required
+          >
+            <option value="">Choose…</option>
+            {applications.map((application) => (
+              <option key={application.id} value={application.id}>
+                {application.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          CI server
+          <input
+            value={system}
+            onChange={(event) => setSystem(event.target.value)}
+            placeholder="https://ci.acme.example"
+            required
+          />
+        </label>
+        <label>
+          Job
+          <input
+            value={job}
+            onChange={(event) => setJob(event.target.value)}
+            placeholder="team/build-customer-api"
+            required
+          />
+        </label>
+        <label>
+          Version from
+          <select
+            value={versionSource}
+            onChange={(event) => setVersionSource(event.target.value as VersionSource)}
+          >
+            {VERSION_SOURCES.map((source) => (
+              <option key={source.value} value={source.value}>
+                {source.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Key
+          <input
+            value={versionKey}
+            onChange={(event) => setVersionKey(event.target.value)}
+            placeholder={versionSource === "PARAMETER" ? "VERSION" : "not used"}
+            disabled={versionSource !== "PARAMETER"}
+          />
+        </label>
+        <label>
+          Version pattern
+          <input
+            value={versionPattern}
+            onChange={(event) => setVersionPattern(event.target.value)}
+            placeholder="^(.+)$ — the whole value"
+          />
+        </label>
+        <button type="submit">Bind</button>
+      </form>
+
+      <p className="field-hint">
+        The credential is the one saved for this CI server under Pipeline jobs above — the store is
+        keyed by server, so one token serves the build jobs and the deployment jobs alike.
+      </p>
     </div>
   );
 }

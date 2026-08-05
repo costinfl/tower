@@ -218,6 +218,55 @@ final class CollectorFixtures {
                     + dev.tower.application.binding.ArtifactCoordinateBinding.normaliseKind(kind);
         }
 
+        // Build job bindings (ADR-020). No Environment on the left, and the job
+        // in the key: two build jobs for one Application are ordinary.
+        private final java.util.Map<String, dev.tower.application.binding.BuildJobBinding>
+                buildJobBindings = new java.util.LinkedHashMap<>();
+
+        @Override
+        public dev.tower.application.binding.BuildJobBinding save(
+                dev.tower.application.binding.BuildJobBinding binding) {
+            buildJobBindings.put(
+                    buildKey(binding.applicationId(), binding.connectorId(), binding.job()), binding);
+            return binding;
+        }
+
+        @Override
+        public java.util.Optional<dev.tower.application.binding.BuildJobBinding>
+                findBuildJobBinding(ApplicationId applicationId, String connectorId, String job) {
+            return java.util.Optional.ofNullable(
+                    buildJobBindings.get(buildKey(applicationId, connectorId, job)));
+        }
+
+        @Override
+        public java.util.List<dev.tower.application.binding.BuildJobBinding>
+                findBuildJobBindings(ApplicationId applicationId) {
+            return buildJobBindings.values().stream()
+                    .filter(b -> b.applicationId().equals(applicationId)).toList();
+        }
+
+        @Override
+        public java.util.List<dev.tower.application.binding.BuildJobBinding>
+                findAllBuildJobBindings(String connectorId) {
+            return buildJobBindings.values().stream()
+                    .filter(b -> b.connectorId().equals(connectorId)).toList();
+        }
+
+        @Override
+        public java.util.List<dev.tower.application.binding.BuildJobBinding>
+                findAllBuildJobBindings() {
+            return java.util.List.copyOf(buildJobBindings.values());
+        }
+
+        @Override
+        public void deleteBuildJobBinding(ApplicationId applicationId, String connectorId, String job) {
+            buildJobBindings.remove(buildKey(applicationId, connectorId, job));
+        }
+
+        private static String buildKey(ApplicationId applicationId, String connectorId, String job) {
+            return applicationId + "|" + connectorId + "|" + job;
+        }
+
         private static String pipelineKey(EnvironmentId environmentId, ApplicationId applicationId,
                                           String connectorId) {
             return environmentId + "|" + applicationId + "|" + connectorId;

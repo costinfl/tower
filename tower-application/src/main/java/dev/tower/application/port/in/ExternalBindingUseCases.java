@@ -5,6 +5,7 @@ import java.util.Optional;
 
 import dev.tower.application.binding.ApplicationBinding;
 import dev.tower.application.binding.ArtifactCoordinateBinding;
+import dev.tower.application.binding.BuildJobBinding;
 import dev.tower.application.binding.EnvironmentBinding;
 import dev.tower.application.binding.IssueTrackerBinding;
 import dev.tower.application.binding.PipelineJobBinding;
@@ -113,6 +114,24 @@ public interface ExternalBindingUseCases {
     record BindPipelineJob(EnvironmentId environmentId, ApplicationId applicationId,
                            String connectorId, String system, String job,
                            String versionSource, String versionKey, String versionPattern) {}
+
+    // Build job bindings (ADR-020). No Environment, which is the whole
+    // difference: a build says what was produced, not where it went.
+
+    BuildJobBinding bindBuildJob(BindBuildJob command);
+
+    List<BuildJobBinding> listBuildJobBindings();
+
+    void unbindBuildJob(ApplicationId applicationId, String connectorId, String job);
+
+    /**
+     * @param job the job to read. Part of the key rather than merely a field,
+     *            because two build jobs for one Application are ordinary — a
+     *            team may build a service and its migrations separately
+     */
+    record BindBuildJob(ApplicationId applicationId, String connectorId, String system,
+                        String job, String versionSource, String versionKey,
+                        String versionPattern) {}
 
     // Artifact coordinate bindings (ADR-021). The only binding a single
     // Application may have several of for one Connector, because a build

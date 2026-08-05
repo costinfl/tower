@@ -1112,10 +1112,20 @@ export interface RepositoryBinding {
 // hiding them would read as Tower having lost them.
 export interface DiscoveredVersion {
   version: string;
-  refName: string;
+  // Which system proposed it — "git" for a ref, a CI connector for a build run
+  // (ADR-020). The two are the same kind of proposal and share one list, but a
+  // reader deciding whether to accept one needs to know which system said so.
+  source: string;
+  // Where within that source, in that source's own words: a ref name, or a job
+  // and run.
+  origin: string;
   branch: string | null;
   tag: string | null;
-  commit: string;
+  // Null where the source does not record one. A ref always resolves to a
+  // commit; a build run carries a build identifier instead, and deriving either
+  // from the other would be a guess.
+  commit: string | null;
+  buildIdentifier: string | null;
   alreadyRegistered: boolean;
 }
 
@@ -1206,6 +1216,22 @@ export function testIssueTrackerConnection(connectorId: string): Promise<IssueTr
 // is configuration.
 export type VersionSource = "PARAMETER" | "RUN_NAME" | "JOB_PATH";
 
+// Which job's runs build an Application (ADR-020).
+//
+// No Environment, and that absence is the design: a build says what was
+// produced, not where it went, so a run of this yields a candidate version
+// rather than an Observation. The job is part of the key — two build jobs for
+// one Application are ordinary.
+export interface BuildJobBinding {
+  applicationId: string;
+  connectorId: string;
+  system: string;
+  job: string;
+  versionSource: VersionSource;
+  versionKey: string;
+  versionPattern: string;
+}
+
 export interface PipelineJobBinding {
   environmentId: string;
   applicationId: string;
@@ -1270,6 +1296,28 @@ export function unbindPipelineJob(
   return deleteRequest(
     `/api/bindings/pipeline-jobs/${encodeURIComponent(environmentId)}/${encodeURIComponent(applicationId)}` +
       `?connectorId=${encodeURIComponent(connectorId)}`,
+  );
+}
+
+export function listBuildJobBindings(): Promise<BuildJobBinding[]> {
+  return getJson<BuildJobBinding[]>("/api/bindings/build-jobs");
+}
+
+export function bindBuildJob(binding: BuildJobBinding): Promise<BuildJobBinding> {
+  return putJson<BuildJobBinding>("/api/bindings/build-jobs", binding);
+}
+
+// The job is in the query rather than the path, unlike the pipeline job unbind:
+// a job path contains slashes, and putting one in a path segment would need
+// escaping that the server would then have to undo.
+export function unbindBuildJob(
+  applicationId: string,
+  connectorId: string,
+  job: string,
+): Promise<void> {
+  return deleteRequest(
+    `/api/bindings/build-jobs/${encodeURIComponent(applicationId)}` +
+      `?connectorId=${encodeURIComponent(connectorId)}&job=${encodeURIComponent(job)}`,
   );
 }
 

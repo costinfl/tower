@@ -1,13 +1,20 @@
 package dev.tower.application.service;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
+import dev.tower.application.binding.BuildJobBinding;
 import dev.tower.application.binding.RepositoryBinding;
+import dev.tower.application.discovery.DiscoveredVersion;
 import dev.tower.application.discovery.VersionDiscovery;
 import dev.tower.application.port.in.SourceControlUseCases;
 import dev.tower.application.port.out.ApplicationRepository;
+import dev.tower.application.port.out.BuildVersionCollector;
 import dev.tower.application.port.out.ExternalBindingRepository;
 import dev.tower.application.port.out.SourceVersionCollector;
 import dev.tower.application.sync.ConnectionTest;
@@ -30,17 +37,27 @@ import dev.tower.domain.application.ApplicationId;
  * Control Connector later needs no change here. Spring injects an empty list when
  * none is present, which is the correct behaviour for a build without connector
  * modules.
+ *
+ * <p>Since ADR-020 there are two kinds of Collector rather than one, and this
+ * merges what they propose into a single list. That was ADR-020's decision — "the
+ * version discovery screen gains a source rather than a mode" — and it is why the
+ * merge lives here rather than in the Viewer: a ref and a build run are the same
+ * kind of proposal, and a screen that had to know which tab to look under would
+ * be the mode ADR-020 declined.
  */
 public class SourceControlService implements SourceControlUseCases {
 
     private final List<SourceVersionCollector> collectors;
+    private final List<BuildVersionCollector> buildCollectors;
     private final ExternalBindingRepository bindings;
     private final ApplicationRepository applications;
 
     public SourceControlService(List<SourceVersionCollector> collectors,
+                                List<BuildVersionCollector> buildCollectors,
                                 ExternalBindingRepository bindings,
                                 ApplicationRepository applications) {
         this.collectors = List.copyOf(Objects.requireNonNull(collectors));
+        this.buildCollectors = List.copyOf(Objects.requireNonNull(buildCollectors));
         this.bindings = Objects.requireNonNull(bindings);
         this.applications = Objects.requireNonNull(applications);
     }
@@ -53,32 +70,101 @@ public class SourceControlService implements SourceControlUseCases {
         if (applications.findById(applicationId).isEmpty()) {
             throw new NotFoundException("Application " + applicationId + " does not exist.");
         }
-        if (collectors.isEmpty()) {
-            return VersionDiscovery.failed(applicationId, null,
-                    "No Source Control Connector is installed.");
-        }
-
-        // First Collector that has a binding for this Application answers. With
-        // one Source Control Connector installed this is simply "the Collector";
-        // the loop is what keeps a second one from needing a change here.
-        for (SourceVersionCollector collector : collectors) {
-            if (bindings.findRepositoryBinding(applicationId, collector.connectorId()).isPresent()) {
-                return collector.discover(applicationId);
+        // Both sources are asked, and what they propose is merged (ADR-020).
+        List<VersionDiscovery> answers = new ArrayList<>();
+        sourceControlFor(applicationId).ifPresent(answers::add);
+        for (BuildVersionCollector collector : buildCollectors) {
+            if (!bindings.findBuildJobBindings(applicationId).isEmpty()) {
+                VersionDiscovery answer = collector.discover(applicationId);
+                // A Collector with no binding of its own says so, and that is not
+                // worth showing beside one that answered.
+                if (answer.succeeded() || answers.isEmpty()) {
+                    answers.add(answer);
+                }
             }
         }
-        return VersionDiscovery.failed(applicationId, null,
-                "No repository is bound to this Application.");
+
+        if (answers.isEmpty()) {
+            return VersionDiscovery.failed(applicationId, null,
+                    "Nothing is bound to this Application that could propose a version."
+                            + " Bind a repository or a build job on the Connectors page.");
+        }
+        return answers.size() == 1 ? answers.get(0) : merge(applicationId, answers);
     }
 
-    @Override
-    public List<VersionDiscovery> discoverAll() {
-        List<VersionDiscovery> discoveries = new ArrayList<>();
+    /**
+     * The source control answer, if any Collector has a repository bound.
+     *
+     * <p>First Collector with a binding answers. With one Source Control
+     * Connector installed this is simply "the Collector"; the loop is what keeps
+     * a second one from needing a change here.
+     */
+    private java.util.Optional<VersionDiscovery> sourceControlFor(ApplicationId applicationId) {
         for (SourceVersionCollector collector : collectors) {
-            for (RepositoryBinding binding : bindings.findAllRepositoryBindings(collector.connectorId())) {
-                discoveries.add(collector.discover(binding.applicationId()));
+            if (bindings.findRepositoryBinding(applicationId, collector.connectorId()).isPresent()) {
+                return java.util.Optional.of(collector.discover(applicationId));
             }
         }
-        return List.copyOf(discoveries);
+        return java.util.Optional.empty();
+    }
+
+    /**
+     * Two sources' candidates in one list.
+     *
+     * <p>A version proposed by both appears once, and the first source to offer
+     * it wins — source control, because it is asked first and because a ref
+     * carries a commit where a build run does not. Nothing is lost by that: the
+     * two are proposing the same version, and {@code source} says which system a
+     * reader is looking at.
+     *
+     * <p>A failure from one source does not empty the other's candidates. Both
+     * failing is reported; one failing is a partial answer, and saying "could
+     * not look" over a list with entries in it would be false.
+     */
+    private VersionDiscovery merge(ApplicationId applicationId, List<VersionDiscovery> answers) {
+        Map<String, DiscoveredVersion> byVersion = new LinkedHashMap<>();
+        List<String> unmatched = new ArrayList<>();
+        List<String> failures = new ArrayList<>();
+        String locator = null;
+
+        for (VersionDiscovery answer : answers) {
+            if (answer.failure() != null) {
+                failures.add(answer.failure());
+                continue;
+            }
+            if (locator == null) {
+                locator = answer.repositoryUrl();
+            }
+            answer.candidates().forEach(c -> byVersion.putIfAbsent(c.version(), c));
+            unmatched.addAll(answer.unmatched());
+        }
+
+        if (byVersion.isEmpty() && !failures.isEmpty()) {
+            return VersionDiscovery.failed(applicationId, locator, String.join(" ", failures));
+        }
+        return VersionDiscovery.found(applicationId, locator,
+                List.copyOf(byVersion.values()), List.copyOf(unmatched));
+    }
+
+    /**
+     * Every Application something is bound for, each with both sources merged.
+     *
+     * <p>Keyed by Application rather than by binding, because an Application with
+     * a repository <em>and</em> a build job is one thing to look at, not two.
+     */
+    @Override
+    public List<VersionDiscovery> discoverAll() {
+        Set<ApplicationId> bound = new LinkedHashSet<>();
+        for (SourceVersionCollector collector : collectors) {
+            bindings.findAllRepositoryBindings(collector.connectorId())
+                    .forEach(binding -> bound.add(binding.applicationId()));
+        }
+        for (BuildVersionCollector collector : buildCollectors) {
+            for (BuildJobBinding binding : bindings.findAllBuildJobBindings(collector.connectorId())) {
+                bound.add(binding.applicationId());
+            }
+        }
+        return bound.stream().map(this::discover).toList();
     }
 
     @Override

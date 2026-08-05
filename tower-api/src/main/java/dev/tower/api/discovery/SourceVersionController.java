@@ -81,19 +81,27 @@ public class SourceVersionController {
     }
 
     /**
+     * @param source            which Connector proposed this — a ref from source
+     *                          control, or a run from a build job (ADR-020). The
+     *                          two are the same kind of proposal and belong in one
+     *                          list, but a reader deciding whether to accept one
+     *                          needs to know which system said so
+     * @param origin            where within that source it came from, in that
+     *                          source's own words: a ref name, or a job and run
      * @param alreadyRegistered whether Tower already holds this version. Reported
      *                          rather than filtered out: on the second run most
      *                          candidates are already registered, and hiding them
      *                          would read as Tower having lost them
      */
     public record CandidateResponse(
-            String version, String refName, String branch, String tag, String commit,
-            boolean alreadyRegistered) {
+            String version, String source, String origin, String branch, String tag,
+            String commit, String buildIdentifier, boolean alreadyRegistered) {
 
         static CandidateResponse from(DiscoveredVersion candidate) {
             return new CandidateResponse(
-                    candidate.version(), candidate.refName(), candidate.branch(),
-                    candidate.tag(), candidate.commit(), candidate.alreadyRegistered());
+                    candidate.version(), candidate.source(), candidate.origin(),
+                    candidate.branch(), candidate.tag(), candidate.commit(),
+                    candidate.buildIdentifier(), candidate.alreadyRegistered());
         }
     }
 }

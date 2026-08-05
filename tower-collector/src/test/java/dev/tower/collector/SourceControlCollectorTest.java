@@ -70,7 +70,12 @@ class SourceControlCollectorTest {
             assertThat(discovery.succeeded()).isTrue();
             assertThat(discovery.candidates()).singleElement().satisfies(candidate -> {
                 assertThat(candidate.version()).isEqualTo("2.5.0");
-                assertThat(candidate.refName()).isEqualTo("v2.5.0");
+                assertThat(candidate.origin()).isEqualTo("v2.5.0");
+                // A ref says which system proposed it, so a build candidate
+                // beside it in the same list is distinguishable (ADR-020).
+                assertThat(candidate.source()).isEqualTo("git");
+                // git has no build identifier and ADR-014 refuses to derive one.
+                assertThat(candidate.buildIdentifier()).isNull();
                 assertThat(candidate.tag()).isEqualTo("v2.5.0");
                 assertThat(candidate.branch()).isNull();
                 assertThat(candidate.commit()).isEqualTo("abc123");

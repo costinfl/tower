@@ -18,6 +18,8 @@ import org.springframework.web.bind.annotation.RestController;
 import dev.tower.api.binding.BindingRequests.ApplicationBindingRequest;
 import dev.tower.api.binding.BindingRequests.ApplicationBindingResponse;
 import dev.tower.api.binding.BindingRequests.ArtifactCoordinateBindingRequest;
+import dev.tower.api.binding.BindingRequests.BuildJobBindingRequest;
+import dev.tower.api.binding.BindingRequests.BuildJobBindingResponse;
 import dev.tower.api.binding.BindingRequests.ArtifactCoordinateBindingResponse;
 import dev.tower.api.binding.BindingRequests.EnvironmentBindingRequest;
 import dev.tower.api.binding.BindingRequests.EnvironmentBindingResponse;
@@ -30,6 +32,7 @@ import dev.tower.api.binding.BindingRequests.RepositoryBindingResponse;
 import dev.tower.application.port.in.ExternalBindingUseCases;
 import dev.tower.application.port.in.ExternalBindingUseCases.BindApplication;
 import dev.tower.application.port.in.ExternalBindingUseCases.BindArtifactCoordinate;
+import dev.tower.application.port.in.ExternalBindingUseCases.BindBuildJob;
 import dev.tower.application.port.in.ExternalBindingUseCases.CoordinatePreview;
 import dev.tower.application.port.in.ExternalBindingUseCases.BindEnvironment;
 import dev.tower.application.port.in.ExternalBindingUseCases.BindIssueTracker;
@@ -160,6 +163,36 @@ public class BindingController {
             @RequestParam("connectorId") String connectorId) {
         bindings.unbindPipelineJob(EnvironmentId.of(environmentId),
                 ApplicationId.of(applicationId), connectorId);
+    }
+
+    /**
+     * Which job's runs build an Application (ADR-020).
+     *
+     * <p>No Environment in the path, unlike the pipeline jobs above: a build says
+     * what was produced, not where it went. The job is in the delete path because
+     * it is part of the key — two build jobs for one Application are ordinary.
+     */
+    @GetMapping("/build-jobs")
+    public List<BuildJobBindingResponse> listBuildJobBindings() {
+        return bindings.listBuildJobBindings().stream()
+                .map(BuildJobBindingResponse::from).toList();
+    }
+
+    @PutMapping("/build-jobs")
+    public BuildJobBindingResponse bindBuildJob(@Valid @RequestBody BuildJobBindingRequest request) {
+        return BuildJobBindingResponse.from(bindings.bindBuildJob(new BindBuildJob(
+                ApplicationId.of(request.applicationId()), request.connectorId(),
+                request.system(), request.job(), request.versionSource(),
+                request.versionKey(), request.versionPattern())));
+    }
+
+    @DeleteMapping("/build-jobs/{applicationId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void unbindBuildJob(
+            @PathVariable("applicationId") String applicationId,
+            @RequestParam("connectorId") String connectorId,
+            @RequestParam("job") String job) {
+        bindings.unbindBuildJob(ApplicationId.of(applicationId), connectorId, job);
     }
 
     /**

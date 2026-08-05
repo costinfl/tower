@@ -11,6 +11,7 @@ import dev.tower.application.port.out.ApplicationRepository;
 import dev.tower.application.port.out.ApplicationVersionRepository;
 import dev.tower.application.port.out.AcceptedArtifactRepository;
 import dev.tower.application.port.out.ArtifactCollector;
+import dev.tower.application.port.out.BuildVersionCollector;
 import dev.tower.application.port.out.PromotionPathRepository;
 import dev.tower.application.port.out.ManualObservationCollector;
 import dev.tower.application.port.out.ObservationRepository;
@@ -109,9 +110,11 @@ public class ApplicationServicesConfiguration {
      */
     @Bean
     public SourceControlService sourceControlService(
-            List<SourceVersionCollector> collectors, ExternalBindingRepository externalBindingRepository,
+            List<SourceVersionCollector> collectors, List<BuildVersionCollector> buildCollectors,
+            ExternalBindingRepository externalBindingRepository,
             ApplicationRepository applicationRepository) {
-        return new SourceControlService(collectors, externalBindingRepository, applicationRepository);
+        return new SourceControlService(
+                collectors, buildCollectors, externalBindingRepository, applicationRepository);
     }
 
     @Bean

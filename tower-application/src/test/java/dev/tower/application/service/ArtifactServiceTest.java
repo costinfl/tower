@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Test;
 
 import dev.tower.application.binding.ApplicationBinding;
 import dev.tower.application.binding.ArtifactCoordinateBinding;
+import dev.tower.application.binding.BuildJobBinding;
 import dev.tower.application.binding.EnvironmentBinding;
 import dev.tower.application.binding.IssueTrackerBinding;
 import dev.tower.application.binding.PipelineJobBinding;
@@ -664,6 +665,37 @@ class ArtifactServiceTest {
         @Override
         public void deletePipelineJobBinding(
                 EnvironmentId environmentId, ApplicationId applicationId, String connectorId) {
+            throw notThisTest();
+        }
+
+        @Override
+        public BuildJobBinding save(BuildJobBinding binding) {
+            throw notThisTest();
+        }
+
+        @Override
+        public Optional<BuildJobBinding> findBuildJobBinding(
+                ApplicationId applicationId, String connectorId, String job) {
+            throw notThisTest();
+        }
+
+        @Override
+        public List<BuildJobBinding> findBuildJobBindings(ApplicationId applicationId) {
+            throw notThisTest();
+        }
+
+        @Override
+        public List<BuildJobBinding> findAllBuildJobBindings(String connectorId) {
+            throw notThisTest();
+        }
+
+        @Override
+        public List<BuildJobBinding> findAllBuildJobBindings() {
+            throw notThisTest();
+        }
+
+        @Override
+        public void deleteBuildJobBinding(ApplicationId applicationId, String connectorId, String job) {
             throw notThisTest();
         }
     }

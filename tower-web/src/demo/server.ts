@@ -67,6 +67,15 @@ interface RepoBinding {
 // ADR-020. The widest binding here and the only one naming two Tower concepts,
 // because that is what a run of a deployment job asserts: this Application
 // arrived in that Environment.
+// ADR-020. The sibling of PipelineBinding below, and the difference is the whole
+// of that decision: this names no Environment. A build says what was produced,
+// not where it went, so a run of one proposes a candidate version.
+interface BuildBinding {
+  applicationId: string; connectorId: string; system: string; job: string;
+  versionSource: "PARAMETER" | "RUN_NAME" | "JOB_PATH";
+  versionKey: string; versionPattern: string;
+}
+
 interface PipelineBinding {
   environmentId: string; applicationId: string; connectorId: string;
   system: string; job: string;
@@ -147,6 +156,7 @@ const state: {
   repositoryBindings: RepoBinding[];
   issueTrackerBindings: { connectorId: string; locator: string }[];
   pipelineBindings: PipelineBinding[];
+  buildBindings: BuildBinding[];
   pipelineReports: PipelineReportRec[];
   artifactBindings: ArtifactBinding[];
   acceptedArtifacts: AcceptedArtifact[];
@@ -177,6 +187,10 @@ const state: {
   // the demo reaches no CI system, and a job that looked bound while every read
   // failed would read as Tower having lost the runs.
   pipelineBindings: [],
+  // Empty for the reason the pipeline bindings above are: the demo reaches no
+  // CI system, so a build job that looked bound would propose nothing and read
+  // as Tower having lost the versions.
+  buildBindings: [],
   pipelineReports: [],
   // Empty on purpose, for the reason the tracker bindings above are (ADR-021):
   // the demo reaches no repository, and a template that looked configured while
@@ -882,8 +896,8 @@ function discoverVersions(applicationId: string) {
 
   const refs = seed.sourceRefs[applicationId] ?? [];
   const candidates: {
-    version: string; refName: string; branch: string | null; tag: string | null;
-    commit: string; alreadyRegistered: boolean;
+    version: string; source: string; origin: string; branch: string | null; tag: string | null;
+    commit: string | null; buildIdentifier: string | null; alreadyRegistered: boolean;
   }[] = [];
   const unmatched: string[] = [];
   const seen = new Set<string>();
@@ -905,10 +919,17 @@ function discoverVersions(applicationId: string) {
 
     candidates.push({
       version: match[1],
-      refName: ref.name,
+      // Which system proposed it (ADR-020). The demo has only source control to
+      // offer - it reaches no CI system - but the field is filled honestly
+      // rather than left out, because the real Tower puts build candidates in
+      // this same list.
+      source: "git",
+      origin: ref.name,
       branch: ref.kind === "BRANCH" ? ref.name : null,
       tag: ref.kind === "TAG" ? ref.name : null,
       commit: ref.commit,
+      // git has none, and ADR-014 refuses to derive one from a commit.
+      buildIdentifier: null,
       alreadyRegistered: state.versions.some(
         (v) => v.applicationId === applicationId && v.version === match[1]),
     });
@@ -1122,6 +1143,61 @@ export function handle(pathname: string, method: string, body: Json | null): unk
     // Connector, so the key carries the kind and so does the delete path.
     // Which job's runs mean an Application reached an Environment (ADR-020).
     // Two Tower ids in the key, so the delete path carries both.
+    // Which job's runs build an Application (ADR-020). No Environment, and the
+    // job is in the key: two build jobs for one Application are ordinary.
+    if (a === "build-jobs") {
+      if (method === "GET") return state.buildBindings;
+      if (method === "PUT") {
+        const incoming = body as unknown as BuildBinding;
+        const applicationId = String(incoming?.applicationId ?? "").trim();
+        const connectorId = String(incoming?.connectorId ?? "").trim();
+        const system = String(incoming?.system ?? "").trim();
+        const jobPath = String(incoming?.job ?? "").trim();
+        if (!applicationId) throw badRequest("A build job binding must name the Application its"
+          + " runs build.");
+        if (!connectorId) throw badRequest("A build job binding must name its connectorId.");
+        if (!system) throw badRequest("A build job binding must name the CI server to read.");
+        if (!jobPath) throw badRequest("A build job binding must name the job to read.");
+        const versionSource = (incoming?.versionSource ?? "PARAMETER");
+        if (!["PARAMETER", "RUN_NAME", "JOB_PATH"].includes(versionSource)) {
+          throw badRequest(`'${versionSource}' is not a version source. Use PARAMETER, RUN_NAME`
+            + " or JOB_PATH.");
+        }
+        const pattern = incoming?.versionPattern?.trim() || "^(.+)$";
+        try {
+          const compiled = new RegExp(pattern);
+          if (new RegExp(compiled.source + "|").exec("")!.length - 1 < 1) {
+            throw badRequest("The version pattern must contain a capturing group marking the"
+              + " version, for example ^release-(.+)$. Use ^(.+)$ to take the whole value.");
+          }
+        } catch (e) {
+          if (e instanceof ApiFailure) throw e;
+          throw badRequest("The version pattern is not a valid regular expression.");
+        }
+        const versionKey = versionSource === "PARAMETER"
+          ? String(incoming?.versionKey ?? "").trim() : "";
+        const saved: BuildBinding = {
+          applicationId, connectorId, system, job: jobPath,
+          versionSource, versionKey, versionPattern: pattern,
+        };
+        state.buildBindings = state.buildBindings.filter(
+          (x) => !(x.applicationId === applicationId && x.connectorId === connectorId
+            && x.job === jobPath));
+        state.buildBindings.push(saved);
+        return saved;
+      }
+      if (method === "DELETE") {
+        // The job arrives in the query rather than the path: a job path
+        // contains slashes, and a path segment would need escaping the server
+        // would then have to undo.
+        const params = new URLSearchParams(pathname.split("?")[1] ?? "");
+        const jobPath = params.get("job") ?? "";
+        state.buildBindings = state.buildBindings.filter(
+          (x) => !(x.applicationId === b && x.job === jobPath));
+        return null;
+      }
+    }
+
     if (a === "pipeline-jobs") {
       if (method === "GET") return state.pipelineBindings;
       if (method === "PUT") {

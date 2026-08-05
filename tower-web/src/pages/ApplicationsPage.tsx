@@ -183,9 +183,12 @@ export default function ApplicationsPage() {
       version: candidate.version,
       branch: candidate.branch ?? "",
       tag: candidate.tag ?? "",
-      commit: candidate.commit,
-      // Build identifier left alone: git has none, and ADR-014 keeps it absent
-      // rather than deriving something plausible from a commit.
+      commit: candidate.commit ?? "",
+      // Each source fills what it actually knows and leaves the rest blank. A
+      // ref has a commit and no build identifier (ADR-014 refuses to derive
+      // one); a build run has the identifier and no commit, and deriving one
+      // would be the same guess in the opposite direction (ADR-020).
+      buildIdentifier: candidate.buildIdentifier ?? "",
     });
   }
 
@@ -321,7 +324,7 @@ export default function ApplicationsPage() {
                     onClick={() => discover(app.id)}
                     disabled={discoverBusy[app.id] === true}
                   >
-                    {discoverBusy[app.id] === true ? "Reading repository…" : "Discover from source control"}
+                    {discoverBusy[app.id] === true ? "Reading…" : "Discover versions"}
                   </button>
                   {discovery !== undefined && <DiscoveryResult discovery={discovery} onUse={(c) => useCandidate(app.id, c)} />}
                 </div>
@@ -391,27 +394,43 @@ function DiscoveryResult({
   return (
     <>
       <p className="hint">
-        Read from <code>{discovery.repositoryUrl}</code>. Nothing has been registered — choosing a
-        version fills the form below, and you register it as you always would.
+        Nothing has been registered — choosing a version fills the form below, and you register it
+        as you always would. Each candidate says which system proposed it.
       </p>
 
       {discovery.candidates.length === 0 && (
         <p className="hint">
-          The repository was read and holds nothing this binding recognises. If that is a surprise,
-          the version pattern on the Connectors page is the place to look.
+          Everything bound was read and holds nothing these bindings recognise. If that is a
+          surprise, the version patterns on the Connectors page are the place to look.
         </p>
       )}
 
       {discovery.candidates.length > 0 && (
         <ul className="candidate-list">
           {discovery.candidates.map((candidate) => (
-            <li className="candidate" key={candidate.refName}>
+            <li className="candidate" key={`${candidate.source}:${candidate.origin}`}>
               <span className="candidate__version">{candidate.version}</span>
-              <span className="candidate__attr">
-                {candidate.tag !== null ? `tag ${candidate.tag}` : `branch ${candidate.branch}`}
-              </span>
+              {/*
+                Which system said so. ADR-020 put it as "the screen gains a
+                source rather than a mode": a ref and a build run are the same
+                kind of proposal and belong in one list, but a reader deciding
+                whether to accept one needs to know where it came from.
+              */}
+              <span className="badge">{candidate.source}</span>
+              <span className="candidate__attr">{candidate.origin}</span>
+              {candidate.tag !== null && (
+                <span className="candidate__attr">tag {candidate.tag}</span>
+              )}
+              {candidate.branch !== null && (
+                <span className="candidate__attr">branch {candidate.branch}</span>
+              )}
               {/* Shortened for reading; the full hash is what gets registered. */}
-              <span className="candidate__attr">commit {candidate.commit.slice(0, 8)}</span>
+              {candidate.commit !== null && (
+                <span className="candidate__attr">commit {candidate.commit.slice(0, 8)}</span>
+              )}
+              {candidate.buildIdentifier !== null && (
+                <span className="candidate__attr">build {candidate.buildIdentifier}</span>
+              )}
               {candidate.alreadyRegistered ? (
                 <span className="candidate__known">already registered</span>
               ) : (
@@ -426,7 +445,7 @@ function DiscoveryResult({
 
       {discovery.unmatched.length > 0 && (
         <p className="hint">
-          Not recognised as versions: {discovery.unmatched.join(", ")}. These are reported rather
+          Not recognised as versions: {discovery.unmatched.join("; ")}. These are reported rather
           than dropped, so a version pattern that is wrong is visible rather than silent.
         </p>
       )}

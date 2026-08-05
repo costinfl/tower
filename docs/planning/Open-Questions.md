@@ -321,6 +321,47 @@ as one rather than by flattening two kinds of evidence into a shape that fits ne
 
 ---
 
+## OQ-018
+
+How does a release account for the database changes it carries?
+
+Raised because the setting this is written for does not have one answer. Some projects keep their
+migrations inside the application repository and run them with Flyway, so the schema version travels
+with the Application Version and a deployment is one thing. Others keep migrations in a repository of
+their own, run them with Liquibase, and organise the changelogs to a convention the team invented —
+so the schema moves on its own schedule, through its own pipeline, and what is deployed to an
+Environment is two things that must agree.
+
+The second shape is what makes this a question rather than a feature request. Tower's whole model is
+that an Observation is an Application Version seen in an Environment (ADR-002). A schema that is
+released separately is not an Application Version, is not deployed by the same job, and can be
+correct or wrong independently of the code that reads it. Handover already carries a free-text
+"database migrations" field (FR-028), which is where this currently lives and is deliberately just
+prose.
+
+What the decision turns on, and none of it is settled:
+
+- Whether a schema version is a **second kind of Application Version** — cheap, reuses everything, and
+  wrong if a schema is not something an Environment "runs".
+- Whether it is a **property of an Application Version** — right for the Flyway shape, useless for the
+  Liquibase-in-its-own-repo shape, and Tower must serve both.
+- Whether it is **its own concept with its own Observations** — honest, and a large addition to a
+  Domain Model that has stayed small on purpose.
+- Whether Tower should read a migration tool at all, or only record what a person stated. Flyway and
+  Liquibase both keep a history table in the database being migrated, which is a read against a
+  production database rather than against a delivery system — a different class of credential from
+  anything Tower holds today, and worth weighing against ADR-001 before anything is built.
+
+Not to be answered by whichever shape gets implemented first. The risk here is exactly the one
+ADR-020 caught between a build and a deployment: a model that fits one team's arrangement and
+silently misrepresents another's.
+
+Status
+
+Open
+
+---
+
 # Future Capabilities
 
 The following ideas are intentionally outside Milestone 1.

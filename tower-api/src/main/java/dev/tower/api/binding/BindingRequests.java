@@ -4,6 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 
 import dev.tower.application.binding.ApplicationBinding;
 import dev.tower.application.binding.ArtifactCoordinateBinding;
+import dev.tower.application.binding.BuildJobBinding;
 import dev.tower.application.binding.EnvironmentBinding;
 import dev.tower.application.binding.IssueTrackerBinding;
 import dev.tower.application.binding.PipelineJobBinding;
@@ -120,6 +121,40 @@ public final class BindingRequests {
             String versionSource,
             String versionKey,
             String versionPattern) {
+    }
+
+    /**
+     * Which job's runs build an Application (ADR-020).
+     *
+     * <p>Names no Environment, and that absence is the design. A build says what
+     * was produced, not where it went, so what a run of this yields is a
+     * candidate Application Version rather than an Observation.
+     *
+     * <p>{@code job} is part of the key rather than merely a field: two build
+     * jobs for one Application are ordinary, where two deployment jobs for one
+     * Environment and Application are refused.
+     */
+    public record BuildJobBindingRequest(
+            @NotBlank(message = "applicationId is required") String applicationId,
+            @NotBlank(message = "connectorId is required") String connectorId,
+            @NotBlank(message = "system is required") String system,
+            @NotBlank(message = "job is required") String job,
+            String versionSource,
+            String versionKey,
+            String versionPattern) {
+    }
+
+    public record BuildJobBindingResponse(
+            String applicationId, String connectorId, String system, String job,
+            String versionSource, String versionKey, String versionPattern) {
+
+        public static BuildJobBindingResponse from(BuildJobBinding binding) {
+            return new BuildJobBindingResponse(
+                    binding.applicationId().value().toString(),
+                    binding.connectorId(), binding.system(), binding.job(),
+                    binding.versionSource().name(), binding.versionKey(),
+                    binding.versionPattern());
+        }
     }
 
     /**

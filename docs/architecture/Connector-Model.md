@@ -211,7 +211,15 @@ failed, was aborted or finished in a state Tower does not recognise is reported 
 is not evidence that anything reached an Environment.
 
 A run of a **build** pipeline produces a candidate Application Version instead, proposed and stored
-nowhere, on the footing ADR-014 established for a git ref.
+nowhere, on the footing ADR-014 established for a git ref. Source control and build jobs are two
+sources of the same kind of proposal, so what they offer is merged into one list and each candidate
+says which system offered it — ADR-020 put that as "the discovery screen gains a source rather than a
+mode".
+
+Each source fills only what it knows. A ref carries a branch, a tag and a commit and no build
+identifier; a build run carries the identifier and no commit. Deriving either from the other would be
+a guess, and the field is left absent instead — the same restraint ADR-014 applied when it refused to
+invent a build identifier from a commit.
 
 What such an Observation claims is narrower than what a Deployment Platform Connector claims, and
 ADR-020 records the difference: a pipeline says what was done at an instant, a platform says what is

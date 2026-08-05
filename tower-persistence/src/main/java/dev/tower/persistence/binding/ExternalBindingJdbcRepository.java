@@ -11,6 +11,7 @@ import org.springframework.stereotype.Repository;
 
 import dev.tower.application.binding.ApplicationBinding;
 import dev.tower.application.binding.ArtifactCoordinateBinding;
+import dev.tower.application.binding.BuildJobBinding;
 import dev.tower.application.binding.EnvironmentBinding;
 import dev.tower.application.binding.IssueTrackerBinding;
 import dev.tower.application.binding.PipelineJobBinding;
@@ -556,6 +557,123 @@ public class ExternalBindingJdbcRepository implements ExternalBindingRepository 
                 rs.getString("repository_system"),
                 rs.getString("coordinate_template"),
                 rs.getInt("short_commit_length"));
+    }
+
+    /**
+     * Build job bindings (ADR-020), keyed by Application, Connector and job
+     * (V16__build_job_bindings.sql).
+     *
+     * <p>The job is in the key here and is not in V12's, which is the difference
+     * between the two tables in one line: two build jobs for one Application are
+     * ordinary, while two deployment jobs for one Environment and Application
+     * would both claim to say when it arrived.
+     */
+    @Override
+    public BuildJobBinding save(BuildJobBinding binding) {
+        int updated = jdbcClient.sql("""
+                        UPDATE build_job_binding
+                        SET ci_system = :system, version_source = :versionSource,
+                            version_key = :versionKey, version_pattern = :versionPattern
+                        WHERE application_id = :applicationId AND connector_id = :connectorId
+                          AND job = :job
+                        """)
+                .params(parametersOf(binding))
+                .update();
+        if (updated == 0) {
+            jdbcClient.sql("""
+                            INSERT INTO build_job_binding (
+                                application_id, connector_id, ci_system, job,
+                                version_source, version_key, version_pattern)
+                            VALUES (:applicationId, :connectorId, :system, :job,
+                                    :versionSource, :versionKey, :versionPattern)
+                            """)
+                    .params(parametersOf(binding))
+                    .update();
+        }
+        return binding;
+    }
+
+    private static java.util.Map<String, Object> parametersOf(BuildJobBinding binding) {
+        return java.util.Map.of(
+                "applicationId", binding.applicationId().value(),
+                "connectorId", binding.connectorId(),
+                "system", binding.system(),
+                "job", binding.job(),
+                "versionSource", binding.versionSource().name(),
+                "versionKey", binding.versionKey(),
+                "versionPattern", binding.versionPattern());
+    }
+
+    @Override
+    public Optional<BuildJobBinding> findBuildJobBinding(
+            ApplicationId applicationId, String connectorId, String job) {
+        return jdbcClient.sql(BUILD_JOB_COLUMNS + """
+                        WHERE application_id = :applicationId AND connector_id = :connectorId
+                          AND job = :job
+                        """)
+                .param("applicationId", applicationId.value())
+                .param("connectorId", connectorId)
+                .param("job", job)
+                .query(ExternalBindingJdbcRepository::mapBuildJobBinding)
+                .optional();
+    }
+
+    @Override
+    public List<BuildJobBinding> findBuildJobBindings(ApplicationId applicationId) {
+        return jdbcClient.sql(BUILD_JOB_COLUMNS + """
+                        WHERE application_id = :applicationId ORDER BY connector_id, job
+                        """)
+                .param("applicationId", applicationId.value())
+                .query(ExternalBindingJdbcRepository::mapBuildJobBinding)
+                .list();
+    }
+
+    @Override
+    public List<BuildJobBinding> findAllBuildJobBindings(String connectorId) {
+        return jdbcClient.sql(BUILD_JOB_COLUMNS + " WHERE connector_id = :connectorId ORDER BY job")
+                .param("connectorId", connectorId)
+                .query(ExternalBindingJdbcRepository::mapBuildJobBinding)
+                .list();
+    }
+
+    @Override
+    public List<BuildJobBinding> findAllBuildJobBindings() {
+        return jdbcClient.sql(BUILD_JOB_COLUMNS + " ORDER BY connector_id, job")
+                .query(ExternalBindingJdbcRepository::mapBuildJobBinding)
+                .list();
+    }
+
+    @Override
+    public void deleteBuildJobBinding(ApplicationId applicationId, String connectorId, String job) {
+        jdbcClient.sql("""
+                        DELETE FROM build_job_binding
+                        WHERE application_id = :applicationId AND connector_id = :connectorId
+                          AND job = :job
+                        """)
+                .param("applicationId", applicationId.value())
+                .param("connectorId", connectorId)
+                .param("job", job)
+                .update();
+    }
+
+    /** Every column, once, so the four reads above cannot drift apart. */
+    private static final String BUILD_JOB_COLUMNS = """
+            SELECT application_id, connector_id, ci_system, job,
+                   version_source, version_key, version_pattern
+            FROM build_job_binding
+            """;
+
+    private static BuildJobBinding mapBuildJobBinding(ResultSet rs, int rowNum) throws SQLException {
+        return new BuildJobBinding(
+                new ApplicationId(rs.getObject("application_id", UUID.class)),
+                rs.getString("connector_id"),
+                rs.getString("ci_system"),
+                rs.getString("job"),
+                // Parsed rather than valueOf'd, so a row written by a later
+                // version of Tower fails with a message naming the value.
+                PipelineJobBinding.VersionSource.parse(rs.getString("version_source")),
+                rs.getString("version_key"),
+                rs.getString("version_pattern"));
     }
 
     private static RepositoryBinding mapRepositoryBinding(ResultSet rs, int rowNum) throws SQLException {

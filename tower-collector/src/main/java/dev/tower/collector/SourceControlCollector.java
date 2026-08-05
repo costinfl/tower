@@ -149,8 +149,9 @@ public class SourceControlCollector implements SourceVersionCollector {
                 continue;
             }
 
-            byVersion.putIfAbsent(version.get(), new DiscoveredVersion(
+            byVersion.putIfAbsent(version.get(), DiscoveredVersion.fromRef(
                     version.get(),
+                    connector.connectorId(),
                     ref.name(),
                     ref.isBranch() ? ref.name() : null,
                     ref.isTag() ? ref.name() : null,

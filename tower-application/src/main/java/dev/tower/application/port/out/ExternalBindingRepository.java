@@ -5,6 +5,7 @@ import java.util.Optional;
 
 import dev.tower.application.binding.ApplicationBinding;
 import dev.tower.application.binding.ArtifactCoordinateBinding;
+import dev.tower.application.binding.BuildJobBinding;
 import dev.tower.application.binding.EnvironmentBinding;
 import dev.tower.application.binding.IssueTrackerBinding;
 import dev.tower.application.binding.PipelineJobBinding;
@@ -107,4 +108,22 @@ public interface ExternalBindingRepository {
 
     void deleteArtifactCoordinateBinding(
             ApplicationId applicationId, String connectorId, String kind);
+
+    // Build job bindings (ADR-020). No Environment on the left, unlike the
+    // pipeline job bindings above: a build says what was produced, not where it
+    // went. The job is part of the key, because two build jobs for one
+    // Application are ordinary where two deployment jobs for one pair are not.
+    BuildJobBinding save(BuildJobBinding binding);
+
+    Optional<BuildJobBinding> findBuildJobBinding(
+            ApplicationId applicationId, String connectorId, String job);
+
+    /** Every build job for one Application, which is what discovering versions reads. */
+    List<BuildJobBinding> findBuildJobBindings(ApplicationId applicationId);
+
+    List<BuildJobBinding> findAllBuildJobBindings(String connectorId);
+
+    List<BuildJobBinding> findAllBuildJobBindings();
+
+    void deleteBuildJobBinding(ApplicationId applicationId, String connectorId, String job);
 }

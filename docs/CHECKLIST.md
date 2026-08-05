@@ -126,7 +126,10 @@ This checklist tracks the architectural documentation required before implementa
       something Tower does not know.
 - [x] Connectors screen: job bindings, the credential and connection test per CI server, and the
       report — including the runs read and deliberately not recorded
-- [ ] Build runs as candidate Application Versions (ADR-020 decided it; deployment side came first)
+- [x] Build runs as candidate Application Versions (V16). A build job binds without an Environment,
+      because a build says what was produced rather than where it went, and what a run proposes is
+      stored nowhere. The discovery screen gained a source rather than a mode, as ADR-020 asked: a
+      ref and a build run sit in one list, each saying which system offered it.
 - [x] Jenkins implementation — deliberately last, and the only part that dies with Jenkins
 - [x] Pipeline job binding API, verified end to end against a stand-in Jenkins
 - [ ] Live verification against a real Jenkins (no host is reachable from the build environment)

@@ -6,6 +6,7 @@ import java.util.Optional;
 
 import dev.tower.application.binding.ApplicationBinding;
 import dev.tower.application.binding.ArtifactCoordinateBinding;
+import dev.tower.application.binding.BuildJobBinding;
 import dev.tower.application.binding.EnvironmentBinding;
 import dev.tower.application.binding.IssueTrackerBinding;
 import dev.tower.application.binding.PipelineJobBinding;
@@ -167,6 +168,25 @@ public class ExternalBindingService implements ExternalBindingUseCases {
     public void unbindPipelineJob(EnvironmentId environmentId, ApplicationId applicationId,
                                   String connectorId) {
         bindings.deletePipelineJobBinding(environmentId, applicationId, connectorId);
+    }
+
+    @Override
+    public BuildJobBinding bindBuildJob(BindBuildJob command) {
+        requireApplicationExists(command.applicationId());
+        return bindings.save(new BuildJobBinding(
+                command.applicationId(), command.connectorId(), command.system(), command.job(),
+                PipelineJobBinding.VersionSource.parse(command.versionSource()),
+                command.versionKey(), command.versionPattern()));
+    }
+
+    @Override
+    public List<BuildJobBinding> listBuildJobBindings() {
+        return bindings.findAllBuildJobBindings();
+    }
+
+    @Override
+    public void unbindBuildJob(ApplicationId applicationId, String connectorId, String job) {
+        bindings.deleteBuildJobBinding(applicationId, connectorId, job);
     }
 
     @Override
