@@ -35,12 +35,45 @@ public class DashboardController {
         return new DashboardView(
                 overview.environments().stream().map(EnvironmentView::from).toList(),
                 overview.releasePacks().stream().map(ReleasePackView::from).toList(),
-                SummaryView.from(overview.summary()));
+                SummaryView.from(overview.summary()),
+                SetupView.from(overview.setup()));
+    }
+
+    /**
+     * Where this Tower stands against the order things have to be defined in.
+     *
+     * <p>Carried on the dashboard rather than on an endpoint of its own: it is
+     * the same question the rest of this page answers — where do things stand —
+     * asked of the configuration instead of the releases, and a screen that had
+     * to make two calls to draw one page would go out of step with itself.
+     */
+    public record SetupView(List<SetupStepView> steps, boolean complete) {
+
+        static SetupView from(DashboardUseCases.SetupState setup) {
+            return new SetupView(
+                    setup.steps().stream().map(SetupStepView::from).toList(),
+                    setup.complete());
+        }
+    }
+
+    /**
+     * @param optional true where Tower works without it. Sent rather than
+     *                 inferred from the step's wording, so a screen can render
+     *                 the difference instead of parsing prose
+     */
+    public record SetupStepView(String id, String title, String detail, boolean done,
+                                boolean optional) {
+
+        static SetupStepView from(DashboardUseCases.SetupStep step) {
+            return new SetupStepView(step.id(), step.title(), step.detail(), step.done(),
+                    step.optional());
+        }
     }
 
     public record DashboardView(List<EnvironmentView> environments,
                                 List<ReleasePackView> releasePacks,
-                                SummaryView summary) {}
+                                SummaryView summary,
+                                SetupView setup) {}
 
     /**
      * @param contested   more than one active release is heading here — stated by

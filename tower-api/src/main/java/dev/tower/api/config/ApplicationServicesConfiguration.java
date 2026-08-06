@@ -146,9 +146,13 @@ public class ApplicationServicesConfiguration {
     @Bean
     public DashboardService dashboardService(
             EnvironmentRepository environmentRepository, ReleasePackRepository releasePackRepository,
-            PromotionPathRepository promotionPathRepository, ObservationService observationService) {
+            PromotionPathRepository promotionPathRepository,
+            ApplicationVersionRepository applicationVersionRepository,
+            ExternalBindingRepository externalBindingRepository,
+            ObservationService observationService) {
         return new DashboardService(environmentRepository, releasePackRepository,
-                promotionPathRepository, observationService);
+                promotionPathRepository, applicationVersionRepository, externalBindingRepository,
+                observationService);
     }
 
     /**

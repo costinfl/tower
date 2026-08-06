@@ -31,10 +31,54 @@ public interface DashboardUseCases {
      * @param releasePacks  every active Release Pack; archived ones are excluded,
      *                      because the dashboard is about what is in flight
      * @param summary       counts, each phrased as a fact about what Tower was told
+     * @param setup         where this Tower stands against the order things have
+     *                      to be defined in — empty of interest once it is complete
      */
     record Overview(List<EnvironmentSummary> environments,
                     List<ReleasePackSummary> releasePacks,
-                    Summary summary) {}
+                    Summary summary,
+                    SetupState setup) {}
+
+    /**
+     * Where this Tower stands against the order things have to be defined in.
+     *
+     * <p>Exists because the dashboard had nothing to say to a Tower that holds
+     * nothing. It answered five zeros and "No Environments have been defined
+     * yet" — honest, and a dead end. Counting silence is right (Scenario 4);
+     * leaving somebody with no idea what to do about it is not.
+     *
+     * <p>Derived on request from what exists, like everything else here, and
+     * derived on the server rather than in the Viewer so that the sequence a
+     * screen teaches and the model it teaches about cannot drift apart.
+     *
+     * <p>Says nothing about whether Tower is being used <em>well</em>. It is a
+     * list of what has been defined, not advice — the same restraint that keeps
+     * this page from ranking releases keeps it from grading a configuration.
+     *
+     * @param complete every <em>required</em> step is done. An optional step left
+     *                 undone does not hold this back, which is the difference
+     *                 between "you can use Tower now" and "you have used every
+     *                 feature"
+     */
+    record SetupState(List<SetupStep> steps, boolean complete) {
+
+        public SetupState {
+            steps = List.copyOf(steps);
+        }
+    }
+
+    /**
+     * One step, and whether this Tower has taken it.
+     *
+     * @param id       stable name for the step, so a screen can decide where the
+     *                 step leads without matching on its wording
+     * @param optional true where Tower works without it. Only Connectors are:
+     *                 ADR-006 admits a person stating what is deployed as a real
+     *                 Observation, so a Tower with no Connector at all is a
+     *                 supported way to run rather than an unfinished one, and a
+     *                 checklist implying otherwise would misdescribe the product
+     */
+    record SetupStep(String id, String title, String detail, boolean done, boolean optional) {}
 
     /**
      * One Environment: what is deployed there now, and what is heading for it.

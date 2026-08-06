@@ -1,5 +1,11 @@
 import { useEffect, useState } from "react";
-import { getDashboard, type ConvergingStanding, type DashboardView } from "../api/client";
+import {
+  getDashboard,
+  type ConvergingStanding,
+  type DashboardView,
+  type SetupStepView,
+} from "../api/client";
+import type { Tab } from "../App";
 import ErrorNote from "../components/ErrorNote";
 import { releasePackStateMeta } from "../domain/releasePackState";
 import { stageMeta } from "../domain/stage";
@@ -21,7 +27,7 @@ import { stageMeta } from "../domain/stage";
 // Nothing on this page writes. There is deliberately no promote, deploy or
 // approve control: this is the screen where such a button would feel most
 // natural and would do the most damage to what Tower is.
-export default function DashboardPage() {
+export default function DashboardPage({ onNavigate }: { onNavigate: (tab: Tab) => void }) {
   const [dashboard, setDashboard] = useState<DashboardView | null>(null);
   const [loadError, setLoadError] = useState<unknown>(null);
 
@@ -44,6 +50,15 @@ export default function DashboardPage() {
 
       {dashboard !== null && (
         <>
+          {/*
+            Only while there is something left to do. A permanent checklist on a
+            working Tower is clutter, and `complete` ignores the optional step so
+            a team that records Observations by hand is not told it is unfinished.
+          */}
+          {!dashboard.setup.complete && (
+            <SetupPath steps={dashboard.setup.steps} onNavigate={onNavigate} />
+          )}
+
           <div className="summary-tiles">
             <SummaryTile label="Active releases" value={dashboard.summary.activeReleasePacks} />
             <SummaryTile
@@ -212,6 +227,54 @@ export default function DashboardPage() {
           </section>
         </>
       )}
+    </section>
+  );
+}
+
+// The order things have to be defined in, shown against what exists.
+//
+// Every step stays visible, done ones included, because the sequence is the
+// point — a shrinking list of leftovers teaches nothing about why Environments
+// come before a Promotion Path. The server decides what is done and what is
+// optional; this renders that and nothing more.
+function SetupPath({
+  steps,
+  onNavigate,
+}: {
+  steps: SetupStepView[];
+  onNavigate: (tab: Tab) => void;
+}) {
+  return (
+    <section className="setup-path">
+      <h3 className="setup-path__title">Setting Tower up</h3>
+      <p className="field-hint">
+        This order is not a preference — a Promotion Path is a sequence of Environments, and a Release Pack
+        holds Application Versions, so each step needs the one above it. It disappears once the required
+        steps are done.
+      </p>
+      <ol className="setup-path__steps">
+        {steps.map((step, index) => (
+          <li
+            className={step.done ? "setup-step setup-step--done" : "setup-step"}
+            key={step.id}
+          >
+            <span className="setup-step__mark" aria-hidden="true">
+              {step.done ? "✓" : index + 1}
+            </span>
+            <div className="setup-step__body">
+              <button
+                type="button"
+                className="link-button setup-step__title"
+                onClick={() => onNavigate(step.id as Tab)}
+              >
+                {step.title}
+              </button>
+              {step.optional && <span className="badge">optional</span>}
+              <p className="setup-step__detail">{step.detail}</p>
+            </div>
+          </li>
+        ))}
+      </ol>
     </section>
   );
 }

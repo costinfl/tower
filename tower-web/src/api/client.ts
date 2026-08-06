@@ -429,10 +429,31 @@ export interface DashboardSummaryView {
   environmentsNeverObserved: number;
 }
 
+// Where this Tower stands against the order things have to be defined in.
+// Derived on the server with everything else on this page, so the checklist
+// cannot drift from the screens it points at.
+export interface SetupStepView {
+  // Matches the tab the step leads to, so the Dashboard needs no lookup table.
+  id: string;
+  title: string;
+  detail: string;
+  done: boolean;
+  // Sent rather than inferred from the wording: Tower works entirely on
+  // manually recorded Observations, and an optional step must render as one.
+  optional: boolean;
+}
+
+export interface SetupView {
+  steps: SetupStepView[];
+  // True once every required step is done. The optional one does not count.
+  complete: boolean;
+}
+
 export interface DashboardView {
   environments: DashboardEnvironmentView[];
   releasePacks: DashboardReleasePackView[];
   summary: DashboardSummaryView;
+  setup: SetupView;
 }
 
 // --- Release Pack state -------------------------------------------------

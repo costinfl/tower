@@ -161,6 +161,24 @@ This checklist tracks the architectural documentation required before implementa
       and that a document regenerates byte-identically after one
 - [ ] Live verification against a real Artifactory (no host is reachable from the build environment)
 
+## Getting started
+
+- [x] FR-087 and FR-088
+- [x] A setup path on the Dashboard: the order the model forces, each step done or not done, derived
+      on request from what exists and never stored. Binding a system is marked optional and the path
+      is complete without it — ADR-006 makes a person recording a deployment a Collector like any
+      other, so a Tower connected to nothing is a supported way to run.
+- [x] The path shows only while a required step remains, and each step leads to the screen that
+      completes it
+- [x] Navigation in three groups — the daily screens, the setup screens in the order they must be
+      done, then sharing — so neither order is paid for in the other
+- [x] The Connectors screen split into the five Connector categories Connector-Model.md names,
+      instead of nine panels in one scroll
+- [x] Driven in a real browser against a fresh store: five steps, none done; each step navigates;
+      steps flip one at a time; an empty Release Pack does not tick the step that asks for contents;
+      the path disappears after the fourth. The demo bundle was driven too — nothing automated
+      compares the two dashboards.
+
 ## Defects found and fixed
 
 - [x] The credential store returned garbage instead of failing when the master key was wrong, about

@@ -127,6 +127,34 @@ select {
 
 .app-nav {
   display: flex;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+/* Groups stack their label over their tabs, so the whole nav stays one row on
+   a normal window and wraps group by group rather than tab by tab. */
+.app-nav__group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.app-nav__group + .app-nav__group {
+  border-left: 1px solid var(--border);
+  padding-left: 1.25rem;
+}
+
+.app-nav__group-label {
+  font-size: 0.65rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding-left: 0.75rem;
+}
+
+.app-nav__tabs {
+  display: flex;
   gap: 0.5rem;
 }
 
@@ -997,6 +1025,33 @@ select {
   margin-top: 0.5rem;
 }
 
+/* Sub-navigation within a page, reusing the header tab look at a smaller
+   scale so a section tab is recognisably the same gesture as a nav tab. */
+.panel-nav {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  margin: 1rem 0 0.25rem;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.5rem;
+}
+
+.panel-nav__tab {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 0.3rem 0.6rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.panel-nav__tab--active {
+  color: var(--text);
+  background: var(--bg-subtle);
+  border-color: var(--border);
+  font-weight: 600;
+}
+
 /*
   The download is an anchor, not a button, so the browser follows it and keeps
   the Content-Disposition filename the server derives. It is styled to match
@@ -1366,6 +1421,76 @@ select {
 }
 
 /* --- Operational dashboard (Milestone 5, issue #7) --------------------- */
+
+/* --- The setup path (Dashboard) ------------------------------------- */
+
+.setup-path {
+  margin: 1rem 0 0.5rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-subtle);
+}
+
+.setup-path__title {
+  margin: 0 0 0.25rem;
+  font-size: 1rem;
+}
+
+.setup-path__steps {
+  list-style: none;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.setup-step {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+/* The number is the step's place in the order, replaced by a tick once done —
+   the sequence stays readable either way. */
+.setup-step__mark {
+  flex: 0 0 auto;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.setup-step--done .setup-step__mark {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.setup-step__body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+/* Done steps are not struck out or greyed: the sequence is what the panel is
+   for, and a step you can no longer read teaches nothing. The tick says done. */
+.setup-step__title {
+  font-size: 0.95rem;
+}
+
+.setup-step__detail {
+  flex: 1 1 100%;
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
 
 .summary-tiles {
   display: flex;

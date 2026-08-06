@@ -566,7 +566,77 @@ function dashboardView() {
       packsNotObservedAnywhere: active.filter((p) => !progressions.get(p.id)!.observed).length,
       environmentsNeverObserved: neverObserved,
     },
+    setup: setupView(),
   };
+}
+
+// The same derivation DashboardService does, against the demo's own state.
+//
+// Wording included rather than summarised: the demo is what most people see of
+// Tower first, and a checklist that explained the order differently from the
+// real one would teach the wrong thing. Nothing automated compares the two —
+// verify-demo-docgen.sh only checks documents — so this is kept in step by hand.
+function setupView() {
+  const steps = [
+    {
+      id: "environments",
+      title: "Define your Environments",
+      detail:
+        "The places software runs — Dev, SIT, UAT, Production. Everything else refers to them," +
+        " so they come first.",
+      done: state.environments.length > 0,
+      optional: false,
+    },
+    {
+      id: "paths",
+      title: "Arrange them into a Promotion Path",
+      detail:
+        "The route a release takes through those Environments. A release pins the version of the" +
+        " path it follows, so the path can change later without rewriting history.",
+      done: state.paths.length > 0,
+      optional: false,
+    },
+    {
+      id: "applications",
+      title: "Register an Application and a version of it",
+      detail:
+        "What gets deployed. A version is immutable once registered, so Tower can point at it" +
+        " forever.",
+      done: state.versions.length > 0,
+      optional: false,
+    },
+    {
+      id: "releasePacks",
+      title: "Create a Release Pack and put versions in it",
+      detail:
+        "What a team actually ships: the versions that travel together, and the handover that" +
+        " goes with them.",
+      done: state.packs.some((p) => p.contents.length > 0),
+      optional: false,
+    },
+    {
+      // Optional because ADR-006 admits a person saying what is deployed as a
+      // real Observation: a Tower connected to nothing is a supported way to
+      // run, not a half-finished one.
+      id: "connectors",
+      title: "Connect a system, so Tower reads deployments for you",
+      detail:
+        "Optional. Without this you record what is deployed yourself, and Tower treats what you" +
+        " say as a fact like any other. With it, Tower reads Kubernetes, git, a CI system or an" +
+        " artifact repository and never writes to any of them.",
+      done:
+        state.environmentBindings.length > 0 ||
+        state.applicationBindings.length > 0 ||
+        state.repositoryBindings.length > 0 ||
+        state.issueTrackerBindings.length > 0 ||
+        state.pipelineBindings.length > 0 ||
+        state.buildBindings.length > 0 ||
+        state.artifactBindings.length > 0,
+      optional: true,
+    },
+  ];
+
+  return { steps, complete: steps.every((s) => s.optional || s.done) };
 }
 
 // ADR-008: the highest Stage at which any of the pack's contents was observed.

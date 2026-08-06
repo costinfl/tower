@@ -61,6 +61,22 @@ import ErrorNote, { describeError } from "../components/ErrorNote";
 // the string keeps the day a second one arrives to this file.
 const CONNECTOR_ID = "kubernetes";
 
+// The five Connector categories, named as Connector-Model.md names them, so the
+// screen and the architecture document say the same five things.
+//
+// This is presentation only: reload() still fetches everything, every panel
+// keeps the props it had, and switching sections costs no round trip. What it
+// buys is that configuring one thing no longer means scrolling past six others.
+type Section = "platforms" | "source" | "tracker" | "cicd" | "artifacts";
+
+const SECTIONS: { section: Section; label: string }[] = [
+  { section: "platforms", label: "Deployment platforms" },
+  { section: "source", label: "Source control" },
+  { section: "tracker", label: "Issue tracker" },
+  { section: "cicd", label: "CI/CD" },
+  { section: "artifacts", label: "Artifacts" },
+];
+
 export default function ConnectorsPage() {
   const [environments, setEnvironments] = useState<Environment[]>([]);
   const [applications, setApplications] = useState<Application[]>([]);
@@ -74,6 +90,7 @@ export default function ConnectorsPage() {
   const [buildBindings, setBuildBindings] = useState<BuildJobBinding[]>([]);
   const [runs, setRuns] = useState<SyncRun[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [section, setSection] = useState<Section>("platforms");
 
   const reload = useCallback(async () => {
     try {
@@ -117,70 +134,101 @@ export default function ConnectorsPage() {
     <section className="page">
       <h2>Connectors</h2>
       <p className="page__intro">
-        Tower reads Deployment Platforms so nobody has to type in what is deployed. It never writes
-        to them: every Connector operation is a read, and a Connector that named a method for
-        mutation would fail the build.
+        Tower reads the systems you already run — deployment platforms, git, an issue tracker, a CI
+        system, an artifact repository — so nobody has to type in what they already say. It never
+        writes to any of them: every Connector operation is a read, and a Connector that named a
+        method for mutation would fail the build.
       </p>
 
       {error !== null && <ErrorNote error={error} />}
 
-      <SynchronizePanel runs={runs} onDone={reload} onError={setError} />
+      <nav className="panel-nav">
+        {SECTIONS.map((entry) => (
+          <button
+            key={entry.section}
+            type="button"
+            className={
+              section === entry.section ? "panel-nav__tab panel-nav__tab--active" : "panel-nav__tab"
+            }
+            onClick={() => setSection(entry.section)}
+          >
+            {entry.label}
+          </button>
+        ))}
+      </nav>
 
-      <EnvironmentBindingsPanel
-        environments={environments}
-        bindings={environmentBindings}
-        onChanged={reload}
-        onError={setError}
-      />
+      {section === "platforms" && (
+        <>
+          <SynchronizePanel runs={runs} onDone={reload} onError={setError} />
 
-      <ApplicationBindingsPanel
-        applications={applications}
-        bindings={applicationBindings}
-        onChanged={reload}
-        onError={setError}
-      />
+          <EnvironmentBindingsPanel
+            environments={environments}
+            bindings={environmentBindings}
+            onChanged={reload}
+            onError={setError}
+          />
 
-      <RepositoryBindingsPanel
-        applications={applications}
-        bindings={repositoryBindings}
-        onChanged={reload}
-        onError={setError}
-      />
+          <ApplicationBindingsPanel
+            applications={applications}
+            bindings={applicationBindings}
+            onChanged={reload}
+            onError={setError}
+          />
+        </>
+      )}
 
-      <IssueTrackerBindingsPanel
-        bindings={trackerBindings}
-        onChanged={reload}
-        onError={setError}
-      />
+      {section === "source" && (
+        <RepositoryBindingsPanel
+          applications={applications}
+          bindings={repositoryBindings}
+          onChanged={reload}
+          onError={setError}
+        />
+      )}
 
-      {/*
-        The CI/CD pair sits together: the jobs, then what reading them produced.
-        Deliberately not merged into the Synchronization panel above — OQ-017
-        records why, and PipelineSyncPanel says it on the screen.
-      */}
-      <PipelineJobBindingsPanel
-        environments={environments}
-        applications={applications}
-        bindings={pipelineBindings}
-        onChanged={reload}
-        onError={setError}
-      />
+      {section === "tracker" && (
+        <IssueTrackerBindingsPanel
+          bindings={trackerBindings}
+          onChanged={reload}
+          onError={setError}
+        />
+      )}
 
-      <BuildJobBindingsPanel
-        applications={applications}
-        bindings={buildBindings}
-        onChanged={reload}
-        onError={setError}
-      />
+      {section === "cicd" && (
+        <>
+          {/*
+            The jobs, then what reading them produced. The pipeline report is
+            deliberately not merged into the Synchronization panel under
+            Deployment platforms — OQ-017 records why, and PipelineSyncPanel says
+            it on the screen.
+          */}
+          <PipelineJobBindingsPanel
+            environments={environments}
+            applications={applications}
+            bindings={pipelineBindings}
+            onChanged={reload}
+            onError={setError}
+          />
 
-      <PipelineSyncPanel reports={pipelineReports} onDone={reload} onError={setError} />
+          <BuildJobBindingsPanel
+            applications={applications}
+            bindings={buildBindings}
+            onChanged={reload}
+            onError={setError}
+          />
 
-      <ArtifactCoordinateBindingsPanel
-        applications={applications}
-        bindings={artifactBindings}
-        onChanged={reload}
-        onError={setError}
-      />
+          <PipelineSyncPanel reports={pipelineReports} onDone={reload} onError={setError} />
+        </>
+      )}
+
+      {section === "artifacts" && (
+        <ArtifactCoordinateBindingsPanel
+          applications={applications}
+          bindings={artifactBindings}
+          onChanged={reload}
+          onError={setError}
+        />
+      )}
     </section>
   );
 }

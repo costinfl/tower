@@ -670,6 +670,39 @@ difference shall be shown. It is the one way a team learns that a tag was pushed
 
 ---
 
+# Getting Started
+
+## FR-087
+
+The system shall report where a Tower stands against the order in which its concepts must be defined.
+
+The order is the one the model forces, not one somebody preferred: a Promotion Path is a sequence of
+Environments, a Release Pack holds Application Versions. Each step shall be reported as done or not done,
+derived from what exists at the moment of asking and never stored — a stored checklist would be a second
+account of the same facts, free to disagree with them. Each answer therefore traces to User-Owned Information
+(IA-05): it says whether a person defined something, never whether Tower thinks they should have.
+
+The step that binds an External System shall be reported as optional, and the report shall be complete
+without it. A person recording what is deployed is a Collector like any other (ADR-006), so a Tower connected
+to nothing is a supported way to run rather than a half-finished one, and a checklist implying otherwise
+would misdescribe the product.
+
+---
+
+## FR-088
+
+The Viewer shall present the order in which things must be defined without reordering the screens used daily.
+
+Two orders are true at once: a newcomer needs Environments before Promotion Paths before Applications, while
+somebody who already configured Tower reaches most often for what is in flight. The Viewer shall satisfy both
+by grouping — the daily screens first, the setup screens grouped in the order they must be done — rather than
+by choosing one order and paying for it in the other.
+
+The report defined by FR-087 shall be shown only while a required step remains, and each step shall lead to
+the screen that completes it.
+
+---
+
 # Deferred
 
 ## FR-054
@@ -695,5 +728,7 @@ FR-068 to FR-070 define what Milestone 4 adds.
 FR-071 to FR-075 define what Milestone 5 adds.
 
 FR-076 to FR-081 define the CI/CD Connector, and FR-082 to FR-086 the Artifact Repository Connector.
+
+FR-087 and FR-088 define what a Tower with nothing in it tells the person setting it up.
 
 Capabilities beyond these requirements shall be evaluated in future milestones.

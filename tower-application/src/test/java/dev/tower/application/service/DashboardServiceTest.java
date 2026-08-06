@@ -17,7 +17,16 @@ import org.junit.jupiter.api.Test;
 
 import dev.tower.application.port.in.DashboardUseCases.Overview;
 import dev.tower.application.port.out.ApplicationVersionRepository;
+import dev.tower.application.binding.ApplicationBinding;
+import dev.tower.application.binding.ArtifactCoordinateBinding;
+import dev.tower.application.binding.BuildJobBinding;
+import dev.tower.application.binding.EnvironmentBinding;
+import dev.tower.application.binding.IssueTrackerBinding;
+import dev.tower.application.binding.PipelineJobBinding;
+import dev.tower.application.binding.RepositoryBinding;
+import dev.tower.application.port.in.DashboardUseCases;
 import dev.tower.application.port.out.EnvironmentRepository;
+import dev.tower.application.port.out.ExternalBindingRepository;
 import dev.tower.application.port.out.ObservationRepository;
 import dev.tower.application.port.out.PromotionPathRepository;
 import dev.tower.application.port.out.ReleasePackRepository;
@@ -57,6 +66,7 @@ class DashboardServiceTest {
     private InMemoryPaths paths;
     private InMemoryObservations observations;
     private InMemoryVersions versions;
+    private InMemoryBindings bindings;
     private DashboardService dashboard;
 
     private Environment sit;
@@ -78,7 +88,9 @@ class DashboardServiceTest {
                 observations, environments, versions, packs,
                 () -> ObservationSource.manual("costin"),
                 Clock.fixed(Instant.parse("2026-09-01T00:00:00Z"), ZoneOffset.UTC));
-        dashboard = new DashboardService(environments, packs, paths, observationService);
+        bindings = new InMemoryBindings();
+        dashboard = new DashboardService(
+                environments, packs, paths, versions, bindings, observationService);
 
         sit = environments.save(Environment.create("SIT", Stage.VALIDATION));
         uat = environments.save(Environment.create("UAT", Stage.PRE_PRODUCTION));
@@ -197,6 +209,126 @@ class DashboardServiceTest {
             paths.save(regular.withNewVersion(List.of(sit.id(), production.id()), TUE));
 
             assertThat(rowFor(dashboard.overview(), "UAT").convergence().packs()).hasSize(1);
+        }
+    }
+
+    @Nested
+    @DisplayName("says where a Tower stands against the order things are defined in")
+    class Setup {
+
+        /**
+         * A Tower that holds nothing, built here rather than reusing the fixture
+         * above — that one defines Environments, paths and versions in its own
+         * setUp, so it can never show what a new Tower sees.
+         */
+        private DashboardService empty() {
+            InMemoryEnvironments noEnvironments = new InMemoryEnvironments();
+            InMemoryPacks noPacks = new InMemoryPacks();
+            InMemoryPaths noPaths = new InMemoryPaths();
+            InMemoryVersions noVersions = new InMemoryVersions();
+            InMemoryObservations noObservations = new InMemoryObservations();
+            return new DashboardService(noEnvironments, noPacks, noPaths, noVersions,
+                    new InMemoryBindings(),
+                    new ObservationService(noObservations, noEnvironments, noVersions, noPacks,
+                            () -> ObservationSource.manual("costin"),
+                            Clock.fixed(Instant.parse("2026-09-01T00:00:00Z"), ZoneOffset.UTC)));
+        }
+
+        @Test
+        void a_new_tower_has_every_required_step_still_to_take() {
+            var setup = empty().overview().setup();
+
+            assertThat(setup.complete()).isFalse();
+            assertThat(setup.steps()).extracting("id")
+                    .containsExactly("environments", "paths", "applications", "releasePacks",
+                            "connectors");
+            assertThat(setup.steps()).noneMatch(DashboardUseCases.SetupStep::done);
+        }
+
+        @Test
+        void the_order_is_the_one_the_model_forces() {
+            // Not a preference, which is why it is safe to teach: a Promotion
+            // Path is a sequence of Environments, and a Release Pack holds
+            // Application Versions.
+            var ids = empty().overview().setup().steps().stream()
+                    .map(DashboardUseCases.SetupStep::id).toList();
+
+            assertThat(ids.indexOf("environments")).isLessThan(ids.indexOf("paths"));
+            assertThat(ids.indexOf("applications")).isLessThan(ids.indexOf("releasePacks"));
+        }
+
+        @Test
+        void connectors_are_the_only_optional_step() {
+            // ADR-006 admits a person stating what is deployed as a real
+            // Observation, so a Tower nobody connected to anything is a
+            // supported way to run rather than an unfinished one.
+            assertThat(empty().overview().setup().steps())
+                    .filteredOn(DashboardUseCases.SetupStep::optional)
+                    .extracting("id").containsExactly("connectors");
+        }
+
+        @Test
+        void a_step_flips_to_done_when_the_thing_it_names_exists() {
+            // The shared fixture defines Environments and Versions but no path,
+            // so this walks a real Tower one step further.
+            var before = dashboard.overview().setup();
+            assertThat(done(before, "environments")).isTrue();
+            assertThat(done(before, "applications")).isTrue();
+            assertThat(done(before, "paths")).isFalse();
+
+            pathThrough("Regular", sit, uat, production);
+
+            assertThat(done(dashboard.overview().setup(), "paths")).isTrue();
+        }
+
+        @Test
+        void a_release_pack_with_nothing_in_it_does_not_count() {
+            // The step is "create a Release Pack and put versions in it". An
+            // empty pack has taken half the step, and reporting it as done would
+            // send somebody looking for what they had already finished.
+            InMemoryPacks empties = new InMemoryPacks();
+            empties.save(ReleasePack.create("Release 2026.09", ""));
+            var service = new DashboardService(environments, empties, paths, versions,
+                    new InMemoryBindings(), new ObservationService(
+                            observations, environments, versions, empties,
+                            () -> ObservationSource.manual("costin"),
+                            Clock.fixed(Instant.parse("2026-09-01T00:00:00Z"), ZoneOffset.UTC)));
+
+            assertThat(done(service.overview().setup(), "releasePacks")).isFalse();
+        }
+
+        @Test
+        void is_complete_once_the_required_steps_are_done_even_with_nothing_connected() {
+            // The distinction the optional flag exists for: "you can use Tower
+            // now" rather than "you have used every feature".
+            PromotionPath regular = pathThrough("Regular", sit, uat, production);
+            packOn("Release 2026.09", regular, customer250);
+
+            var setup = dashboard.overview().setup();
+
+            assertThat(done(setup, "releasePacks")).isTrue();
+            assertThat(done(setup, "connectors")).isFalse();
+            assertThat(setup.complete()).isTrue();
+        }
+
+        @Test
+        void counts_a_binding_of_any_kind_as_connected() {
+            // Any one counts. Asking for a particular kind would be Tower having
+            // an opinion about which Connector a team ought to use.
+            InMemoryBindings bound = new InMemoryBindings();
+            bound.bindSomething();
+            var service = new DashboardService(environments, packs, paths, versions, bound,
+                    new ObservationService(observations, environments, versions, packs,
+                            () -> ObservationSource.manual("costin"),
+                            Clock.fixed(Instant.parse("2026-09-01T00:00:00Z"), ZoneOffset.UTC)));
+
+            assertThat(done(service.overview().setup(), "connectors")).isTrue();
+        }
+
+        private boolean done(DashboardUseCases.SetupState setup, String id) {
+            return setup.steps().stream()
+                    .filter(step -> step.id().equals(id))
+                    .findFirst().orElseThrow().done();
         }
     }
 
@@ -476,6 +608,217 @@ class DashboardServiceTest {
         @Override
         public void deleteById(PromotionPathId id) {
             stored.removeIf(p -> p.id().equals(id));
+        }
+    }
+
+    /**
+     * Holds only what the setup state asks about: whether anything is bound.
+     *
+     * <p>Every other method throws rather than answering empty, so a future
+     * change that started reading a binding here fails loudly instead of
+     * silently taking "nothing configured" for an answer.
+     */
+    private static final class InMemoryBindings implements ExternalBindingRepository {
+
+        private final List<Object> anything = new ArrayList<>();
+
+        void bindSomething() {
+            anything.add(new Object());
+        }
+
+        private static UnsupportedOperationException notThisTest() {
+            return new UnsupportedOperationException(
+                    "The dashboard asks only whether anything is bound.");
+        }
+
+        @Override
+        public List<EnvironmentBinding> findAllEnvironmentBindings() {
+            return anything.isEmpty() ? List.of() : List.of(new EnvironmentBinding(
+                    EnvironmentId.newId(), "kubernetes", "https://api.example", "ns"));
+        }
+
+        @Override
+        public List<ApplicationBinding> findAllApplicationBindings() {
+            return List.of();
+        }
+
+        @Override
+        public List<RepositoryBinding> findAllRepositoryBindings() {
+            return List.of();
+        }
+
+        @Override
+        public List<IssueTrackerBinding> findAllIssueTrackerBindings() {
+            return List.of();
+        }
+
+        @Override
+        public List<PipelineJobBinding> findAllPipelineJobBindings() {
+            return List.of();
+        }
+
+        @Override
+        public List<BuildJobBinding> findAllBuildJobBindings() {
+            return List.of();
+        }
+
+        @Override
+        public List<ArtifactCoordinateBinding> findAllArtifactCoordinateBindings() {
+            return List.of();
+        }
+
+        @Override
+        public EnvironmentBinding save(EnvironmentBinding binding) {
+            throw notThisTest();
+        }
+
+        @Override
+        public Optional<EnvironmentBinding> findEnvironmentBinding(
+                EnvironmentId environmentId, String connectorId) {
+            throw notThisTest();
+        }
+
+        @Override
+        public List<EnvironmentBinding> findAllEnvironmentBindings(String connectorId) {
+            throw notThisTest();
+        }
+
+        @Override
+        public void deleteEnvironmentBinding(EnvironmentId environmentId, String connectorId) {
+            throw notThisTest();
+        }
+
+        @Override
+        public ApplicationBinding save(ApplicationBinding binding) {
+            throw notThisTest();
+        }
+
+        @Override
+        public Optional<ApplicationBinding> findApplicationBinding(
+                ApplicationId applicationId, String connectorId) {
+            throw notThisTest();
+        }
+
+        @Override
+        public List<ApplicationBinding> findAllApplicationBindings(String connectorId) {
+            throw notThisTest();
+        }
+
+        @Override
+        public void deleteApplicationBinding(ApplicationId applicationId, String connectorId) {
+            throw notThisTest();
+        }
+
+        @Override
+        public RepositoryBinding save(RepositoryBinding binding) {
+            throw notThisTest();
+        }
+
+        @Override
+        public Optional<RepositoryBinding> findRepositoryBinding(
+                ApplicationId applicationId, String connectorId) {
+            throw notThisTest();
+        }
+
+        @Override
+        public List<RepositoryBinding> findAllRepositoryBindings(String connectorId) {
+            throw notThisTest();
+        }
+
+        @Override
+        public void deleteRepositoryBinding(ApplicationId applicationId, String connectorId) {
+            throw notThisTest();
+        }
+
+        @Override
+        public IssueTrackerBinding save(IssueTrackerBinding binding) {
+            throw notThisTest();
+        }
+
+        @Override
+        public Optional<IssueTrackerBinding> findIssueTrackerBinding(String connectorId) {
+            throw notThisTest();
+        }
+
+        @Override
+        public void deleteIssueTrackerBinding(String connectorId) {
+            throw notThisTest();
+        }
+
+        @Override
+        public PipelineJobBinding save(PipelineJobBinding binding) {
+            throw notThisTest();
+        }
+
+        @Override
+        public Optional<PipelineJobBinding> findPipelineJobBinding(
+                EnvironmentId environmentId, ApplicationId applicationId, String connectorId) {
+            throw notThisTest();
+        }
+
+        @Override
+        public List<PipelineJobBinding> findAllPipelineJobBindings(String connectorId) {
+            throw notThisTest();
+        }
+
+        @Override
+        public void deletePipelineJobBinding(
+                EnvironmentId environmentId, ApplicationId applicationId, String connectorId) {
+            throw notThisTest();
+        }
+
+        @Override
+        public ArtifactCoordinateBinding save(ArtifactCoordinateBinding binding) {
+            throw notThisTest();
+        }
+
+        @Override
+        public Optional<ArtifactCoordinateBinding> findArtifactCoordinateBinding(
+                ApplicationId applicationId, String connectorId, String kind) {
+            throw notThisTest();
+        }
+
+        @Override
+        public List<ArtifactCoordinateBinding> findArtifactCoordinateBindings(
+                ApplicationId applicationId) {
+            throw notThisTest();
+        }
+
+        @Override
+        public List<ArtifactCoordinateBinding> findAllArtifactCoordinateBindings(String connectorId) {
+            throw notThisTest();
+        }
+
+        @Override
+        public void deleteArtifactCoordinateBinding(
+                ApplicationId applicationId, String connectorId, String kind) {
+            throw notThisTest();
+        }
+
+        @Override
+        public BuildJobBinding save(BuildJobBinding binding) {
+            throw notThisTest();
+        }
+
+        @Override
+        public Optional<BuildJobBinding> findBuildJobBinding(
+                ApplicationId applicationId, String connectorId, String job) {
+            throw notThisTest();
+        }
+
+        @Override
+        public List<BuildJobBinding> findBuildJobBindings(ApplicationId applicationId) {
+            throw notThisTest();
+        }
+
+        @Override
+        public List<BuildJobBinding> findAllBuildJobBindings(String connectorId) {
+            throw notThisTest();
+        }
+
+        @Override
+        public void deleteBuildJobBinding(ApplicationId applicationId, String connectorId, String job) {
+            throw notThisTest();
         }
     }
 }

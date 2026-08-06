@@ -58,11 +58,32 @@ class DashboardControllerTest {
                 List.of(new DashboardUseCases.ReleasePackSummary(
                         RELEASE_A, "Release A", ReleasePackState.VALIDATION,
                         "Regular", 2, 1, List.of("SIT"), MON)),
-                new DashboardUseCases.Summary(2, 1, 1, 1, 0));
+                new DashboardUseCases.Summary(2, 1, 1, 1, 0),
+                new DashboardUseCases.SetupState(List.of(
+                        new DashboardUseCases.SetupStep("environments", "Define your Environments",
+                                "The places software runs.", true, false),
+                        new DashboardUseCases.SetupStep("connectors", "Connect a system",
+                                "Optional.", false, true)),
+                        true));
 
         mvc = MockMvcBuilders.standaloneSetup(new DashboardController(dashboard))
                 .setControllerAdvice(new ApiExceptionHandler())
                 .build();
+    }
+
+    @Test
+    void carries_the_setup_path_with_its_optional_flag() throws Exception {
+        // The flag is what tells a reader "you can use Tower without this".
+        // Dropping it in transit would silently turn an optional step into a
+        // required one on the only screen that shows it.
+        mvc.perform(get("/api/dashboard"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.setup.complete").value(true))
+                .andExpect(jsonPath("$.setup.steps[0].id").value("environments"))
+                .andExpect(jsonPath("$.setup.steps[0].done").value(true))
+                .andExpect(jsonPath("$.setup.steps[0].optional").value(false))
+                .andExpect(jsonPath("$.setup.steps[1].id").value("connectors"))
+                .andExpect(jsonPath("$.setup.steps[1].optional").value(true));
     }
 
     @Test

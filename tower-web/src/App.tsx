@@ -16,11 +16,7 @@ type ConnectionState =
   | { kind: "connected"; status: string }
   | { kind: "error"; message: string };
 
-// The Dashboard leads the nav from Milestone 5: it is the question a
-// developer arrives with — what is in flight and what is competing for what —
-// and every other screen answers a narrower one. Release Packs stays second
-// because it remains Tower's central business concept (ADR-004).
-type Tab =
+export type Tab =
   | "dashboard"
   | "releasePacks"
   | "applications"
@@ -29,6 +25,49 @@ type Tab =
   | "connectors"
   | "templates"
   | "portability";
+
+// The nav has to serve two people and used to serve only one.
+//
+// Ordered by frequency of use, the Dashboard leads: it is the question a
+// developer arrives with, and every other screen answers a narrower one.
+// Ordered by what a newcomer must do, it runs the other way — Environments
+// first, because a Promotion Path is a sequence of them and everything else
+// refers to them in turn.
+//
+// Grouping is how both are true at once. The daily pair stays first, so nobody
+// who already configured Tower pays for the newcomer's benefit, and the middle
+// group says outright that its order is an order. The Dashboard's setup path
+// teaches the same sequence from the other end, driven by what actually exists.
+const NAV: { label: string; tabs: { tab: Tab; label: string }[] }[] = [
+  {
+    label: "Watch",
+    tabs: [
+      { tab: "dashboard", label: "Dashboard" },
+      // Second because it remains Tower's central business concept (ADR-004).
+      { tab: "releasePacks", label: "Release Packs" },
+    ],
+  },
+  {
+    // The order inside this group is the one the model forces rather than one
+    // somebody preferred, which is why it is safe to label as an order.
+    label: "Set up, in order",
+    tabs: [
+      { tab: "environments", label: "Environments" },
+      { tab: "paths", label: "Promotion Paths" },
+      { tab: "applications", label: "Applications" },
+      { tab: "connectors", label: "Connectors" },
+      // Configuration for the documents Release Packs produce, so it sits after
+      // the screens that produce them rather than beside them.
+      { tab: "templates", label: "Doc templates" },
+    ],
+  },
+  {
+    // Last: sharing is something you do once the release information itself
+    // exists, not the first thing you reach for.
+    label: "Share",
+    tabs: [{ tab: "portability", label: "Export & Import" }],
+  },
+];
 
 export default function App() {
   const [connection, setConnection] = useState<ConnectionState>({ kind: "loading" });
@@ -60,75 +99,25 @@ export default function App() {
       <header className="app-header">
         <h1>Tower</h1>
         <nav className="app-nav">
-          <button
-            type="button"
-            className={tab === "dashboard" ? "app-nav__tab app-nav__tab--active" : "app-nav__tab"}
-            onClick={() => setTab("dashboard")}
-          >
-            Dashboard
-          </button>
-          <button
-            type="button"
-            className={tab === "releasePacks" ? "app-nav__tab app-nav__tab--active" : "app-nav__tab"}
-            onClick={() => setTab("releasePacks")}
-          >
-            Release Packs
-          </button>
-          <button
-            type="button"
-            className={tab === "applications" ? "app-nav__tab app-nav__tab--active" : "app-nav__tab"}
-            onClick={() => setTab("applications")}
-          >
-            Applications
-          </button>
-          <button
-            type="button"
-            className={tab === "paths" ? "app-nav__tab app-nav__tab--active" : "app-nav__tab"}
-            onClick={() => setTab("paths")}
-          >
-            Promotion Paths
-          </button>
-          <button
-            type="button"
-            className={tab === "environments" ? "app-nav__tab app-nav__tab--active" : "app-nav__tab"}
-            onClick={() => setTab("environments")}
-          >
-            Environments
-          </button>
-          {/*
-            After Environments, because binding one is the step that follows
-            defining it, and before Export & Import for the same reason that
-            sits last.
-          */}
-          <button
-            type="button"
-            className={tab === "connectors" ? "app-nav__tab app-nav__tab--active" : "app-nav__tab"}
-            onClick={() => setTab("connectors")}
-          >
-            Connectors
-          </button>
-          {/*
-            Configuration for the documents Release Packs produce, so it sits
-            after the screens that produce them rather than beside them.
-          */}
-          <button
-            type="button"
-            className={tab === "templates" ? "app-nav__tab app-nav__tab--active" : "app-nav__tab"}
-            onClick={() => setTab("templates")}
-          >
-            Doc templates
-          </button>
-          {/*
-            Last in the order: sharing is something you do once the release
-            information itself exists, not the first thing you reach for.
-          */}
-          <button
-            type="button"
-            className={tab === "portability" ? "app-nav__tab app-nav__tab--active" : "app-nav__tab"}
-            onClick={() => setTab("portability")}
-          >
-            Export &amp; Import
-          </button>
+          {NAV.map((group) => (
+            <div className="app-nav__group" key={group.label}>
+              <span className="app-nav__group-label">{group.label}</span>
+              <div className="app-nav__tabs">
+                {group.tabs.map((entry) => (
+                  <button
+                    key={entry.tab}
+                    type="button"
+                    className={
+                      tab === entry.tab ? "app-nav__tab app-nav__tab--active" : "app-nav__tab"
+                    }
+                    onClick={() => setTab(entry.tab)}
+                  >
+                    {entry.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
         </nav>
         <p className="backend-status" data-state={connection.kind}>
           {connection.kind === "loading" && "Checking backend connectivity…"}
@@ -138,7 +127,12 @@ export default function App() {
       </header>
       {DEMO_MODE && <DemoBanner />}
       <main className="app-main">
-        {tab === "dashboard" && <DashboardPage />}
+        {/*
+          The Dashboard is the only screen that navigates: its setup path names
+          the steps in order and each one has to lead somewhere. Passing the
+          setter rather than routing keeps the rest of the app as it was.
+        */}
+        {tab === "dashboard" && <DashboardPage onNavigate={setTab} />}
         {tab === "releasePacks" && <ReleasePacksPage />}
         {tab === "applications" && <ApplicationsPage />}
         {tab === "paths" && <PromotionPathsPage />}

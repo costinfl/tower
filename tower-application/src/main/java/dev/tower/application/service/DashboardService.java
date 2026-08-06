@@ -11,7 +11,9 @@ import java.util.Optional;
 
 import dev.tower.application.port.in.DashboardUseCases;
 import dev.tower.application.port.in.ObservationUseCases;
+import dev.tower.application.port.out.ApplicationVersionRepository;
 import dev.tower.application.port.out.EnvironmentRepository;
+import dev.tower.application.port.out.ExternalBindingRepository;
 import dev.tower.application.port.out.PromotionPathRepository;
 import dev.tower.application.port.out.ReleasePackRepository;
 import dev.tower.domain.convergence.EnvironmentConvergence;
@@ -45,15 +47,21 @@ public class DashboardService implements DashboardUseCases {
     private final EnvironmentRepository environments;
     private final ReleasePackRepository releasePacks;
     private final PromotionPathRepository promotionPaths;
+    private final ApplicationVersionRepository applicationVersions;
+    private final ExternalBindingRepository bindings;
     private final ObservationUseCases observations;
 
     public DashboardService(EnvironmentRepository environments,
                             ReleasePackRepository releasePacks,
                             PromotionPathRepository promotionPaths,
+                            ApplicationVersionRepository applicationVersions,
+                            ExternalBindingRepository bindings,
                             ObservationUseCases observations) {
         this.environments = Objects.requireNonNull(environments);
         this.releasePacks = Objects.requireNonNull(releasePacks);
         this.promotionPaths = Objects.requireNonNull(promotionPaths);
+        this.applicationVersions = Objects.requireNonNull(applicationVersions);
+        this.bindings = Objects.requireNonNull(bindings);
         this.observations = Objects.requireNonNull(observations);
     }
 
@@ -133,7 +141,73 @@ public class DashboardService implements DashboardUseCases {
                 ReleasePackSummary::name, String.CASE_INSENSITIVE_ORDER));
 
         return new Overview(environmentSummaries, packSummaries,
-                new Summary(active.size(), (int) archived, contested, unobserved, neverObserved));
+                new Summary(active.size(), (int) archived, contested, unobserved, neverObserved),
+                setupState());
+    }
+
+    /**
+     * Where this Tower stands against the order things have to be defined in.
+     *
+     * <p>The order is the one the model forces rather than one somebody chose: a
+     * Promotion Path is a sequence of Environments, so Environments come first; a
+     * Release Pack holds Application Versions, so those come before it. Nothing
+     * here is a preference, which is why it is safe to teach.
+     *
+     * <p>Read from the repositories directly rather than through the use cases
+     * above, unlike every other number on this page. What is being asked is "does
+     * any of these exist", and routing that through a derivation would make the
+     * cheapest question on the dashboard the most expensive.
+     */
+    private SetupState setupState() {
+        List<SetupStep> steps = List.of(
+                new SetupStep("environments", "Define your Environments",
+                        "The places software runs — Dev, SIT, UAT, Production. Everything else"
+                                + " refers to them, so they come first.",
+                        !environments.findAll().isEmpty(), false),
+                new SetupStep("paths", "Arrange them into a Promotion Path",
+                        "The route a release takes through those Environments. A release pins the"
+                                + " version of the path it follows, so the path can change later"
+                                + " without rewriting history.",
+                        !promotionPaths.findAll().isEmpty(), false),
+                new SetupStep("applications", "Register an Application and a version of it",
+                        "What gets deployed. A version is immutable once registered, so Tower can"
+                                + " point at it forever.",
+                        !applicationVersions.findAll().isEmpty(), false),
+                new SetupStep("releasePacks", "Create a Release Pack and put versions in it",
+                        "What a team actually ships: the versions that travel together, and the"
+                                + " handover that goes with them.",
+                        releasePacks.findAll().stream().anyMatch(pack -> !pack.contents().isEmpty()),
+                        false),
+                // Optional, and stated as such rather than politely implied.
+                // ADR-006 admits a person saying what is deployed as a real
+                // Observation, so a Tower nobody has connected to anything is a
+                // supported way to run rather than a half-finished one.
+                new SetupStep("connectors", "Connect a system, so Tower reads deployments for you",
+                        "Optional. Without this you record what is deployed yourself, and Tower"
+                                + " treats what you say as a fact like any other. With it, Tower"
+                                + " reads Kubernetes, git, a CI system or an artifact repository"
+                                + " and never writes to any of them.",
+                        anyBindingExists(), true));
+
+        boolean complete = steps.stream().filter(step -> !step.optional()).allMatch(SetupStep::done);
+        return new SetupState(steps, complete);
+    }
+
+    /**
+     * Whether anything at all has been bound.
+     *
+     * <p>Any one binding counts. Asking for a particular kind would be Tower
+     * having an opinion about which Connector a team ought to use, and it has
+     * none.
+     */
+    private boolean anyBindingExists() {
+        return !bindings.findAllEnvironmentBindings().isEmpty()
+                || !bindings.findAllApplicationBindings().isEmpty()
+                || !bindings.findAllRepositoryBindings().isEmpty()
+                || !bindings.findAllIssueTrackerBindings().isEmpty()
+                || !bindings.findAllPipelineJobBindings().isEmpty()
+                || !bindings.findAllBuildJobBindings().isEmpty()
+                || !bindings.findAllArtifactCoordinateBindings().isEmpty();
     }
 
     /**
