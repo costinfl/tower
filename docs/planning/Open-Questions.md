@@ -356,9 +356,25 @@ Not to be answered by whichever shape gets implemented first. The risk here is e
 ADR-020 caught between a build and a deployment: a model that fits one team's arrangement and
 silently misrepresents another's.
 
+Answered by ADR-022, after the question was sharpened by one fact it had not been written with: the
+separate-repository shape addresses **several schemas from one run**. That is what settled it. A
+multi-schema run does not fail as a unit, so a model that cannot say the Orders schema reached 4.2
+while the Customers schema did not would be wrong in the situation a team most needs it right — which
+rules out both the "property of an Application Version" and the "second kind of Application Version"
+options in one stroke.
+
+A schema that is delivered separately is an Application: something built, versioned, published and
+applied to an Environment. Several schemas are several Applications, and the cost — the same version
+string registered once per schema — is recorded in the ADR rather than discovered later. Tower shall
+not read the migrated database: its history table is inside the database it migrates, and a database
+credential cannot be made structurally read-only the way ADR-001 makes a Connector.
+
+No new concept, and nothing built. Verified by expressing both shapes end to end (Scenario 9).
+
 Status
 
-Open
+Answered — a schema is delivered like anything else; a Schema concept waits for a trigger ADR-022
+names
 
 ---
 

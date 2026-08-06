@@ -416,6 +416,89 @@ grep -qF "_No artifact digests have been accepted for this release._" /tmp/doc_w
 
 echo
 echo "=============================================================="
+echo " SCENARIO 9 — A release that carries database changes (ADR-022)"
+echo "=============================================================="
+# The claim under test is that Tower needs no new concept for this, so every
+# request below is one that existed before ADR-022 was written. If any of it had
+# needed a new endpoint, the ADR would have been wrong.
+
+# One changelog repository, several schemas, each its own deliverable.
+ORDSCH=$(mk POST $B/api/applications '{"name":"Orders schema","description":"Liquibase changelogs, orders"}' 201 "register Orders schema as an Application")
+CUSSCH=$(mk POST $B/api/applications '{"name":"Customers schema","description":"Liquibase changelogs, customers"}' 201 "register Customers schema as an Application")
+
+put "$B/api/bindings/repositories" "{\"applicationId\":\"$ORDSCH\",\"connectorId\":\"git\",\"repositoryUrl\":\"https://git.acme.example/db/changelogs.git\",\"refSelection\":\"TAGS\",\"versionPattern\":\"^v(.+)$\"}" 200 "bind Orders schema to the changelog repository"
+put "$B/api/bindings/repositories" "{\"applicationId\":\"$CUSSCH\",\"connectorId\":\"git\",\"repositoryUrl\":\"https://git.acme.example/db/changelogs.git\",\"refSelection\":\"TAGS\",\"versionPattern\":\"^v(.+)$\"}" 200 "bind Customers schema to the same repository"
+
+# ADR-022 says several deliverables may come from one repository. Asserted,
+# because the whole multi-schema arrangement rests on it being allowed.
+SHAREDREPO=$(curl -s "$B/api/bindings/repositories" | python3 -c "
+import json,sys
+urls=[b['repositoryUrl'] for b in json.load(sys.stdin)]
+print(urls.count('https://git.acme.example/db/changelogs.git'))")
+check "two Applications bind to one repository" "$SHAREDREPO" "2"
+
+# The release intends 4.2 everywhere. What arrives is not what was intended.
+OS42=$(mk POST $B/api/application-versions "{\"applicationId\":\"$ORDSCH\",\"version\":\"4.2\",\"tag\":\"v4.2\"}" 201 "register Orders schema 4.2")
+CS41=$(mk POST $B/api/application-versions "{\"applicationId\":\"$CUSSCH\",\"version\":\"4.1\",\"tag\":\"v4.1\"}" 201 "register Customers schema 4.1")
+CS42=$(mk POST $B/api/application-versions "{\"applicationId\":\"$CUSSCH\",\"version\":\"4.2\",\"tag\":\"v4.2\"}" 201 "register Customers schema 4.2")
+
+post "$B/api/release-packs/$PACK/versions/$OS42" "" 200 "the pack carries Orders schema 4.2 beside the code"
+post "$B/api/release-packs/$PACK/versions/$CS42" "" 200 "the pack carries Customers schema 4.2 beside the code"
+
+# The failure a multi-schema run actually has: one changeset failed, so that
+# schema is still where the previous release left it.
+post "$B/api/observations" "{\"environmentId\":\"$UAT\",\"applicationVersionId\":\"$OS42\",\"observedAt\":\"2026-07-27T09:00:00Z\"}" 201 "observe Orders schema 4.2 in UAT"
+post "$B/api/observations" "{\"environmentId\":\"$UAT\",\"applicationVersionId\":\"$CS41\",\"observedAt\":\"2026-07-27T09:05:00Z\"}" 201 "observe Customers schema still at 4.1 in UAT"
+
+LEVELS=$(curl -s "$B/api/environments/$UAT/state" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+print(','.join(sorted('%s=%s' % (x['application']['name'], x['applicationVersion']['version'])
+                      for x in d['deployed'] if x['application']['name'].endswith('schema'))))")
+check "two schemas sit at different levels in one Environment" "$LEVELS" \
+  "Customers schema=4.1,Orders schema=4.2"
+
+# And the release says so without anybody computing it: the pack intended 4.2
+# for both schemas, so it is not fully here, and the schema that did not move is
+# named rather than merely counted.
+ARRIVAL=$(curl -s "$B/api/release-packs/$PACK/progression" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+a=[x for x in d['arrivals'] if x['environmentName']=='UAT']
+if not a:
+    print('no arrival')
+else:
+    missing=sorted('%s %s' % (m['applicationName'], m['version']) for m in a[0]['missing'])
+    print('%s|%s' % (a[0]['complete'], ','.join(missing)))")
+check "the release is not fully in UAT, and the schema left behind is named" "$ARRIVAL" \
+  "False|Customers schema 4.2,Orders API 1.4.0"
+
+# ADR-022's first ruling, asserted against the API surface rather than trusted:
+# nothing about a schema is stored on an Application Version, so a migration
+# that travels inside one is recorded exactly once.
+# The version is printed beside the field names on purpose: a `grep -c` that
+# counted nothing would pass just as happily against a 404 body, and the whole
+# assertion would be about a request that failed.
+SCHEMAFIELD=$(curl -s "$B/api/application-versions/$CV" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+print('%s|%s' % (d['version'], ','.join(k for k in d if 'schema' in k.lower())))")
+check "an Application Version carries no schema field of its own" "$SCHEMAFIELD" "2.5.0|"
+NOSCHEMARES=$(curl -s -o /dev/null -w '%{http_code}' "$B/api/schemas")
+check "Tower offers no schema resource — there is no new concept" "$NOSCHEMARES" "404"
+
+# What a person must do about a Flyway migration stays prose, and stays printed.
+curl -s "$B/api/release-packs/$PACK/documentation/markdown" > /tmp/doc_s.md
+grep -qF "V37__add_customer_index.sql" /tmp/doc_s.md \
+  && ok "the Handover's migration note is printed as written" \
+  || bad "the migration note is missing from the document"
+for needle in "Orders schema" "Customers schema"; do
+  grep -qF "$needle" /tmp/doc_s.md && ok "the document names: $needle" \
+    || bad "the document omits: $needle"
+done
+
+echo
+echo "=============================================================="
 echo " READ-ONLY — Tower observes and never acts (ADR-001)"
 echo "=============================================================="
 ACTION=$(curl -s "$B/api/release-packs" | grep -icE '"(promote|deploy|trigger|execute|rollback)"' || true)

@@ -228,6 +228,46 @@ The Canonical Model remains authoritative.
 
 ---
 
+# Scenario 9 - A Release That Carries Database Changes
+
+## Description
+
+Two teams deliver database changes in the two ways this setting actually uses (ADR-022).
+
+One keeps its migrations inside the application repository and runs them with Flyway, so the schema
+change travels inside the Application Version and is deployed by the same job.
+
+The other keeps its changelogs in a repository of their own and runs them with Liquibase, from a
+separate build, on a separate schedule. One run addresses several schemas, and each schema can reach
+a different level: a changeset that fails against one schema leaves the others where the run put
+them.
+
+## Expected Outcome
+
+Tower expresses both with the concepts it already has, and needs no new one.
+
+For the first team, nothing is recorded about the schema at all. The Application Version is the
+record, and a separately stored schema version would be a second account of the same fact, free to
+disagree with it.
+
+For the second, each schema is an Application, its changelog level is an Application Version, and
+those versions sit in the Release Pack beside the code they must agree with. Two schemas at
+different levels in one Environment is then an ordinary Environment state:
+
+- Orders schema 4.2 observed in UAT;
+- Customers schema 4.1 observed in UAT;
+- Customer API 2.5.0 observed in UAT;
+- all three named in the Release Pack, and all three in the generated document's contents.
+
+Tower does not judge whether those three levels are compatible. That is the same refusal as
+Scenario 6: it reports what was observed and leaves the integration question to the developers.
+
+Tower does not read the databases themselves. What it holds about a schema was either stated by a
+person or collected from the job that applied the change — never from the history table inside the
+database being migrated (ADR-022).
+
+---
+
 # Validation
 
 The scenarios defined in this document validate that the Domain Model supports Tower's primary business objectives.

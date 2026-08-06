@@ -56,6 +56,15 @@ Examples include:
 - Orders API
 - Authentication Service
 - Web Frontend
+- Orders schema — a database schema whose migrations ship from their own repository
+
+The last example is the one that surprises people, and ADR-022 decided it deliberately: the word is
+about **being deployable**, not about being a service. A changelog that is built, versioned,
+published and applied to an Environment is an Application in every sense Tower uses the word, and
+several schemas from one repository are several Applications.
+
+A migration that travels *inside* an application's own repository is not a separate Application and
+is not recorded separately at all — the Application Version already carries it.
 
 ---
 
