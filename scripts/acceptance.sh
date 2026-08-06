@@ -422,63 +422,47 @@ echo "=============================================================="
 # request below is one that existed before ADR-022 was written. If any of it had
 # needed a new endpoint, the ADR would have been wrong.
 
-# One changelog repository, several schemas, each its own deliverable.
-ORDSCH=$(mk POST $B/api/applications '{"name":"Orders schema","description":"Liquibase changelogs, orders"}' 201 "register Orders schema as an Application")
-CUSSCH=$(mk POST $B/api/applications '{"name":"Customers schema","description":"Liquibase changelogs, customers"}' 201 "register Customers schema as an Application")
+# One deliverable: a jar wrapping Liquibase, versioned with SemVer through Maven
+# and tagged in the repository the changelogs live in. Nothing is registered for
+# a schema — nothing called "Orders schema" is ever built (ADR-022).
+DBM=$(mk POST $B/api/applications '{"name":"Database migrations","description":"Liquibase wrapper jar, run per schema from a bash script"}' 201 "register the migration jar as an Application")
 
-put "$B/api/bindings/repositories" "{\"applicationId\":\"$ORDSCH\",\"connectorId\":\"git\",\"repositoryUrl\":\"https://git.acme.example/db/changelogs.git\",\"refSelection\":\"TAGS\",\"versionPattern\":\"^v(.+)$\"}" 200 "bind Orders schema to the changelog repository"
-put "$B/api/bindings/repositories" "{\"applicationId\":\"$CUSSCH\",\"connectorId\":\"git\",\"repositoryUrl\":\"https://git.acme.example/db/changelogs.git\",\"refSelection\":\"TAGS\",\"versionPattern\":\"^v(.+)$\"}" 200 "bind Customers schema to the same repository"
+# The same version pattern a web application uses, which is the point: Tower
+# needs no special case for this artifact. The repository is Bitbucket and
+# nothing here has to know (ADR-014 reads git, not a vendor API).
+put "$B/api/bindings/repositories" "{\"applicationId\":\"$DBM\",\"connectorId\":\"git\",\"repositoryUrl\":\"https://bitbucket.acme.example/scm/db/changelogs.git\",\"refSelection\":\"TAGS\",\"versionPattern\":\"^v(.+)$\"}" 200 "bind it with an ordinary SemVer tag pattern"
 
-# ADR-022 says several deliverables may come from one repository. Asserted,
-# because the whole multi-schema arrangement rests on it being allowed.
-SHAREDREPO=$(curl -s "$B/api/bindings/repositories" | python3 -c "
-import json,sys
-urls=[b['repositoryUrl'] for b in json.load(sys.stdin)]
-print(urls.count('https://git.acme.example/db/changelogs.git'))")
-check "two Applications bind to one repository" "$SHAREDREPO" "2"
+DBV=$(mk POST $B/api/application-versions "{\"applicationId\":\"$DBM\",\"version\":\"4.2.0\",\"tag\":\"v4.2.0\",\"commit\":\"def5678\"}" 201 "register migrations 4.2.0")
+post "$B/api/release-packs/$PACK/versions/$DBV" "" 200 "the pack carries it beside the code it must agree with"
+post "$B/api/observations" "{\"environmentId\":\"$UAT\",\"applicationVersionId\":\"$DBV\",\"observedAt\":\"2026-07-27T09:00:00Z\"}" 201 "observe migrations 4.2.0 in UAT"
 
-# The release intends 4.2 everywhere. What arrives is not what was intended.
-OS42=$(mk POST $B/api/application-versions "{\"applicationId\":\"$ORDSCH\",\"version\":\"4.2\",\"tag\":\"v4.2\"}" 201 "register Orders schema 4.2")
-CS41=$(mk POST $B/api/application-versions "{\"applicationId\":\"$CUSSCH\",\"version\":\"4.1\",\"tag\":\"v4.1\"}" 201 "register Customers schema 4.1")
-CS42=$(mk POST $B/api/application-versions "{\"applicationId\":\"$CUSSCH\",\"version\":\"4.2\",\"tag\":\"v4.2\"}" 201 "register Customers schema 4.2")
-
-post "$B/api/release-packs/$PACK/versions/$OS42" "" 200 "the pack carries Orders schema 4.2 beside the code"
-post "$B/api/release-packs/$PACK/versions/$CS42" "" 200 "the pack carries Customers schema 4.2 beside the code"
-
-# The failure a multi-schema run actually has: one changeset failed, so that
-# schema is still where the previous release left it.
-post "$B/api/observations" "{\"environmentId\":\"$UAT\",\"applicationVersionId\":\"$OS42\",\"observedAt\":\"2026-07-27T09:00:00Z\"}" 201 "observe Orders schema 4.2 in UAT"
-post "$B/api/observations" "{\"environmentId\":\"$UAT\",\"applicationVersionId\":\"$CS41\",\"observedAt\":\"2026-07-27T09:05:00Z\"}" 201 "observe Customers schema still at 4.1 in UAT"
-
-LEVELS=$(curl -s "$B/api/environments/$UAT/state" | python3 -c "
+# Two schemas are two runs of that one version with different parameters, so the
+# Environment holds one entry for it rather than one per schema.
+ONCE=$(curl -s "$B/api/environments/$UAT/state" | python3 -c "
 import json,sys
 d=json.load(sys.stdin)
 print(','.join(sorted('%s=%s' % (x['application']['name'], x['applicationVersion']['version'])
-                      for x in d['deployed'] if x['application']['name'].endswith('schema'))))")
-check "two schemas sit at different levels in one Environment" "$LEVELS" \
-  "Customers schema=4.1,Orders schema=4.2"
+                      for x in d['deployed'] if 'migrations' in x['application']['name'])))")
+check "one deliverable, recorded once, whatever it was run against" "$ONCE" \
+  "Database migrations=4.2.0"
 
-# And the release says so without anybody computing it: the pack intended 4.2
-# for both schemas, so it is not fully here, and the schema that did not move is
-# named rather than merely counted.
-ARRIVAL=$(curl -s "$B/api/release-packs/$PACK/progression" | python3 -c "
+# Which schema each run targets is Handover information, written by the developer
+# for the people who will execute it — User-Owned Information, versioned, printed.
+put "$B/api/release-packs/$PACK/handover" '{"deploymentInstructions":"Deploy customer-api before orders-api.","shellCommands":"kubectl rollout status deploy/customer-api","databaseMigrations":"Run migrations 4.2.0 twice: ./run.sh --schema ORDERS --version 4.2.0, then ./run.sh --schema CUSTOMERS --version 4.2.0. Stop if the first run reports a failed changeset.","rollbackProcedure":"Roll back orders-api first.","validationNotes":"Smoke test checkout.","operationalNotes":"Expect brief latency."}' 200 "record which script runs against which schema"
+
+# ADR-016: an instruction is never silently rewritten. The earlier Handover is
+# still there beside the new one.
+REVS=$(curl -s "$B/api/release-packs/$PACK/handover/history" | python3 -c "
 import json,sys
-d=json.load(sys.stdin)
-a=[x for x in d['arrivals'] if x['environmentName']=='UAT']
-if not a:
-    print('no arrival')
-else:
-    missing=sorted('%s %s' % (m['applicationName'], m['version']) for m in a[0]['missing'])
-    print('%s|%s' % (a[0]['complete'], ','.join(missing)))")
-check "the release is not fully in UAT, and the schema left behind is named" "$ARRIVAL" \
-  "False|Customers schema 4.2,Orders API 1.4.0"
+h=json.load(sys.stdin)
+current=[r for r in h if r['current']]
+print('%d|%s' % (len(h), 'ORDERS' in current[0]['databaseMigrations'] if current else 'none'))")
+check "the instruction appends a revision rather than overwriting one" "$REVS" "2|True"
 
-# ADR-022's first ruling, asserted against the API surface rather than trusted:
-# nothing about a schema is stored on an Application Version, so a migration
-# that travels inside one is recorded exactly once.
-# The version is printed beside the field names on purpose: a `grep -c` that
-# counted nothing would pass just as happily against a 404 body, and the whole
-# assertion would be about a request that failed.
+# Asserted against the API surface rather than trusted: nothing about a schema is
+# stored on an Application Version, so a Flyway migration inside one is recorded
+# exactly once. The version is printed beside the field names on purpose — a
+# `grep -c` that counted nothing would pass just as happily against a 404 body.
 SCHEMAFIELD=$(curl -s "$B/api/application-versions/$CV" | python3 -c "
 import json,sys
 d=json.load(sys.stdin)
@@ -487,14 +471,20 @@ check "an Application Version carries no schema field of its own" "$SCHEMAFIELD"
 NOSCHEMARES=$(curl -s -o /dev/null -w '%{http_code}' "$B/api/schemas")
 check "Tower offers no schema resource — there is no new concept" "$NOSCHEMARES" "404"
 
-# What a person must do about a Flyway migration stays prose, and stays printed.
+# One document carries both halves of what a release management team is handed:
+# what was shipped, and what to do with it.
 curl -s "$B/api/release-packs/$PACK/documentation/markdown" > /tmp/doc_s.md
-grep -qF "V37__add_customer_index.sql" /tmp/doc_s.md \
-  && ok "the Handover's migration note is printed as written" \
-  || bad "the migration note is missing from the document"
-for needle in "Orders schema" "Customers schema"; do
-  grep -qF "$needle" /tmp/doc_s.md && ok "the document names: $needle" \
-    || bad "the document omits: $needle"
+grep -qF "Database migrations" /tmp/doc_s.md \
+  && ok "the document names the migration jar among the contents" \
+  || bad "the migration jar is missing from the document"
+grep -qF "4.2.0" /tmp/doc_s.md \
+  && ok "the document names the version that shipped" \
+  || bad "the migration version is missing from the document"
+# `-e` because these needles begin with a dash and grep would read them as its
+# own options — which fails as a missing needle and reads as a document defect.
+for needle in "--schema ORDERS" "--schema CUSTOMERS" "Stop if the first run reports a failed changeset."; do
+  grep -qF -e "$needle" /tmp/doc_s.md && ok "printed as written: $needle" \
+    || bad "the document does not carry: $needle"
 done
 
 echo

@@ -237,10 +237,13 @@ Two teams deliver database changes in the two ways this setting actually uses (A
 One keeps its migrations inside the application repository and runs them with Flyway, so the schema
 change travels inside the Application Version and is deployed by the same job.
 
-The other keeps its changelogs in a repository of their own and runs them with Liquibase, from a
-separate build, on a separate schedule. One run addresses several schemas, and each schema can reach
-a different level: a changeset that fails against one schema leaves the others where the run put
-them.
+The other keeps its scripts, changelogs and changesets together in one repository, organised by a
+convention of its own. What is delivered from it is a jar wrapping the Liquibase libraries, invoked
+from a bash script and versioned with SemVer through Maven, exactly as a web application is.
+
+A release that changes two Oracle schemas is two runs of that one jar with different parameters. The
+developer writes, in that Release Pack's Handover, which script runs against which schema, for the
+release management team who will execute it.
 
 ## Expected Outcome
 
@@ -250,21 +253,29 @@ For the first team, nothing is recorded about the schema at all. The Application
 record, and a separately stored schema version would be a second account of the same fact, free to
 disagree with it.
 
-For the second, each schema is an Application, its changelog level is an Application Version, and
-those versions sit in the Release Pack beside the code they must agree with. Two schemas at
-different levels in one Environment is then an ordinary Environment state:
+For the second, the jar is an Application and its version is an Application Version, sitting in the
+Release Pack beside the code it must agree with. Nothing is registered for a schema: nothing called
+"Orders schema" was ever built, and Tower does not invent deliverables for the things software is
+pointed at.
 
-- Orders schema 4.2 observed in UAT;
-- Customers schema 4.1 observed in UAT;
-- Customer API 2.5.0 observed in UAT;
-- all three named in the Release Pack, and all three in the generated document's contents.
+Which schema each run targets is Handover information. Tower stores it, versions it so an
+instruction is never silently rewritten, and prints it in the release document beside the versions
+it belongs to. One document then carries both halves of what a release management team is handed:
 
-Tower does not judge whether those three levels are compatible. That is the same refusal as
-Scenario 6: it reports what was observed and leaves the integration question to the developers.
+- the migration jar's version, in the Release Pack contents;
+- the per-schema instructions, in the Handover, printed as the developer wrote them.
 
-Tower does not read the databases themselves. What it holds about a schema was either stated by a
-person or collected from the job that applied the change — never from the history table inside the
-database being migrated (ADR-022).
+Tower does not judge whether the versions in an Environment are compatible with each other. That is
+the same refusal as Scenario 6.
+
+Tower does not read the databases themselves. What it holds was either stated by a person or
+collected from the job that applied the change — never from the history table inside the database
+being migrated.
+
+The limit is deliberate and known: Tower reports that the jar reached an Environment, not that the
+run against one schema succeeded while the run against another failed. Both runs applied the same
+Application Version. That difference lives in what the release management team reports back, and
+ADR-022 records what would have to be true for Tower to hold it instead.
 
 ---
 

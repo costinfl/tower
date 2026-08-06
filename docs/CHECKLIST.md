@@ -181,16 +181,20 @@ This checklist tracks the architectural documentation required before implementa
 
 ## Database changes in a release
 
-- [x] ADR-022-A-Schema-Is-An-Application-Not-A-New-Kind-Of-Thing.md
+- [x] ADR-022-A-Migration-Bundle-Is-An-Application-A-Schema-Is-A-Parameter.md
 - [x] OQ-018 answered, before anything was implemented, which is what the question asked for
-- [x] Scenario 9 — both shapes: Flyway inside the application repository, and a Liquibase changelog
-      repository addressing several schemas
-- [x] Verified end to end with endpoints that all existed beforehand (14 checks in
-      `scripts/acceptance.sh`, now 100). Two schemas at different levels in one Environment, the
-      schema left behind named rather than counted, two Applications bound to one repository, and
-      the API surface asserted to carry no schema concept at all.
+- [x] Scenario 9 — both shapes: Flyway inside the application repository, and a Liquibase wrapper
+      jar delivered from its own repository and run once per Oracle schema with parameters
+- [x] Verified end to end with endpoints that all existed beforehand (12 checks in
+      `scripts/acceptance.sh`). One deliverable recorded once whatever it was run against, the
+      per-schema instructions carried as versioned Handover and printed as written, and the API
+      surface asserted to carry no schema concept at all.
 - [x] No type, no endpoint, no screen, no migration. The point of the ADR is that the model already
       says this.
+- [x] Revised once before anything was built: the first version ruled that several schemas are
+      several Applications, which invents deliverables nobody builds. The arrangement was then
+      described precisely — one Maven-versioned jar, two runs, parameters — and the ruling inverted.
+      Recorded in the ADR rather than quietly overwritten.
 
 ## Defects found and fixed
 

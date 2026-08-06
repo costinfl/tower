@@ -56,15 +56,18 @@ Examples include:
 - Orders API
 - Authentication Service
 - Web Frontend
-- Orders schema — a database schema whose migrations ship from their own repository
+- Database migrations — a jar wrapping Liquibase, versioned with SemVer and run from a bash script
 
 The last example is the one that surprises people, and ADR-022 decided it deliberately: the word is
-about **being deployable**, not about being a service. A changelog that is built, versioned,
-published and applied to an Environment is an Application in every sense Tower uses the word, and
-several schemas from one repository are several Applications.
+about **being deployable**, not about being a service. Something built by Maven, versioned, tagged,
+published and delivered into an Environment is an Application in every sense Tower uses the word.
 
-A migration that travels *inside* an application's own repository is not a separate Application and
-is not recorded separately at all — the Application Version already carries it.
+A **schema is not an Application**. Nothing called "Orders schema" is ever built; it is what a
+migration run is pointed at, and running the same version against two schemas is two runs of one
+deliverable with different parameters. Which schema each run targets is Handover information.
+
+A migration that travels *inside* an application's own repository is not a separate Application
+either, and is not recorded separately at all — the Application Version already carries it.
 
 ---
 

@@ -356,25 +356,33 @@ Not to be answered by whichever shape gets implemented first. The risk here is e
 ADR-020 caught between a build and a deployment: a model that fits one team's arrangement and
 silently misrepresents another's.
 
-Answered by ADR-022, after the question was sharpened by one fact it had not been written with: the
-separate-repository shape addresses **several schemas from one run**. That is what settled it. A
-multi-schema run does not fail as a unit, so a model that cannot say the Orders schema reached 4.2
-while the Customers schema did not would be wrong in the situation a team most needs it right — which
-rules out both the "property of an Application Version" and the "second kind of Application Version"
-options in one stroke.
+Answered by ADR-022, once the second shape was described precisely rather than in outline.
 
-A schema that is delivered separately is an Application: something built, versioned, published and
-applied to an Environment. Several schemas are several Applications, and the cost — the same version
-string registered once per schema — is recorded in the ADR rather than discovered later. Tower shall
-not read the migrated database: its history table is inside the database it migrates, and a database
-credential cannot be made structurally read-only the way ADR-001 makes a Connector.
+What it actually is: the scripts, changelogs and changesets live together in one Bitbucket
+repository, and what is delivered from it is a **jar wrapping the Liquibase libraries**, invoked from
+a bash script and versioned with SemVer 2.0 through Maven — for the ordinary reason that a jar has
+dependencies, not for any reason to do with databases. A release that changes two Oracle schemas is
+**two runs of that one jar with different parameters**, and which script runs against which schema is
+written by the developer, per Release Pack, in the Handover, for the release management team.
+
+So the jar is an Application and an unremarkable one, and **a schema is a parameter of a run rather
+than a deliverable**. Nothing called "Orders schema" is ever built, and Tower does not invent
+deliverables for the things software is pointed at. The per-schema instructions are Handover
+information — already stored, already versioned (ADR-016), already printed in the release document.
+
+Tower shall not read the migrated database: the history table is inside the database it migrates,
+and a database credential cannot be made structurally read-only the way ADR-001 makes a Connector.
+
+The accepted limit is recorded in the ADR: Tower reports that the jar reached an Environment, not
+that one schema's run succeeded while another's failed. If that distinction ever has to be a fact
+inside Tower, a schema has become a place — and that is the trigger for a Schema concept.
 
 No new concept, and nothing built. Verified by expressing both shapes end to end (Scenario 9).
 
 Status
 
-Answered — a schema is delivered like anything else; a Schema concept waits for a trigger ADR-022
-names
+Answered — the bundle is an Application, the schema is a parameter; a Schema concept waits for the
+trigger ADR-022 names
 
 ---
 
